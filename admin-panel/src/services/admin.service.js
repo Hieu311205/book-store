@@ -28,6 +28,12 @@ export const adminService = {
   updateCategory: (id, data) => api.put(`/admin/categories/${id}`, data),
   deleteCategory: (id) => api.delete(`/admin/categories/${id}`),
 
+  // Authors
+  getAuthors: () => api.get('/authors'),
+
+  // Publishers
+  getPublishers: () => api.get('/publishers'),
+
   // Orders
   getOrders: (params) => api.get('/admin/orders', { params }),
   getOrderById: (id) => api.get(`/admin/orders/${id}`),

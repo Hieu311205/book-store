@@ -9,6 +9,8 @@ const formatPrice = (price) => new Intl.NumberFormat('vi-VN').format(price || 0)
 const emptyForm = {
   title: '',
   category_id: '',
+  author_id: '',
+  publisher_id: '',
   price: '',
   compare_price: '',
   stock: 0,
@@ -31,6 +33,8 @@ const numberOrNull = (value) => (value === '' || value === null || value === und
 const buildPayload = (form) => ({
   ...form,
   category_id: numberOrNull(form.category_id),
+  author_id: numberOrNull(form.author_id),
+  publisher_id: numberOrNull(form.publisher_id),
   price: Number(form.price || 0),
   compare_price: numberOrNull(form.compare_price),
   stock: Number(form.stock || 0),
@@ -58,6 +62,18 @@ const Products = () => {
   const { data: categories = [] } = useQuery({
     queryKey: ['admin-categories'],
     queryFn: adminService.getCategories,
+    select: (res) => res.data,
+  })
+
+  const { data: authors = [] } = useQuery({
+    queryKey: ['admin-authors'],
+    queryFn: adminService.getAuthors,
+    select: (res) => res.data,
+  })
+
+  const { data: publishers = [] } = useQuery({
+    queryKey: ['admin-publishers'],
+    queryFn: adminService.getPublishers,
     select: (res) => res.data,
   })
 
@@ -108,6 +124,8 @@ const Products = () => {
       ...emptyForm,
       title: product.title || '',
       category_id: product.category_id || '',
+      author_id: product.author_id || '',
+      publisher_id: product.publisher_id || '',
       price: product.price || '',
       compare_price: product.compare_price || '',
       stock: product.stock || 0,
@@ -302,6 +320,26 @@ const Products = () => {
                   <option value="">Chua chon</option>
                   {categories.map((category) => (
                     <option key={category.id} value={category.id}>{category.name}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-sm font-medium">Tac gia</span>
+                <select className="input" value={form.author_id} onChange={(e) => setForm({ ...form, author_id: e.target.value })}>
+                  <option value="">Chua chon</option>
+                  {authors.map((author) => (
+                    <option key={author.id} value={author.id}>{author.name}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-sm font-medium">Nha xuat ban</span>
+                <select className="input" value={form.publisher_id} onChange={(e) => setForm({ ...form, publisher_id: e.target.value })}>
+                  <option value="">Chua chon</option>
+                  {publishers.map((publisher) => (
+                    <option key={publisher.id} value={publisher.id}>{publisher.name}</option>
                   ))}
                 </select>
               </label>
