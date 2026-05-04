@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
+import { Navigate, Routes, Route } from 'react-router-dom'
 import Layout from './components/layout/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -42,6 +42,7 @@ const App = () => {
         <Route path="settings" element={<SuperAdminRoute><Settings /></SuperAdminRoute>} />
         <Route path="contact-messages" element={<SuperAdminRoute><ContactMessages /></SuperAdminRoute>} />
       </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }
