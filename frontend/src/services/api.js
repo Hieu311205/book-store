@@ -38,7 +38,11 @@ api.interceptors.response.use(
       localStorage.removeItem('user')
       window.location.href = '/login'
     }
-    return Promise.reject(error.response?.data || error)
+    return Promise.reject({
+      ...(error.response?.data || {}),
+      status: error.response?.status,
+      originalError: error,
+    })
   }
 )
 

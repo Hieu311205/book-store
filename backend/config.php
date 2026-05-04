@@ -38,7 +38,7 @@ $config = [
 
     'rateLimit' => [
         'windowMs' => (int)(getenv('RATE_LIMIT_WINDOW_MS') ?: 900000),
-        'max' => (int)(getenv('RATE_LIMIT_MAX_REQUESTS') ?: 100),
+        'max' => (int)(getenv('RATE_LIMIT_MAX_REQUESTS') ?: ($env === 'production' ? 100 : 1000)),
     ],
 
     'upload' => [
