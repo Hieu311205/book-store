@@ -15,14 +15,14 @@ import { useAuth } from '../../context/AuthContext'
 import { adminService } from '../../services/admin.service'
 
 const menuItems = [
-  { to: '/', icon: FiHome, label: 'Tong quan', end: true },
-  { to: '/products', icon: FiPackage, label: 'Sach' },
-  { to: '/categories', icon: FiFolder, label: 'Danh muc' },
-  { to: '/orders', icon: FiShoppingCart, label: 'Don hang' },
-  { to: '/users', icon: FiUsers, label: 'Nguoi dung', superOnly: true },
-  { to: '/coupons', icon: FiTag, label: 'Ma giam gia', superOnly: true },
+  { to: '/', icon: FiHome, label: 'Tổng quan', end: true },
+  { to: '/products', icon: FiPackage, label: 'Sách' },
+  { to: '/categories', icon: FiFolder, label: 'Danh mục' },
+  { to: '/orders', icon: FiShoppingCart, label: 'Đơn hàng' },
+  { to: '/users', icon: FiUsers, label: 'Người dùng', superOnly: true },
+  { to: '/coupons', icon: FiTag, label: 'Mã giảm giá', superOnly: true },
   { to: '/sliders', icon: FiImage, label: 'Banner', superOnly: true },
-  { to: '/settings', icon: FiSettings, label: 'Cai dat', superOnly: true },
+  { to: '/settings', icon: FiSettings, label: 'Cài đặt', superOnly: true },
 ]
 
 const Sidebar = () => {
@@ -37,7 +37,7 @@ const Sidebar = () => {
   return (
     <aside className="fixed right-0 top-0 h-screen w-64 bg-gray-900 text-white flex flex-col z-40">
       <div className="p-6 border-b border-gray-800">
-        <h1 className="text-xl font-bold">Quan tri</h1>
+        <h1 className="text-xl font-bold">Quản trị</h1>
         {settings.site_name && <p className="text-gray-400 text-sm mt-1">{settings.site_name}</p>}
       </div>
 
@@ -70,7 +70,7 @@ const Sidebar = () => {
           className="flex items-center gap-3 px-4 py-3 rounded-lg w-full text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
         >
           <FiLogOut size={18} />
-          <span>Dang xuat</span>
+          <span>Đăng xuất</span>
         </button>
       </div>
     </aside>

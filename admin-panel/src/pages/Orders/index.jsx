@@ -55,7 +55,6 @@ const Orders = () => {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Quản lý đơn hàng</h1>
 
-      {/* Filters */}
       <div className="card p-4">
         <div className="flex gap-4">
           <select
@@ -72,7 +71,6 @@ const Orders = () => {
         </div>
       </div>
 
-      {/* Table */}
       <div className="card">
         <div className="table-wrapper">
           <table className="table">
@@ -155,7 +153,6 @@ const Orders = () => {
         </div>
       </div>
 
-      {/* Order Detail Modal */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-2xl max-h-[80vh] overflow-y-auto m-4">

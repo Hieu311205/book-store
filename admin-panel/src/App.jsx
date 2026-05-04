@@ -18,8 +18,8 @@ const SuperAdminRoute = ({ children }) => {
   if (!isSuperAdmin) {
     return (
       <div className="card p-6">
-        <h1 className="text-xl font-bold">Khong co quyen truy cap</h1>
-        <p className="text-gray-500 mt-2">Chi super admin moi duoc su dung chuc nang nay.</p>
+        <h1 className="text-xl font-bold">Không có quyền truy cập</h1>
+        <p className="text-gray-500 mt-2">Chỉ super admin mới được sử dụng chức năng này.</p>
       </div>
     )
   }

@@ -8,7 +8,7 @@ import { useAuth } from '../../context/AuthContext'
 const roleLabels = {
   super_admin: 'Super admin',
   admin: 'Admin',
-  customer: 'Khach hang',
+  customer: 'Khách hàng',
 }
 
 const Users = () => {
@@ -27,18 +27,18 @@ const Users = () => {
     mutationFn: adminService.blockUser,
     onSuccess: () => {
       queryClient.invalidateQueries(['admin-users'])
-      toast.success('Da cap nhat trang thai nguoi dung')
+      toast.success('Đã cập nhật trạng thái người dùng')
     },
-    onError: (error) => toast.error(error.message || 'Co loi xay ra'),
+    onError: (error) => toast.error(error.message || 'Có lỗi xảy ra'),
   })
 
   const roleMutation = useMutation({
     mutationFn: ({ id, role }) => adminService.updateUserRole(id, role),
     onSuccess: () => {
       queryClient.invalidateQueries(['admin-users'])
-      toast.success('Da cap nhat vai tro')
+      toast.success('Đã cập nhật vai trò')
     },
-    onError: (error) => toast.error(error.message || 'Co loi xay ra'),
+    onError: (error) => toast.error(error.message || 'Có lỗi xảy ra'),
   })
 
   const canBlock = (target) =>
@@ -46,7 +46,7 @@ const Users = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Quan ly nguoi dung</h1>
+      <h1 className="text-2xl font-bold">Quản lý người dùng</h1>
 
       <div className="card p-4">
         <div className="relative max-w-md">
@@ -58,7 +58,7 @@ const Users = () => {
               setSearch(e.target.value)
               setPage(1)
             }}
-            placeholder="Tim nguoi dung..."
+            placeholder="Tìm người dùng..."
             className="input pr-10"
           />
         </div>
@@ -69,13 +69,13 @@ const Users = () => {
           <table className="table">
             <thead>
               <tr>
-                <th>Nguoi dung</th>
+                <th>Người dùng</th>
                 <th>Email</th>
-                <th>So dien thoai</th>
-                <th>Vai tro</th>
-                <th>Trang thai</th>
-                <th>Ngay tham gia</th>
-                <th>Thao tac</th>
+                <th>Số điện thoại</th>
+                <th>Vai trò</th>
+                <th>Trạng thái</th>
+                <th>Ngày tham gia</th>
+                <th>Thao tác</th>
               </tr>
             </thead>
             <tbody>
@@ -88,7 +88,7 @@ const Users = () => {
               ) : data?.users?.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="text-center py-8 text-gray-500">
-                    Khong co nguoi dung
+                    Không có người dùng
                   </td>
                 </tr>
               ) : (
@@ -111,7 +111,7 @@ const Users = () => {
                         onChange={(event) => roleMutation.mutate({ id: user.id, role: event.target.value })}
                         className="text-sm border rounded px-2 py-1 bg-transparent disabled:opacity-60"
                       >
-                        <option value="customer">Khach hang</option>
+                        <option value="customer">Khách hàng</option>
                         <option value="admin">Admin</option>
                         <option value="super_admin">Super admin</option>
                       </select>
@@ -119,7 +119,7 @@ const Users = () => {
                     </td>
                     <td>
                       <span className={`badge ${user.is_active ? 'badge-success' : 'badge-danger'}`}>
-                        {user.is_active ? 'Hoat dong' : 'Da khoa'}
+                        {user.is_active ? 'Hoạt động' : 'Đã khóa'}
                       </span>
                     </td>
                     <td className="text-gray-500 text-sm">
@@ -132,7 +132,7 @@ const Users = () => {
                         className={`p-2 rounded disabled:opacity-40 disabled:cursor-not-allowed ${
                           user.is_active ? 'hover:bg-red-50 text-red-500' : 'hover:bg-green-50 text-green-500'
                         }`}
-                        title={user.is_active ? 'Khoa' : 'Kich hoat'}
+                        title={user.is_active ? 'Khóa' : 'Kích hoạt'}
                       >
                         {user.is_active ? <FiLock size={16} /> : <FiUnlock size={16} />}
                       </button>

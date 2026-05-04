@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery } from 'react'
 import { FiDollarSign, FiShoppingCart, FiUsers, FiPackage, FiAlertCircle } from 'react-icons/fi'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { adminService } from '../../services/admin.service'
@@ -23,7 +23,7 @@ const StatCard = ({ icon: Icon, label, value, color, suffix }) => (
 )
 
 const Dashboard = () => {
-  const { data: stats, isLoading: loadingStats } = useQuery({
+  const { data: stats } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: adminService.getDashboardStats,
     select: (res) => res.data,
@@ -54,7 +54,6 @@ const Dashboard = () => {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Tổng quan</h1>
 
-      {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           icon={FiDollarSign}
@@ -83,7 +82,6 @@ const Dashboard = () => {
         />
       </div>
 
-      {/* Alerts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="card p-6">
           <div className="flex items-center gap-3 text-orange-600 mb-4">
@@ -103,7 +101,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Sales Chart */}
       <div className="card p-6">
         <h3 className="font-bold mb-6">Biểu đồ doanh thu tuần</h3>
         <div className="h-80">
@@ -127,7 +124,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Recent Orders */}
       <div className="card">
         <div className="p-6 border-b dark:border-gray-700">
           <h3 className="font-bold">Đơn hàng gần đây</h3>

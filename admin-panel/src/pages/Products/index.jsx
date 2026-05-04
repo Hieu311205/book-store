@@ -88,9 +88,9 @@ const Products = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] })
       closeForm()
-      toast.success('Da them sach')
+      toast.success('Đã thêm sách')
     },
-    onError: (error) => toast.error(error.message || 'Them sach that bai'),
+    onError: (error) => toast.error(error.message || 'Thêm sách thất bại'),
   })
 
   const updateMutation = useMutation({
@@ -98,18 +98,18 @@ const Products = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] })
       closeForm()
-      toast.success('Da cap nhat sach')
+      toast.success('Đã cập nhật sách')
     },
-    onError: (error) => toast.error(error.message || 'Cap nhat sach that bai'),
+    onError: (error) => toast.error(error.message || 'Cập nhật sách thất bại'),
   })
 
   const deleteMutation = useMutation({
     mutationFn: adminService.deleteProduct,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] })
-      toast.success('Da xoa sach')
+      toast.success('Đã xóa sách')
     },
-    onError: (error) => toast.error(error.message || 'Xoa that bai'),
+    onError: (error) => toast.error(error.message || 'Xóa thất bại'),
   })
 
   const openCreateForm = () => {
@@ -146,7 +146,7 @@ const Products = () => {
   }
 
   const handleDelete = (id, title) => {
-    if (window.confirm(`Ban co chac muon xoa "${title}"?`)) {
+    if (window.confirm(`Bạn có chắc muốn xóa "${title}"?`)) {
       deleteMutation.mutate(id)
     }
   }
@@ -167,10 +167,10 @@ const Products = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Quan ly sach</h1>
+        <h1 className="text-2xl font-bold">Quản lý sách</h1>
         <button onClick={openCreateForm} className="btn btn-primary">
           <FiPlus />
-          Them sach
+          Thêm sách
         </button>
       </div>
 
@@ -185,7 +185,7 @@ const Products = () => {
                 setSearch(e.target.value)
                 setPage(1)
               }}
-              placeholder="Tim sach..."
+              placeholder="Tìm sách..."
               className="input pr-10"
             />
           </div>
@@ -197,13 +197,13 @@ const Products = () => {
           <table className="table">
             <thead>
               <tr>
-                <th>Anh</th>
-                <th>Ten sach</th>
-                <th>Danh muc</th>
-                <th>Gia</th>
-                <th>Ton kho</th>
-                <th>Trang thai</th>
-                <th>Thao tac</th>
+                <th>Ảnh</th>
+                <th>Tên sách</th>
+                <th>Danh mục</th>
+                <th>Giá</th>
+                <th>Tồn kho</th>
+                <th>Trạng thái</th>
+                <th>Thao tác</th>
               </tr>
             </thead>
             <tbody>
@@ -216,7 +216,7 @@ const Products = () => {
               ) : data?.products?.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="text-center py-8 text-gray-500">
-                    Khong co sach
+                    Không có sách
                   </td>
                 </tr>
               ) : (
@@ -237,7 +237,7 @@ const Products = () => {
                     </td>
                     <td>{product.category_name || '-'}</td>
                     <td>
-                      <p>{formatPrice(product.price)} d</p>
+                      <p>{formatPrice(product.price)} đ</p>
                       {Number(product.compare_price) > Number(product.price) && (
                         <p className="text-xs text-gray-400 line-through">
                           {formatPrice(product.compare_price)}
@@ -251,7 +251,7 @@ const Products = () => {
                     </td>
                     <td>
                       <span className={`badge ${product.is_active ? 'badge-success' : 'badge-danger'}`}>
-                        {product.is_active ? 'Dang ban' : 'An'}
+                        {product.is_active ? 'Đang bán' : 'Ẩn'}
                       </span>
                     </td>
                     <td>
@@ -259,14 +259,14 @@ const Products = () => {
                         <button
                           onClick={() => openEditForm(product)}
                           className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                          title="Sua sach"
+                          title="Sửa sách"
                         >
                           <FiEdit2 size={16} />
                         </button>
                         <button
                           onClick={() => handleDelete(product.id, product.title)}
                           className="p-2 hover:bg-red-50 dark:hover:bg-red-900/30 text-red-500 rounded"
-                          title="Xoa sach"
+                          title="Xóa sách"
                         >
                           <FiTrash2 size={16} />
                         </button>
@@ -302,7 +302,7 @@ const Products = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <form onSubmit={handleSubmit} className="card w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white dark:bg-gray-800 flex items-center justify-between border-b dark:border-gray-700 p-4">
-              <h2 className="text-lg font-semibold">{editingProduct ? 'Sua sach' : 'Them sach'}</h2>
+              <h2 className="text-lg font-semibold">{editingProduct ? 'Sửa sách' : 'Thêm sách'}</h2>
               <button type="button" onClick={closeForm} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
                 <FiX />
               </button>
@@ -310,14 +310,14 @@ const Products = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
               <label className="space-y-1">
-                <span className="text-sm font-medium">Ten sach *</span>
+                <span className="text-sm font-medium">Tên sách *</span>
                 <input className="input" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
               </label>
 
               <label className="space-y-1">
-                <span className="text-sm font-medium">Danh muc</span>
+                <span className="text-sm font-medium">Danh mục</span>
                 <select className="input" value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })}>
-                  <option value="">Chua chon</option>
+                  <option value="">Chưa chọn</option>
                   {categories.map((category) => (
                     <option key={category.id} value={category.id}>{category.name}</option>
                   ))}
@@ -325,9 +325,9 @@ const Products = () => {
               </label>
 
               <label className="space-y-1">
-                <span className="text-sm font-medium">Tac gia</span>
+                <span className="text-sm font-medium">Tác giả</span>
                 <select className="input" value={form.author_id} onChange={(e) => setForm({ ...form, author_id: e.target.value })}>
-                  <option value="">Chua chon</option>
+                  <option value="">Chưa chọn</option>
                   {authors.map((author) => (
                     <option key={author.id} value={author.id}>{author.name}</option>
                   ))}
@@ -335,9 +335,9 @@ const Products = () => {
               </label>
 
               <label className="space-y-1">
-                <span className="text-sm font-medium">Nha xuat ban</span>
+                <span className="text-sm font-medium">Nhà xuất bản</span>
                 <select className="input" value={form.publisher_id} onChange={(e) => setForm({ ...form, publisher_id: e.target.value })}>
-                  <option value="">Chua chon</option>
+                  <option value="">Chưa chọn</option>
                   {publishers.map((publisher) => (
                     <option key={publisher.id} value={publisher.id}>{publisher.name}</option>
                   ))}
@@ -345,17 +345,17 @@ const Products = () => {
               </label>
 
               <label className="space-y-1">
-                <span className="text-sm font-medium">Gia *</span>
+                <span className="text-sm font-medium">Giá *</span>
                 <input className="input" type="number" min="0" required value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
               </label>
 
               <label className="space-y-1">
-                <span className="text-sm font-medium">Gia so sanh</span>
+                <span className="text-sm font-medium">Giá so sánh</span>
                 <input className="input" type="number" min="0" value={form.compare_price} onChange={(e) => setForm({ ...form, compare_price: e.target.value })} />
               </label>
 
               <label className="space-y-1">
-                <span className="text-sm font-medium">Ton kho</span>
+                <span className="text-sm font-medium">Tồn kho</span>
                 <input className="input" type="number" min="0" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} />
               </label>
 
@@ -370,27 +370,27 @@ const Products = () => {
               </label>
 
               <label className="space-y-1">
-                <span className="text-sm font-medium">Link anh bia</span>
+                <span className="text-sm font-medium">Link ảnh bìa</span>
                 <input className="input" value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} />
               </label>
 
               <label className="space-y-1">
-                <span className="text-sm font-medium">So trang</span>
+                <span className="text-sm font-medium">Số trang</span>
                 <input className="input" type="number" min="0" value={form.pages} onChange={(e) => setForm({ ...form, pages: e.target.value })} />
               </label>
 
               <label className="space-y-1">
-                <span className="text-sm font-medium">Nam xuat ban</span>
+                <span className="text-sm font-medium">Năm xuất bản</span>
                 <input className="input" type="number" min="0" value={form.publish_year} onChange={(e) => setForm({ ...form, publish_year: e.target.value })} />
               </label>
 
               <label className="space-y-1">
-                <span className="text-sm font-medium">Ngon ngu</span>
+                <span className="text-sm font-medium">Ngôn ngữ</span>
                 <input className="input" value={form.language} onChange={(e) => setForm({ ...form, language: e.target.value })} />
               </label>
 
               <label className="space-y-1">
-                <span className="text-sm font-medium">Dinh dang</span>
+                <span className="text-sm font-medium">Định dạng</span>
                 <select className="input" value={form.format} onChange={(e) => setForm({ ...form, format: e.target.value })}>
                   <option value="paperback">Paperback</option>
                   <option value="hardcover">Hardcover</option>
@@ -399,35 +399,35 @@ const Products = () => {
               </label>
 
               <label className="space-y-1 md:col-span-2">
-                <span className="text-sm font-medium">Mo ta ngan</span>
+                <span className="text-sm font-medium">Mô tả ngắn</span>
                 <input className="input" value={form.short_description} onChange={(e) => setForm({ ...form, short_description: e.target.value })} />
               </label>
 
               <label className="space-y-1 md:col-span-2">
-                <span className="text-sm font-medium">Mo ta</span>
+                <span className="text-sm font-medium">Mô tả</span>
                 <textarea className="input min-h-28" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
               </label>
 
               <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <label className="flex items-center gap-2">
                   <input type="checkbox" checked={Boolean(form.is_active)} onChange={(e) => setForm({ ...form, is_active: e.target.checked ? 1 : 0 })} />
-                  <span>Dang ban</span>
+                  <span>Đang bán</span>
                 </label>
                 <label className="flex items-center gap-2">
                   <input type="checkbox" checked={Boolean(form.is_featured)} onChange={(e) => setForm({ ...form, is_featured: e.target.checked ? 1 : 0 })} />
-                  <span>Noi bat</span>
+                  <span>Nổi bật</span>
                 </label>
                 <label className="flex items-center gap-2">
                   <input type="checkbox" checked={Boolean(form.is_bestseller)} onChange={(e) => setForm({ ...form, is_bestseller: e.target.checked ? 1 : 0 })} />
-                  <span>Ban chay</span>
+                  <span>Bán chạy</span>
                 </label>
               </div>
             </div>
 
             <div className="sticky bottom-0 bg-white dark:bg-gray-800 flex justify-end gap-3 border-t dark:border-gray-700 p-4">
-              <button type="button" onClick={closeForm} className="btn btn-secondary">Huy</button>
+              <button type="button" onClick={closeForm} className="btn btn-secondary">Hủy</button>
               <button disabled={isSaving} className="btn btn-primary">
-                {isSaving ? 'Dang luu...' : editingProduct ? 'Cap nhat' : 'Them sach'}
+                {isSaving ? 'Đang lưu...' : editingProduct ? 'Cập nhật' : 'Thêm sách'}
               </button>
             </div>
           </form>

@@ -16,7 +16,7 @@ const ContactMessages = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(['contact-messages'])
       queryClient.invalidateQueries(['admin-notifications'])
-      toast.success('Da danh dau da doc')
+      toast.success('Đã đánh dấu đã đọc')
     },
   })
 
@@ -25,29 +25,29 @@ const ContactMessages = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(['contact-messages'])
       queryClient.invalidateQueries(['admin-notifications'])
-      toast.success('Da xoa tin nhan')
+      toast.success('Đã xóa tin nhắn')
     },
   })
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Tin nhan lien he</h1>
+      <h1 className="text-2xl font-bold">Tin nhắn liên hệ</h1>
       <div className="card">
         <div className="table-wrapper">
           <table className="table">
             <thead>
               <tr>
-                <th>Nguoi gui</th>
-                <th>Chu de</th>
-                <th>Noi dung</th>
-                <th>Ngay gui</th>
-                <th>Trang thai</th>
+                <th>Người gửi</th>
+                <th>Chủ đề</th>
+                <th>Nội dung</th>
+                <th>Ngày gửi</th>
+                <th>Trạng thái</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={6} className="text-center py-8">Dang tai...</td></tr>
+                <tr><td colSpan={6} className="text-center py-8">Đang tải...</td></tr>
               ) : messages.length ? messages.map((item) => (
                 <tr key={item.id}>
                   <td>
@@ -60,7 +60,7 @@ const ContactMessages = () => {
                   <td>{new Date(item.created_at).toLocaleString('vi-VN')}</td>
                   <td>
                     <span className={`badge ${Number(item.is_read) ? 'badge-success' : 'badge-warning'}`}>
-                      {Number(item.is_read) ? 'Da doc' : 'Chua doc'}
+                      {Number(item.is_read) ? 'Đã đọc' : 'Chưa đọc'}
                     </span>
                   </td>
                   <td className="text-right">
@@ -75,7 +75,7 @@ const ContactMessages = () => {
                   </td>
                 </tr>
               )) : (
-                <tr><td colSpan={6} className="text-center py-8 text-gray-500">Chua co tin nhan</td></tr>
+                <tr><td colSpan={6} className="text-center py-8 text-gray-500">Chưa có tin nhắn</td></tr>
               )}
             </tbody>
           </table>

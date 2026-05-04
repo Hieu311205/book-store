@@ -27,7 +27,7 @@ export const AuthProvider = ({ children }) => {
     if (response.success) {
       const { user, token } = response.data
       if (user.role !== 'admin' && user.role !== 'super_admin') {
-        throw new Error('Ban khong co quyen truy cap')
+        throw new Error('Bạn không có quyền truy cập')
       }
       localStorage.setItem('admin_token', token)
       localStorage.setItem('admin_user', JSON.stringify(user))

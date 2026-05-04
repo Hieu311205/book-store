@@ -19,7 +19,7 @@ const Header = ({ theme, toggleTheme }) => {
   return (
     <header className="h-16 bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex items-center justify-between px-6">
       <div>
-        <h2 className="text-lg font-medium">Xin chao, {user?.first_name}</h2>
+        <h2 className="text-lg font-medium">Xin chào, {user?.first_name}</h2>
       </div>
 
       <div className="flex items-center gap-4">
@@ -45,7 +45,7 @@ const Header = ({ theme, toggleTheme }) => {
 
           {open && (
             <div className="absolute left-0 mt-2 w-80 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg shadow-xl z-50">
-              <div className="p-4 border-b dark:border-gray-700 font-semibold">Thong bao</div>
+              <div className="p-4 border-b dark:border-gray-700 font-semibold">Thông báo</div>
               <div className="max-h-80 overflow-y-auto">
                 {notifications.items.length ? notifications.items.map((item) => (
                   <Link
@@ -58,7 +58,7 @@ const Header = ({ theme, toggleTheme }) => {
                     <p className="text-sm text-gray-500 mt-1">{item.message}</p>
                   </Link>
                 )) : (
-                  <p className="p-4 text-sm text-gray-500">Khong co thong bao moi</p>
+                  <p className="p-4 text-sm text-gray-500">Không có thông báo mới</p>
                 )}
               </div>
             </div>
@@ -71,7 +71,7 @@ const Header = ({ theme, toggleTheme }) => {
           </div>
           <div className="text-sm">
             <p className="font-medium">{user?.first_name} {user?.last_name}</p>
-            <p className="text-gray-500 text-xs">{user?.role === 'super_admin' ? 'Quan tri cap cao' : 'Quan tri vien'}</p>
+            <p className="text-gray-500 text-xs">{user?.role === 'super_admin' ? 'Quản trị cấp cao' : 'Quản trị viên'}</p>
           </div>
         </div>
       </div>

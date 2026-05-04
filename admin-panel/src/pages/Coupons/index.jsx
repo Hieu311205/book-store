@@ -29,9 +29,9 @@ const Coupons = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(['admin-coupons'])
       setForm(emptyForm)
-      toast.success('Da tao ma giam gia')
+      toast.success('Đã tạo mã giảm giá')
     },
-    onError: (error) => toast.error(error.message || 'Khong the tao ma'),
+    onError: (error) => toast.error(error.message || 'Không thể tạo mã'),
   })
 
   const deleteMutation = useMutation({
@@ -53,42 +53,42 @@ const Coupons = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Ma giam gia</h1>
+      <h1 className="text-2xl font-bold">Mã giảm giá</h1>
       <form onSubmit={submit} className="card p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
         <input className="input" placeholder="Code" required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} />
         <select className="input" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-          <option value="percentage">Phan tram</option>
-          <option value="fixed">So tien</option>
+          <option value="percentage">Phần trăm</option>
+          <option value="fixed">Số tiền</option>
         </select>
-        <input className="input" type="number" placeholder="Gia tri" required value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} />
-        <input className="input" type="number" placeholder="Don toi thieu" value={form.min_purchase} onChange={(e) => setForm({ ...form, min_purchase: e.target.value })} />
-        <input className="input" type="number" placeholder="Giam toi da" value={form.max_discount} onChange={(e) => setForm({ ...form, max_discount: e.target.value })} />
-        <input className="input" type="number" placeholder="Luot dung" value={form.usage_limit} onChange={(e) => setForm({ ...form, usage_limit: e.target.value })} />
+        <input className="input" type="number" placeholder="Giá trị" required value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} />
+        <input className="input" type="number" placeholder="Đơn tối thiểu" value={form.min_purchase} onChange={(e) => setForm({ ...form, min_purchase: e.target.value })} />
+        <input className="input" type="number" placeholder="Giảm tối đa" value={form.max_discount} onChange={(e) => setForm({ ...form, max_discount: e.target.value })} />
+        <input className="input" type="number" placeholder="Lượt dùng" value={form.usage_limit} onChange={(e) => setForm({ ...form, usage_limit: e.target.value })} />
         <select className="input" value={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.value })}>
-          <option value={1}>Kich hoat</option>
-          <option value={0}>Tat</option>
+          <option value={1}>Kích hoạt</option>
+          <option value={0}>Tắt</option>
         </select>
-        <button className="btn btn-primary"><FiPlus /> Them</button>
+        <button className="btn btn-primary"><FiPlus /> Thêm</button>
       </form>
 
       <div className="card">
         <div className="table-wrapper">
           <table className="table">
-            <thead><tr><th>Code</th><th>Loai</th><th>Gia tri</th><th>Da dung</th><th>Trang thai</th><th></th></tr></thead>
+            <thead><tr><th>Code</th><th>Loại</th><th>Giá trị</th><th>Đã dùng</th><th>Trạng thái</th><th></th></tr></thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={6} className="text-center py-8">Dang tai...</td></tr>
+                <tr><td colSpan={6} className="text-center py-8">Đang tải...</td></tr>
               ) : data?.length ? data.map((item) => (
                 <tr key={item.id}>
                   <td className="font-medium">{item.code}</td>
                   <td>{item.type}</td>
                   <td>{item.value}</td>
                   <td>{item.used_count || 0}/{item.usage_limit || '-'}</td>
-                  <td><span className={`badge ${item.is_active ? 'badge-success' : 'badge-danger'}`}>{item.is_active ? 'Bat' : 'Tat'}</span></td>
+                  <td><span className={`badge ${item.is_active ? 'badge-success' : 'badge-danger'}`}>{item.is_active ? 'Bật' : 'Tắt'}</span></td>
                   <td><button onClick={() => deleteMutation.mutate(item.id)} className="text-red-500"><FiTrash2 /></button></td>
                 </tr>
               )) : (
-                <tr><td colSpan={6} className="text-center py-8 text-gray-500">Chua co ma</td></tr>
+                <tr><td colSpan={6} className="text-center py-8 text-gray-500">Chưa có mã</td></tr>
               )}
             </tbody>
           </table>

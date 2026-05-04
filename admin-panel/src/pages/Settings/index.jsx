@@ -21,27 +21,27 @@ const Settings = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(['admin-settings'])
       setForm(emptyForm)
-      toast.success('Da them cai dat')
+      toast.success('Đã thêm cài đặt')
     },
-    onError: (error) => toast.error(error.message || 'Khong the them cai dat'),
+    onError: (error) => toast.error(error.message || 'Không thể thêm cài đặt'),
   })
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => adminService.updateSetting(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries(['admin-settings'])
-      toast.success('Da luu cai dat')
+      toast.success('Đã lưu cài đặt')
     },
-    onError: (error) => toast.error(error.message || 'Khong the luu cai dat'),
+    onError: (error) => toast.error(error.message || 'Không thể lưu cài đặt'),
   })
 
   const deleteMutation = useMutation({
     mutationFn: adminService.deleteSetting,
     onSuccess: () => {
       queryClient.invalidateQueries(['admin-settings'])
-      toast.success('Da xoa cai dat')
+      toast.success('Đã xóa cài đặt')
     },
-    onError: (error) => toast.error(error.message || 'Khong the xoa cai dat'),
+    onError: (error) => toast.error(error.message || 'Không thể xóa cài đặt'),
   })
 
   const submit = (event) => {
@@ -65,7 +65,7 @@ const Settings = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Cai dat</h1>
+      <h1 className="text-2xl font-bold">Cài đặt</h1>
 
       <form onSubmit={submit} className="card p-4 grid grid-cols-1 md:grid-cols-5 gap-3">
         <input
@@ -77,7 +77,7 @@ const Settings = () => {
         />
         <input
           className="input"
-          placeholder="Gia tri"
+          placeholder="Giá trị"
           value={form.value}
           onChange={(e) => setForm({ ...form, value: e.target.value })}
         />
@@ -89,12 +89,12 @@ const Settings = () => {
         </select>
         <input
           className="input"
-          placeholder="Nhom"
+          placeholder="Nhóm"
           value={form.group_name}
           onChange={(e) => setForm({ ...form, group_name: e.target.value })}
         />
         <button className="btn btn-primary" type="submit">
-          <FiPlus /> Them
+          <FiPlus /> Thêm
         </button>
       </form>
 
@@ -104,15 +104,15 @@ const Settings = () => {
             <thead>
               <tr>
                 <th>Key</th>
-                <th>Gia tri</th>
-                <th>Kieu</th>
-                <th>Nhom</th>
+                <th>Giá trị</th>
+                <th>Kiểu</th>
+                <th>Nhóm</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={5} className="text-center py-8">Dang tai...</td></tr>
+                <tr><td colSpan={5} className="text-center py-8">Đang tải...</td></tr>
               ) : settings.length ? settings.map((item) => (
                 <tr key={item.id}>
                   <td className="font-medium">{item.key_name}</td>
@@ -145,7 +145,7 @@ const Settings = () => {
                   <td className="text-right">
                     <button
                       type="button"
-                      title="Luu bang roi mat focus"
+                      title="Lưu bằng rời mất focus"
                       className="text-gray-400 mr-3"
                       disabled
                     >
@@ -157,7 +157,7 @@ const Settings = () => {
                   </td>
                 </tr>
               )) : (
-                <tr><td colSpan={5} className="text-center py-8 text-gray-500">Chua co cai dat trong database</td></tr>
+                <tr><td colSpan={5} className="text-center py-8 text-gray-500">Chưa có cài đặt trong database</td></tr>
               )}
             </tbody>
           </table>

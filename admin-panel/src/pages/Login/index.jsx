@@ -21,10 +21,10 @@ const Login = () => {
     setIsLoading(true)
     try {
       await login(data.email, data.password)
-      toast.success('Dang nhap thanh cong')
+      toast.success('Đăng nhập thành công')
       navigate('/')
     } catch (error) {
-      toast.error(error.message || 'Dang nhap that bai')
+      toast.error(error.message || 'Đăng nhập thất bại')
     } finally {
       setIsLoading(false)
     }
@@ -35,8 +35,8 @@ const Login = () => {
       <div className="w-full max-w-md">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold mb-2">Trang quan tri</h1>
-            <p className="text-gray-500">Dang nhap bang tai khoan admin trong database</p>
+            <h1 className="text-2xl font-bold mb-2">Trang quản trị</h1>
+            <p className="text-gray-500">Đăng nhập bằng tài khoản admin trong database</p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -46,7 +46,7 @@ const Login = () => {
                 <FiMail className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   type="email"
-                  {...register('email', { required: 'Vui long nhap email' })}
+                  {...register('email', { required: 'Vui lòng nhập email' })}
                   className="input pr-10"
                   placeholder="email@example.com"
                 />
@@ -55,12 +55,12 @@ const Login = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Mat khau</label>
+              <label className="block text-sm font-medium mb-2">Mật khẩu</label>
               <div className="relative">
                 <FiLock className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  {...register('password', { required: 'Vui long nhap mat khau' })}
+                  {...register('password', { required: 'Vui lòng nhập mật khẩu' })}
                   className="input pr-10 pl-10"
                   placeholder="********"
                 />
@@ -76,7 +76,7 @@ const Login = () => {
             </div>
 
             <button type="submit" disabled={isLoading} className="btn btn-primary w-full py-3">
-              {isLoading ? 'Dang dang nhap...' : 'Dang nhap'}
+              {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
             </button>
           </form>
         </div>
