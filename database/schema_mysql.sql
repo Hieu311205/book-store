@@ -208,6 +208,7 @@ CREATE TABLE orders (
   coupon_code VARCHAR(50),
   status ENUM('pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded') DEFAULT 'pending',
   payment_status ENUM('pending', 'paid', 'failed', 'refunded') DEFAULT 'pending',
+  payment_method ENUM('cod', 'bank_transfer', 'card') DEFAULT 'cod',
   shipping_method VARCHAR(50),
   tracking_code VARCHAR(100),
   shipped_at DATETIME NULL,

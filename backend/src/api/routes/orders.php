@@ -21,6 +21,11 @@ function createOrder($user) {
     $input = requestJson();
     $addressId = (int)($input['address_id'] ?? 0);
     $shippingMethod = $input['shipping_method'] ?? 'standard';
+    $paymentMethod = $input['payment_method'] ?? 'cod';
+    $allowedPaymentMethods = ['cod', 'bank_transfer', 'card'];
+    if (!in_array($paymentMethod, $allowedPaymentMethods, true)) {
+        $paymentMethod = 'cod';
+    }
     $couponCode = $input['coupon_code'] ?? null;
     $address = queryOne("SELECT * FROM user_addresses WHERE id = ? AND user_id = ?", [$addressId, $user['id']]);
     if (!$address) {
@@ -75,6 +80,7 @@ function createOrder($user) {
         'coupon_code' => $coupon['code'] ?? null,
         'status' => 'pending',
         'payment_status' => 'pending',
+        'payment_method' => $paymentMethod,
         'shipping_method' => $shippingMethod,
         'customer_note' => $input['customer_note'] ?? null,
     ]);
