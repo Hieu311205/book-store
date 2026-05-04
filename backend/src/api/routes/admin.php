@@ -181,6 +181,7 @@ function handleAdminProducts($method, $pathParts) {
              ORDER BY p.created_at DESC LIMIT ? OFFSET ?",
             array_merge($params, [$limit, $offset])
         );
+        $products = attachAdminProductImages($products);
 
         jsonResponse(['success' => true, 'data' => ['products' => $products, 'pagination' => [
             'page' => $page,
@@ -193,11 +194,20 @@ function handleAdminProducts($method, $pathParts) {
     if ($method === 'POST') {
         $input = requestJson();
         $allowed = ['category_id', 'author_id', 'publisher_id', 'title', 'title_en', 'description', 'short_description', 'isbn', 'pages', 'publish_year', 'language', 'translator', 'edition', 'format', 'price', 'compare_price', 'discount_percent', 'stock', 'sku', 'weight', 'meta_title', 'meta_description', 'is_active', 'is_featured', 'is_bestseller'];
-        $data = filterInput($input, $allowed);
+        $data = cleanProductData(filterInput($input, $allowed));
+        if (empty($data['title'])) {
+            jsonResponse(['success' => false, 'message' => 'Thieu ten sach'], 400);
+        }
+        if (!isset($data['price'])) {
+            jsonResponse(['success' => false, 'message' => 'Thieu gia sach'], 400);
+        }
         $data['ugid'] = guid();
         $data['slug'] = slugifyText($input['title'] ?? 'product') . '-' . substr((string)time(), -4);
         $id = insertRow('products', $data);
-        jsonResponse(['success' => true, 'message' => 'Da them sach', 'data' => queryOne("SELECT * FROM products WHERE id = ?", [$id])], 201);
+        savePrimaryProductImage($id, $input['image_url'] ?? null, $data['title']);
+        $product = queryOne("SELECT * FROM products WHERE id = ?", [$id]);
+        $product['images'] = queryAll("SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order", [$id]);
+        jsonResponse(['success' => true, 'message' => 'Da them sach', 'data' => $product], 201);
     }
 
     $id = $pathParts[2] ?? null;
@@ -211,11 +221,17 @@ function handleAdminProducts($method, $pathParts) {
     }
 
     if ($method === 'PUT') {
+        $input = requestJson();
         $allowed = ['category_id', 'author_id', 'publisher_id', 'title', 'title_en', 'description', 'short_description', 'isbn', 'pages', 'publish_year', 'language', 'translator', 'edition', 'format', 'price', 'compare_price', 'discount_percent', 'stock', 'sku', 'weight', 'meta_title', 'meta_description', 'is_active', 'is_featured', 'is_bestseller'];
-        $data = filterInput(requestJson(), $allowed);
+        $data = cleanProductData(filterInput($input, $allowed));
         $data['updated_at'] = date('Y-m-d H:i:s');
         updateRow('products', $id, $data);
-        jsonResponse(['success' => true, 'message' => 'Da cap nhat sach', 'data' => queryOne("SELECT * FROM products WHERE id = ?", [$id])]);
+        if (array_key_exists('image_url', $input)) {
+            savePrimaryProductImage($id, $input['image_url'], $data['title'] ?? null);
+        }
+        $product = queryOne("SELECT * FROM products WHERE id = ?", [$id]);
+        $product['images'] = queryAll("SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order", [$id]);
+        jsonResponse(['success' => true, 'message' => 'Da cap nhat sach', 'data' => $product]);
     }
 
     if ($method === 'DELETE') {
@@ -224,6 +240,62 @@ function handleAdminProducts($method, $pathParts) {
     }
 
     jsonResponse(['success' => false, 'message' => 'Phuong thuc khong duoc ho tro'], 405);
+}
+
+function cleanProductData($data) {
+    $nullable = ['category_id', 'author_id', 'publisher_id', 'title_en', 'description', 'short_description', 'isbn', 'pages', 'publish_year', 'translator', 'edition', 'compare_price', 'discount_percent', 'sku', 'weight', 'meta_title', 'meta_description'];
+    foreach ($nullable as $field) {
+        if (array_key_exists($field, $data) && $data[$field] === '') {
+            $data[$field] = null;
+        }
+    }
+
+    foreach (['category_id', 'author_id', 'publisher_id', 'pages', 'publish_year', 'discount_percent', 'stock', 'weight', 'is_active', 'is_featured', 'is_bestseller'] as $field) {
+        if (array_key_exists($field, $data) && $data[$field] !== null) {
+            $data[$field] = (int)$data[$field];
+        }
+    }
+
+    foreach (['price', 'compare_price'] as $field) {
+        if (array_key_exists($field, $data) && $data[$field] !== null) {
+            $data[$field] = (float)$data[$field];
+        }
+    }
+
+    return $data;
+}
+
+function attachAdminProductImages($products) {
+    if (!$products) {
+        return [];
+    }
+
+    $ids = array_column($products, 'id');
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $images = queryAll("SELECT * FROM product_images WHERE product_id IN ({$placeholders}) ORDER BY sort_order", $ids);
+
+    foreach ($products as &$product) {
+        $product['images'] = array_values(array_filter($images, fn($image) => (int)$image['product_id'] === (int)$product['id']));
+    }
+
+    return $products;
+}
+
+function savePrimaryProductImage($productId, $imageUrl, $title = null) {
+    $imageUrl = trim((string)$imageUrl);
+    executeSql("DELETE FROM product_images WHERE product_id = ? AND is_primary = 1", [$productId]);
+
+    if ($imageUrl === '') {
+        return;
+    }
+
+    insertRow('product_images', [
+        'product_id' => $productId,
+        'image_url' => $imageUrl,
+        'alt_text' => $title ?: 'Book cover',
+        'sort_order' => 0,
+        'is_primary' => 1,
+    ]);
 }
 
 function handleAdminCategories($method, $pathParts) {
