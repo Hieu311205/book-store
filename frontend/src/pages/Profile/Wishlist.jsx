@@ -17,16 +17,16 @@ const Wishlist = () => {
     mutationFn: userService.removeFromWishlist,
     onSuccess: () => {
       queryClient.invalidateQueries(['wishlist'])
-      toast.success('Da xoa khoi yeu thich')
+      toast.success('Đã xóa khỏi yêu thích')
     },
-    onError: (error) => toast.error(error.message || 'Khong the xoa'),
+    onError: (error) => toast.error(error.message || 'Không thể xóa'),
   })
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl p-6">
-      <h2 className="text-xl font-bold mb-4">Danh sach yeu thich</h2>
+      <h2 className="text-xl font-bold mb-4">Danh sách yêu thích</h2>
       {isLoading ? (
-        <p className="text-gray-500">Dang tai...</p>
+        <p className="text-gray-500">Đang tải...</p>
       ) : data?.length ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {data.map((item) => (
@@ -45,7 +45,7 @@ const Wishlist = () => {
               <button
                 onClick={() => removeMutation.mutate(item.product_id)}
                 className="text-red-500 hover:text-red-600"
-                title="Xoa"
+                title="Xóa"
               >
                 <FiTrash2 />
               </button>
@@ -53,7 +53,7 @@ const Wishlist = () => {
           ))}
         </div>
       ) : (
-        <p className="text-gray-500">Danh sach dang trong</p>
+        <p className="text-gray-500">Danh sách đang trống</p>
       )}
     </div>
   )

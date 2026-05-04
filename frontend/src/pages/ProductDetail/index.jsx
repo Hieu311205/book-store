@@ -38,9 +38,9 @@ const ProductDetail = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(['wishlist'])
       queryClient.invalidateQueries(['profile-wishlist-count'])
-      toast.success('Da them vao yeu thich')
+      toast.success('Đã thêm vào yêu thích')
     },
-    onError: (error) => toast.error(error.message || 'Khong the them vao yeu thich'),
+    onError: (error) => toast.error(error.message || 'Không thể thêm vào yêu thích'),
   })
 
   if (isLoading) return <PageLoading />
@@ -66,7 +66,7 @@ const ProductDetail = () => {
 
   const handleWishlist = () => {
     if (!isAuthenticated) {
-      toast.error('Ban can dang nhap de them yeu thich')
+      toast.error('Bạn cần đăng nhập để thêm yêu thích')
       return
     }
     wishlistMutation.mutate(product.id)
@@ -83,17 +83,16 @@ const ProductDetail = () => {
         return
       }
       await navigator.clipboard.writeText(window.location.href)
-      toast.success('Da sao chep link san pham')
+      toast.success('Đã sao chép link sản phẩm')
     } catch (error) {
       if (error.name !== 'AbortError') {
-        toast.error('Khong the chia se san pham')
+        toast.error('Không thể chia sẻ sản phẩm')
       }
     }
   }
 
   return (
     <div>
-      {/* Breadcrumb */}
       <nav className="text-sm text-gray-500 mb-6">
         <Link to="/" className="hover:text-primary-600">Trang chủ</Link>
         <span className="mx-2">/</span>
@@ -110,9 +109,7 @@ const ProductDetail = () => {
         <span className="text-gray-900 dark:text-gray-100">{product.title}</span>
       </nav>
 
-      {/* Main Product Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
-        {/* Images */}
         <div className="space-y-4">
           <div className="aspect-[3/4] bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden">
             <img
@@ -135,14 +132,12 @@ const ProductDetail = () => {
           )}
         </div>
 
-        {/* Info */}
         <div>
           <h1 className="text-2xl font-bold mb-2">{product.title}</h1>
           {product.title_en && (
             <p className="text-gray-500 dark:text-gray-400 mb-4">{product.title_en}</p>
           )}
 
-          {/* Author */}
           {product.author_name && (
             <p className="mb-2">
               <span className="text-gray-500">Tác giả:</span>{' '}
@@ -152,7 +147,6 @@ const ProductDetail = () => {
             </p>
           )}
 
-          {/* Publisher */}
           {product.publisher_name && (
             <p className="mb-2">
               <span className="text-gray-500">Nhà xuất bản:</span>{' '}
@@ -160,7 +154,6 @@ const ProductDetail = () => {
             </p>
           )}
 
-          {/* Rating */}
           {product.rating_avg > 0 && (
             <div className="flex items-center gap-2 mb-4">
               <div className="flex items-center gap-1">
@@ -177,7 +170,6 @@ const ProductDetail = () => {
             </div>
           )}
 
-          {/* Price */}
           <div className="flex items-center gap-4 my-6">
             {product.discount_percent > 0 && (
               <span className="bg-red-500 text-white text-sm px-2 py-1 rounded-full">
@@ -194,7 +186,6 @@ const ProductDetail = () => {
             )}
           </div>
 
-          {/* Stock */}
           <div className="mb-6">
             {product.stock > 0 ? (
               <span className="flex items-center gap-2 text-green-600">
@@ -206,7 +197,6 @@ const ProductDetail = () => {
             )}
           </div>
 
-          {/* Quantity & Add to Cart */}
           {product.stock > 0 && (
             <div className="flex items-center gap-4 mb-6">
               <div className="flex items-center border dark:border-gray-700 rounded-lg">
@@ -231,7 +221,6 @@ const ProductDetail = () => {
             </div>
           )}
 
-          {/* Actions */}
           <div className="flex gap-4">
             <button onClick={handleWishlist} disabled={wishlistMutation.isPending} className="btn btn-secondary flex-1 disabled:opacity-50">
               <FiHeart />
@@ -243,14 +232,12 @@ const ProductDetail = () => {
             </button>
           </div>
 
-          {/* Short description */}
           {product.short_description && (
             <p className="mt-6 text-gray-600 dark:text-gray-400">{product.short_description}</p>
           )}
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="bg-white dark:bg-gray-800 rounded-xl">
         <div className="border-b dark:border-gray-700">
           <nav className="flex gap-8 px-6">
@@ -335,7 +322,6 @@ const ProductDetail = () => {
         </div>
       </div>
 
-      {/* Related Products */}
       {relatedProducts && relatedProducts.length > 0 && (
         <section className="mt-12">
           <h2 className="text-xl font-bold mb-6">Sách liên quan</h2>

@@ -10,13 +10,10 @@ const MiniCart = () => {
 
   return (
     <div className="fixed inset-0 z-50">
-      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50" onClick={closeCart} />
 
-      {/* Cart panel */}
       <div className="absolute left-0 top-0 h-full w-full max-w-md bg-white dark:bg-gray-800 shadow-xl">
         <div className="flex flex-col h-full">
-          {/* Header */}
           <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
             <h2 className="text-lg font-bold">Giỏ hàng ({summary.item_count})</h2>
             <button onClick={closeCart} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
@@ -24,7 +21,6 @@ const MiniCart = () => {
             </button>
           </div>
 
-          {/* Items */}
           <div className="flex-1 overflow-y-auto p-4">
             {items.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
@@ -84,7 +80,6 @@ const MiniCart = () => {
             )}
           </div>
 
-          {/* Footer */}
           {items.length > 0 && (
             <div className="border-t dark:border-gray-700 p-4 space-y-3">
               <div className="flex justify-between text-sm">

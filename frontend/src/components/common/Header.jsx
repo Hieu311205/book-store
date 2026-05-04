@@ -56,7 +56,7 @@ const Header = () => {
         <div className="hidden md:flex items-center justify-between py-2 text-sm border-b border-gray-100 dark:border-gray-700">
           <div className="flex items-center gap-4">
             {settings.contact_phone && (
-              <span className="text-gray-600 dark:text-gray-400">Lien he: {settings.contact_phone}</span>
+              <span className="text-gray-600 dark:text-gray-400">Liên hệ: {settings.contact_phone}</span>
             )}
             {settings.header_notice && (
               <span className="text-gray-600 dark:text-gray-400">{settings.header_notice}</span>
@@ -68,13 +68,13 @@ const Header = () => {
             </button>
             {isAuthenticated ? (
               <>
-                <Link to="/profile" className="hover:text-primary-600">Tai khoan</Link>
-                <button onClick={logout} className="hover:text-primary-600">Dang xuat</button>
+                <Link to="/profile" className="hover:text-primary-600">Tài khoản</Link>
+                <button onClick={logout} className="hover:text-primary-600">Đăng xuất</button>
               </>
             ) : (
               <>
-                <Link to="/login" className="hover:text-primary-600">Dang nhap</Link>
-                <Link to="/register" className="hover:text-primary-600">Dang ky</Link>
+                <Link to="/login" className="hover:text-primary-600">Đăng nhập</Link>
+                <Link to="/register" className="hover:text-primary-600">Đăng ký</Link>
               </>
             )}
           </div>
@@ -89,7 +89,7 @@ const Header = () => {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tim sach, tac gia..."
+                placeholder="Tìm sách, tác giả..."
                 className="input pl-10"
               />
               <button type="submit" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary-600">
@@ -126,7 +126,7 @@ const Header = () => {
 
         <nav className="hidden md:block border-t border-gray-100 dark:border-gray-700">
           <ul className="flex items-center gap-6 py-3">
-            <li><Link to="/products" className={navClass(isAllProductsActive)}>Tat ca sach</Link></li>
+            <li><Link to="/products" className={navClass(isAllProductsActive)}>Tất cả sách</Link></li>
             {visibleCategories.map((cat) => (
               <li key={cat.id}>
                 <Link
@@ -137,7 +137,7 @@ const Header = () => {
                 </Link>
               </li>
             ))}
-            <li><Link to="/products?bestseller=true" className={bestsellerClass}>Ban chay</Link></li>
+            <li><Link to="/products?bestseller=true" className={bestsellerClass}>Bán chạy</Link></li>
           </ul>
         </nav>
       </div>
@@ -150,14 +150,14 @@ const Header = () => {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tim kiem..."
+                placeholder="Tìm kiếm..."
                 className="input pl-10"
               />
               <button type="submit" className="absolute left-3 top-1/2 -translate-y-1/2"><FiSearch /></button>
             </div>
           </form>
           <ul className="px-4 pb-4 space-y-2">
-            <li><Link to="/products" className="block py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>Tat ca sach</Link></li>
+            <li><Link to="/products" className="block py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>Tất cả sách</Link></li>
             {categories.map((cat) => (
               <li key={cat.id}>
                 <Link to={categoryLink(cat)} className="block py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>
@@ -167,14 +167,14 @@ const Header = () => {
             ))}
             {isAuthenticated ? (
               <>
-                <li><Link to="/profile" className="block py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>Tai khoan</Link></li>
-                <li><Link to="/profile/wishlist" className="block py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>Yeu thich</Link></li>
-                <li><button onClick={() => { logout(); setIsMenuOpen(false) }} className="block py-2 text-red-500">Dang xuat</button></li>
+                <li><Link to="/profile" className="block py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>Tài khoản</Link></li>
+                <li><Link to="/profile/wishlist" className="block py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>Yêu thích</Link></li>
+                <li><button onClick={() => { logout(); setIsMenuOpen(false) }} className="block py-2 text-red-500">Đăng xuất</button></li>
               </>
             ) : (
               <>
-                <li><Link to="/login" className="block py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>Dang nhap</Link></li>
-                <li><Link to="/register" className="block py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>Dang ky</Link></li>
+                <li><Link to="/login" className="block py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>Đăng nhập</Link></li>
+                <li><Link to="/register" className="block py-2 hover:text-primary-600" onClick={() => setIsMenuOpen(false)}>Đăng ký</Link></li>
               </>
             )}
           </ul>

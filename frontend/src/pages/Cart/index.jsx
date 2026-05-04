@@ -25,7 +25,6 @@ const Cart = () => {
       <h1 className="text-2xl font-bold mb-6">Giỏ hàng</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Cart Items */}
         <div className="lg:col-span-2 space-y-4">
           {items.map((item) => (
             <div
@@ -98,7 +97,6 @@ const Cart = () => {
           </div>
         </div>
 
-        {/* Summary */}
         <div>
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 sticky top-24">
             <h2 className="font-bold mb-4">Tóm tắt đơn hàng</h2>
@@ -125,7 +123,6 @@ const Cart = () => {
               <span className="text-primary-600">{formatPrice(summary.total)}</span>
             </div>
 
-            {/* Coupon */}
             <div className="mb-6">
               <label className="text-sm text-gray-500 mb-2 block">Mã giảm giá</label>
               <div className="flex gap-2">

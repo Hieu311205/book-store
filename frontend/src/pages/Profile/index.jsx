@@ -13,11 +13,11 @@ const Profile = () => {
   }
 
   const menuItems = [
-    { to: '/profile', icon: FiUser, label: 'Tong quan', end: true },
-    { to: '/profile/orders', icon: FiShoppingBag, label: 'Don hang' },
-    { to: '/profile/wishlist', icon: FiHeart, label: 'Yeu thich' },
-    { to: '/profile/addresses', icon: FiMapPin, label: 'Dia chi' },
-    { to: '/profile/settings', icon: FiSettings, label: 'Cai dat' },
+    { to: '/profile', icon: FiUser, label: 'Tổng quan', end: true },
+    { to: '/profile/orders', icon: FiShoppingBag, label: 'Đơn hàng' },
+    { to: '/profile/wishlist', icon: FiHeart, label: 'Yêu thích' },
+    { to: '/profile/addresses', icon: FiMapPin, label: 'Địa chỉ' },
+    { to: '/profile/settings', icon: FiSettings, label: 'Cài đặt' },
   ]
 
   return (
@@ -57,7 +57,7 @@ const Profile = () => {
               className="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors w-full text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
             >
               <FiLogOut size={18} />
-              <span>Dang xuat</span>
+              <span>Đăng xuất</span>
             </button>
           </nav>
         </div>
@@ -91,24 +91,24 @@ export const ProfileDashboard = () => {
   return (
     <div className="space-y-6">
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6">
-        <h2 className="text-xl font-bold mb-4">Tong quan</h2>
+        <h2 className="text-xl font-bold mb-4">Tổng quan</h2>
         <p className="text-gray-600 dark:text-gray-400">
-          Xin chao {user?.first_name}. Day la thong tin tai khoan duoc dong bo tu database.
+          Xin chào {user?.first_name}. Đây là thông tin tài khoản được đồng bộ từ database.
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 text-center">
           <div className="text-3xl font-bold text-primary-600">{ordersCount}</div>
-          <div className="text-gray-500 mt-1">Don hang</div>
+          <div className="text-gray-500 mt-1">Đơn hàng</div>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 text-center">
           <div className="text-3xl font-bold text-primary-600">{wishlistCount}</div>
-          <div className="text-gray-500 mt-1">Yeu thich</div>
+          <div className="text-gray-500 mt-1">Yêu thích</div>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 text-center">
           <div className="text-3xl font-bold text-primary-600">{addressCount}</div>
-          <div className="text-gray-500 mt-1">Dia chi</div>
+          <div className="text-gray-500 mt-1">Địa chỉ</div>
         </div>
       </div>
     </div>

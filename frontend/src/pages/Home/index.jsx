@@ -25,12 +25,10 @@ const Home = () => {
 
   return (
     <div>
-      {/* Hero Slider */}
       <section className="mb-8">
         <HeroSlider />
       </section>
 
-      {/* Features */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <div className="flex items-center gap-3 p-4 bg-white dark:bg-gray-800 rounded-xl">
           <span className="text-2xl">Nhanh</span>
@@ -62,10 +60,8 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Categories */}
       <CategoryGrid />
 
-      {/* Featured Products */}
       <ProductSection
         title="Sách nổi bật"
         products={featured}
@@ -73,7 +69,6 @@ const Home = () => {
         link="/products?featured=true"
       />
 
-      {/* Banner */}
       <section className="my-10 bg-gradient-to-l from-primary-600 to-primary-800 rounded-xl p-8 text-white">
         <div className="max-w-2xl">
           <h3 className="text-2xl font-bold mb-2">Ưu đãi sách tâm lý</h3>
@@ -84,7 +79,6 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Bestsellers */}
       <ProductSection
         title="Sách bán chạy"
         products={bestsellers}
@@ -92,7 +86,6 @@ const Home = () => {
         link="/products?bestseller=true"
       />
 
-      {/* New Arrivals */}
       <ProductSection
         title="Sách mới"
         products={newArrivals}

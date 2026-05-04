@@ -42,7 +42,7 @@ const App = () => {
             element={
               <div className="text-center py-16">
                 <h1 className="text-4xl font-bold mb-4">404</h1>
-                <p className="text-gray-500">Khong tim thay trang</p>
+                <p className="text-gray-500">Không tìm thấy trang</p>
               </div>
             }
           />

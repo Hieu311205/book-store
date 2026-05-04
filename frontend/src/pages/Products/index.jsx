@@ -7,11 +7,11 @@ import { productService } from '../../services/product.service'
 import { categoryService } from '../../services/category.service'
 
 const sortOptions = [
-  { value: 'newest', label: 'Moi nhat' },
-  { value: 'bestseller', label: 'Ban chay' },
-  { value: 'price_asc', label: 'Gia thap den cao' },
-  { value: 'price_desc', label: 'Gia cao den thap' },
-  { value: 'popular', label: 'Pho bien nhat' },
+  { value: 'newest', label: 'Mới nhất' },
+  { value: 'bestseller', label: 'Bán chạy' },
+  { value: 'price_asc', label: 'Giá thấp đến cao' },
+  { value: 'price_desc', label: 'Giá cao đến thấp' },
+  { value: 'popular', label: 'Phổ biến nhất' },
 ]
 
 const Products = () => {
@@ -59,16 +59,16 @@ const Products = () => {
   const filters = (
     <>
       <div className="flex items-center justify-between">
-        <h3 className="font-bold">Bo loc</h3>
+        <h3 className="font-bold">Bộ lọc</h3>
         {hasFilters && (
           <button onClick={clearFilters} className="text-sm text-red-500 hover:text-red-600">
-            Xoa
+            Xóa
           </button>
         )}
       </div>
 
       <div>
-        <h4 className="font-medium mb-3">Danh muc</h4>
+        <h4 className="font-medium mb-3">Danh mục</h4>
         <div className="space-y-2">
           {categories.map((cat) => {
             const value = cat.slug || String(cat.id)
@@ -89,18 +89,18 @@ const Products = () => {
       </div>
 
       <div>
-        <h4 className="font-medium mb-3">Khoang gia</h4>
+        <h4 className="font-medium mb-3">Khoảng giá</h4>
         <div className="space-y-2">
           <input
             type="number"
-            placeholder="Toi thieu"
+            placeholder="Tối thiểu"
             value={params.min_price || ''}
             onChange={(e) => updateParam('min_price', e.target.value)}
             className="input text-sm"
           />
           <input
             type="number"
-            placeholder="Toi da"
+            placeholder="Tối đa"
             value={params.max_price || ''}
             onChange={(e) => updateParam('max_price', e.target.value)}
             className="input text-sm"
@@ -115,11 +115,11 @@ const Products = () => {
           onChange={(e) => updateParam('in_stock', e.target.checked ? 'true' : '')}
           className="text-primary-600 rounded"
         />
-        <span className="text-sm">Chi sach con hang</span>
+        <span className="text-sm">Chỉ sách còn hàng</span>
       </label>
 
       <div>
-        <h4 className="font-medium mb-3">Noi bat</h4>
+        <h4 className="font-medium mb-3">Nổi bật</h4>
         <div className="space-y-2">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -128,7 +128,7 @@ const Products = () => {
               onChange={(e) => updateParam('featured', e.target.checked ? 'true' : '')}
               className="text-primary-600 rounded"
             />
-            <span className="text-sm">Sach noi bat</span>
+            <span className="text-sm">Sách nổi bật</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -137,7 +137,7 @@ const Products = () => {
               onChange={(e) => updateParam('bestseller', e.target.checked ? 'true' : '')}
               className="text-primary-600 rounded"
             />
-            <span className="text-sm">Sach ban chay</span>
+            <span className="text-sm">Sách bán chạy</span>
           </label>
         </div>
       </div>
@@ -157,10 +157,10 @@ const Products = () => {
           <div className="flex items-center gap-4">
             <button onClick={() => setShowFilters(true)} className="lg:hidden btn btn-secondary">
               <FiFilter />
-              Bo loc
+              Bộ lọc
             </button>
             <p className="text-gray-600 dark:text-gray-400 text-sm">
-              {data?.pagination?.totalItems || 0} cuon sach
+              {data?.pagination?.totalItems || 0} cuốn sách
             </p>
           </div>
 
@@ -200,7 +200,7 @@ const Products = () => {
         <div className="lg:hidden fixed inset-0 z-50 bg-black/50">
           <div className="absolute right-0 top-0 h-full w-80 bg-white dark:bg-gray-800 p-4 overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold">Bo loc</h3>
+              <h3 className="font-bold">Bộ lọc</h3>
               <button onClick={() => setShowFilters(false)}>
                 <FiX size={24} />
               </button>
@@ -208,7 +208,7 @@ const Products = () => {
             <div className="space-y-6">
               {filters}
               <button onClick={() => setShowFilters(false)} className="btn btn-primary w-full">
-                Ap dung
+                Áp dụng
               </button>
             </div>
           </div>

@@ -4,13 +4,13 @@ import { orderService } from '../../services/order.service'
 import { formatPrice } from '../../utils/formatPrice'
 
 const statusText = {
-  pending: 'Cho xu ly',
-  paid: 'Da thanh toan',
-  processing: 'Dang xu ly',
-  shipped: 'Dang giao',
-  delivered: 'Da giao',
-  cancelled: 'Da huy',
-  refunded: 'Da hoan tien',
+  pending: 'Chờ xử lý',
+  paid: 'Đã thanh toán',
+  processing: 'Đang xử lý',
+  shipped: 'Đang giao',
+  delivered: 'Đã giao',
+  cancelled: 'Đã hủy',
+  refunded: 'Đã hoàn tiền',
 }
 
 const ProfileOrders = () => {
@@ -25,16 +25,16 @@ const ProfileOrders = () => {
     mutationFn: orderService.cancelOrder,
     onSuccess: () => {
       queryClient.invalidateQueries(['my-orders'])
-      toast.success('Da huy don hang')
+      toast.success('Đã hủy đơn hàng')
     },
-    onError: (error) => toast.error(error.message || 'Khong the huy don hang'),
+    onError: (error) => toast.error(error.message || 'Không thể hủy đơn hàng'),
   })
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl p-6">
-      <h2 className="text-xl font-bold mb-4">Don hang cua toi</h2>
+      <h2 className="text-xl font-bold mb-4">Đơn hàng của tôi</h2>
       {isLoading ? (
-        <p className="text-gray-500">Dang tai...</p>
+        <p className="text-gray-500">Đang tải...</p>
       ) : data?.orders?.length ? (
         <div className="space-y-3">
           {data.orders.map((order) => (
@@ -56,14 +56,14 @@ const ProfileOrders = () => {
                   onClick={() => cancelMutation.mutate(order.id)}
                   className="mt-3 text-sm text-red-500 hover:text-red-600"
                 >
-                  Huy don hang
+                  Hủy đơn hàng
                 </button>
               )}
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-gray-500">Chua co don hang</p>
+        <p className="text-gray-500">Chưa có đơn hàng</p>
       )}
     </div>
   )

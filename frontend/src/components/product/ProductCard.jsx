@@ -20,15 +20,15 @@ const ProductCard = ({ product }) => {
     onSuccess: () => {
       queryClient.invalidateQueries(['wishlist'])
       queryClient.invalidateQueries(['profile-wishlist-count'])
-      toast.success('Da them vao yeu thich')
+      toast.success('Đã thêm vào yêu thích')
     },
-    onError: (error) => toast.error(error.message || 'Khong the them vao yeu thich'),
+    onError: (error) => toast.error(error.message || 'Không thể thêm vào yêu thích'),
   })
 
   const handleWishlist = (event) => {
     event.preventDefault()
     if (!isAuthenticated) {
-      toast.error('Ban can dang nhap de them yeu thich')
+      toast.error('Bạn cần đăng nhập để thêm yêu thích')
       return
     }
     wishlistMutation.mutate(product.id)
@@ -36,7 +36,6 @@ const ProductCard = ({ product }) => {
 
   return (
     <div className="card group overflow-hidden">
-      {/* Image */}
       <Link to={`/product/${product.slug}`} className="block relative aspect-[3/4] overflow-hidden">
         <img
           src={imageUrl}
@@ -54,7 +53,6 @@ const ProductCard = ({ product }) => {
             <span className="bg-white text-gray-900 px-3 py-1 rounded-lg font-medium">Hết hàng</span>
           </div>
         )}
-        {/* Quick actions */}
         <div className="absolute bottom-2 left-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={(e) => {
@@ -77,7 +75,6 @@ const ProductCard = ({ product }) => {
         </div>
       </Link>
 
-      {/* Info */}
       <div className="p-4">
         <Link to={`/product/${product.slug}`}>
           <h3 className="font-medium text-sm line-clamp-2 hover:text-primary-600 transition-colors min-h-[40px]">
@@ -89,7 +86,6 @@ const ProductCard = ({ product }) => {
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{product.author_name}</p>
         )}
 
-        {/* Rating */}
         {product.rating_avg > 0 && (
           <div className="flex items-center gap-1 mt-2">
             <FaStar className="text-yellow-400" size={12} />
@@ -99,7 +95,6 @@ const ProductCard = ({ product }) => {
           </div>
         )}
 
-        {/* Price */}
         <div className="mt-3 flex items-center gap-2">
           <span className="text-primary-600 font-bold">{formatPrice(product.price)}</span>
           {product.compare_price && product.compare_price > product.price && (

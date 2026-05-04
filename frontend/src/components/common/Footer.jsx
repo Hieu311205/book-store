@@ -34,27 +34,27 @@ const Footer = () => {
           </div>
 
           <div>
-            <h3 className="text-white font-bold text-lg mb-4">Lien ket</h3>
+            <h3 className="text-white font-bold text-lg mb-4">Liên kết</h3>
             <ul className="space-y-2 text-sm">
-              <li><Link to="/products" className="hover:text-primary-500">Tat ca sach</Link></li>
-              <li><Link to="/products?bestseller=true" className="hover:text-primary-500">Ban chay</Link></li>
-              <li><Link to="/products?featured=true" className="hover:text-primary-500">Noi bat</Link></li>
-              <li><Link to="/products?sort=newest" className="hover:text-primary-500">Moi nhat</Link></li>
+              <li><Link to="/products" className="hover:text-primary-500">Tất cả sách</Link></li>
+              <li><Link to="/products?bestseller=true" className="hover:text-primary-500">Bán chạy</Link></li>
+              <li><Link to="/products?featured=true" className="hover:text-primary-500">Nổi bật</Link></li>
+              <li><Link to="/products?sort=newest" className="hover:text-primary-500">Mới nhất</Link></li>
             </ul>
           </div>
 
           <div>
-            <h3 className="text-white font-bold text-lg mb-4">Ho tro</h3>
+            <h3 className="text-white font-bold text-lg mb-4">Hỗ trợ</h3>
             <ul className="space-y-2 text-sm">
               <li><Link to="/faq" className="hover:text-primary-500">FAQ</Link></li>
-              <li><Link to="/shipping" className="hover:text-primary-500">Giao hang</Link></li>
-              <li><Link to="/returns" className="hover:text-primary-500">Doi tra</Link></li>
-              <li><Link to="/contact" className="hover:text-primary-500">Lien he</Link></li>
+              <li><Link to="/shipping" className="hover:text-primary-500">Giao hàng</Link></li>
+              <li><Link to="/returns" className="hover:text-primary-500">Đổi trả</Link></li>
+              <li><Link to="/contact" className="hover:text-primary-500">Liên hệ</Link></li>
             </ul>
           </div>
 
           <div>
-            <h3 className="text-white font-bold text-lg mb-4">Lien he</h3>
+            <h3 className="text-white font-bold text-lg mb-4">Liên hệ</h3>
             <ul className="space-y-3 text-sm">
               {settings.contact_phone && (
                 <li className="flex items-center gap-2">
