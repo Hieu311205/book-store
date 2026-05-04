@@ -1,4 +1,4 @@
-import { useQuery } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { FiDollarSign, FiShoppingCart, FiUsers, FiPackage, FiAlertCircle } from 'react-icons/fi'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { adminService } from '../../services/admin.service'
