@@ -11,6 +11,8 @@ function handleCart($method, $pathParts) {
         cartRemove($pathParts[2]);
     } elseif ($method === 'DELETE' && $action === 'clear') {
         cartClear();
+    } elseif ($method === 'GET' && $action === 'coupons') {
+        cartListCoupons();
     } elseif ($method === 'POST' && in_array($action, ['coupon', 'apply-coupon'], true)) {
         cartApplyCoupon();
     } else {
@@ -175,5 +177,18 @@ function cartApplyCoupon() {
         jsonResponse(['success' => false, 'message' => 'Mã giảm giá không hợp lệ hoặc đã hết hạn'], 400);
     }
     jsonResponse(['success' => true, 'message' => 'Đã áp dụng mã giảm giá', 'data' => ['coupon' => $coupon]]);
+}
+
+function cartListCoupons() {
+    $coupons = queryAll(
+        "SELECT id, code, type, value, min_purchase, max_discount
+         FROM coupons
+         WHERE is_active = 1
+           AND (start_date IS NULL OR start_date <= NOW())
+           AND (end_date IS NULL OR end_date >= NOW())
+           AND (usage_limit IS NULL OR used_count < usage_limit)
+         ORDER BY min_purchase ASC, value DESC"
+    );
+    jsonResponse(['success' => true, 'data' => $coupons]);
 }
 ?>

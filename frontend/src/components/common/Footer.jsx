@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
+import { FiInstagram, FiMail, FiMapPin, FiPhone, FiTwitter } from 'react-icons/fi'
 import { useQuery } from '@tanstack/react-query'
-import { FiInstagram, FiTwitter, FiPhone, FiMail, FiMapPin } from 'react-icons/fi'
 import { settingsService } from '../../services/settings.service'
 
 const Footer = () => {
@@ -11,66 +11,64 @@ const Footer = () => {
   })
 
   return (
-    <footer className="bg-gray-900 text-gray-300 mt-auto">
-      <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+    <footer className="store-footer">
+      <div className="store-footer-inner container mx-auto px-4">
+        <div className="store-footer-grid">
           <div>
-            {settings.site_name && <h3 className="text-white font-bold text-lg mb-4">{settings.site_name}</h3>}
-            {settings.site_description && (
-              <p className="text-gray-400 text-sm leading-relaxed">{settings.site_description}</p>
-            )}
-            <div className="flex gap-4 mt-4">
+            <h3>{settings.site_name || 'Book Store'}</h3>
+            <p>{settings.site_description || 'Không gian mua sách trực tuyến dành cho độc giả yêu sách.'}</p>
+            <div className="store-footer-social">
               {settings.instagram_url && (
-                <a href={settings.instagram_url} className="hover:text-primary-500" target="_blank" rel="noreferrer">
-                  <FiInstagram size={20} />
+                <a href={settings.instagram_url} target="_blank" rel="noreferrer" aria-label="Instagram">
+                  <FiInstagram />
                 </a>
               )}
               {settings.twitter_url && (
-                <a href={settings.twitter_url} className="hover:text-primary-500" target="_blank" rel="noreferrer">
-                  <FiTwitter size={20} />
+                <a href={settings.twitter_url} target="_blank" rel="noreferrer" aria-label="Twitter">
+                  <FiTwitter />
                 </a>
               )}
             </div>
           </div>
 
           <div>
-            <h3 className="text-white font-bold text-lg mb-4">Liên kết</h3>
-            <ul className="space-y-2 text-sm">
-              <li><Link to="/products" className="hover:text-primary-500">Tất cả sách</Link></li>
-              <li><Link to="/products?bestseller=true" className="hover:text-primary-500">Bán chạy</Link></li>
-              <li><Link to="/products?featured=true" className="hover:text-primary-500">Nổi bật</Link></li>
-              <li><Link to="/products?sort=newest" className="hover:text-primary-500">Mới nhất</Link></li>
+            <h3>Liên kết</h3>
+            <ul>
+              <li><Link to="/products">Tất cả sách</Link></li>
+              <li><Link to="/products?bestseller=true">Bán chạy</Link></li>
+              <li><Link to="/products?featured=true">Nổi bật</Link></li>
+              <li><Link to="/products?sort=newest">Mới nhất</Link></li>
             </ul>
           </div>
 
           <div>
-            <h3 className="text-white font-bold text-lg mb-4">Hỗ trợ</h3>
-            <ul className="space-y-2 text-sm">
-              <li><Link to="/faq" className="hover:text-primary-500">FAQ</Link></li>
-              <li><Link to="/shipping" className="hover:text-primary-500">Giao hàng</Link></li>
-              <li><Link to="/returns" className="hover:text-primary-500">Đổi trả</Link></li>
-              <li><Link to="/contact" className="hover:text-primary-500">Liên hệ</Link></li>
+            <h3>Hỗ trợ</h3>
+            <ul>
+              <li><Link to="/faq">Câu hỏi thường gặp</Link></li>
+              <li><Link to="/shipping">Giao hàng</Link></li>
+              <li><Link to="/returns">Đổi trả</Link></li>
+              <li><Link to="/contact">Liên hệ</Link></li>
             </ul>
           </div>
 
           <div>
-            <h3 className="text-white font-bold text-lg mb-4">Liên hệ</h3>
-            <ul className="space-y-3 text-sm">
+            <h3>Liên hệ</h3>
+            <ul className="store-contact-list">
               {settings.contact_phone && (
-                <li className="flex items-center gap-2">
-                  <FiPhone className="text-primary-500" />
+                <li>
+                  <FiPhone />
                   <span>{settings.contact_phone}</span>
                 </li>
               )}
               {settings.contact_email && (
-                <li className="flex items-center gap-2">
-                  <FiMail className="text-primary-500" />
+                <li>
+                  <FiMail />
                   <span>{settings.contact_email}</span>
                 </li>
               )}
               {settings.contact_address && (
-                <li className="flex items-start gap-2">
-                  <FiMapPin className="text-primary-500 mt-1" />
+                <li>
+                  <FiMapPin />
                   <span>{settings.contact_address}</span>
                 </li>
               )}
@@ -78,11 +76,9 @@ const Footer = () => {
           </div>
         </div>
 
-        {settings.copyright_text && (
-          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm text-gray-500">
-            <p>{settings.copyright_text}</p>
-          </div>
-        )}
+        <div className="store-footer-bottom">
+          <p>{settings.copyright_text || '© Book Store. Tất cả quyền được bảo lưu.'}</p>
+        </div>
       </div>
     </footer>
   )

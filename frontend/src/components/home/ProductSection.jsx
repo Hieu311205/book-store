@@ -1,16 +1,19 @@
 import { Link } from 'react-router-dom'
-import { FiArrowLeft } from 'react-icons/fi'
+import { FiArrowRight } from 'react-icons/fi'
 import ProductGrid from '../product/ProductGrid'
 
-const ProductSection = ({ title, products, isLoading, link, linkText = 'Xem tất cả' }) => {
+const ProductSection = ({ eyebrow, title, products, isLoading, link, linkText = 'Xem tất cả' }) => {
   return (
-    <section className="my-10">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold">{title}</h2>
+    <section className="store-section">
+      <div className="store-section-top">
+        <div className="store-section-heading">
+          {eyebrow && <span className="store-section-kicker">{eyebrow}</span>}
+          <h2>{title}</h2>
+        </div>
         {link && (
-          <Link to={link} className="text-primary-600 hover:text-primary-700 flex items-center gap-1 text-sm">
+          <Link to={link} className="store-view-all">
             {linkText}
-            <FiArrowLeft />
+            <FiArrowRight />
           </Link>
         )}
       </div>

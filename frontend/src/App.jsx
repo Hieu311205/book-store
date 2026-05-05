@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom'
 import Header from './components/common/Header'
 import Footer from './components/common/Footer'
 import MiniCart from './components/common/MiniCart'
+import StoreBreadcrumb from './components/common/StoreBreadcrumb'
 import Home from './pages/Home'
 import Products from './pages/Products'
 import ProductDetail from './pages/ProductDetail'
@@ -18,9 +19,10 @@ import Search from './pages/Search'
 
 const App = () => {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="store-app min-h-screen flex flex-col">
       <Header />
-      <main className="flex-1 container mx-auto px-4 py-6">
+      <main className="store-page-main flex-1 container mx-auto px-4 py-6">
+        <StoreBreadcrumb />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/products" element={<Products />} />
@@ -40,9 +42,9 @@ const App = () => {
           <Route
             path="*"
             element={
-              <div className="text-center py-16">
-                <h1 className="text-4xl font-bold mb-4">404</h1>
-                <p className="text-gray-500">Không tìm thấy trang</p>
+              <div className="store-empty-state store-not-found">
+                <h1>404</h1>
+                <p>Không tìm thấy trang</p>
               </div>
             }
           />

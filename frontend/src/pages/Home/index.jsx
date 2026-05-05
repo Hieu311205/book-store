@@ -1,8 +1,36 @@
+import { FiBookOpen, FiHeadphones, FiRefreshCw, FiTruck } from 'react-icons/fi'
 import { useQuery } from '@tanstack/react-query'
 import HeroSlider from '../../components/home/HeroSlider'
 import CategoryGrid from '../../components/home/CategoryGrid'
 import ProductSection from '../../components/home/ProductSection'
+import PopularSearches from '../../components/home/PopularSearches'
+import RankingSection from '../../components/home/RankingSection'
+import EditorialNews from '../../components/home/EditorialNews'
+import ComboSpotlight from '../../components/home/ComboSpotlight'
 import { productService } from '../../services/product.service'
+
+const benefits = [
+  {
+    icon: <FiBookOpen />,
+    title: 'Sách chọn lọc',
+    description: 'Tuyển chọn đầu sách hay cho mọi độ tuổi',
+  },
+  {
+    icon: <FiTruck />,
+    title: 'Giao hàng toàn quốc',
+    description: 'Đóng gói cẩn thận, giao nhanh đến tận nhà',
+  },
+  {
+    icon: <FiRefreshCw />,
+    title: 'Đổi trả dễ dàng',
+    description: 'Hỗ trợ đổi trả trong 7 ngày',
+  },
+  {
+    icon: <FiHeadphones />,
+    title: 'Tư vấn tận tâm',
+    description: 'Gợi ý sách phù hợp với nhu cầu đọc',
+  },
+]
 
 const Home = () => {
   const { data: featured, isLoading: loadingFeatured } = useQuery({
@@ -13,7 +41,7 @@ const Home = () => {
 
   const { data: bestsellers, isLoading: loadingBestsellers } = useQuery({
     queryKey: ['products', 'bestsellers'],
-    queryFn: () => productService.getBestsellers(8),
+    queryFn: () => productService.getBestsellers(10),
     select: (res) => res.data,
   })
 
@@ -24,74 +52,63 @@ const Home = () => {
   })
 
   return (
-    <div>
-      <section className="mb-8">
-        <HeroSlider />
+    <div className="store-home">
+      <HeroSlider />
+
+      <section className="store-benefits" aria-label="Cam kết dịch vụ">
+        {benefits.map((item) => (
+          <div className="store-benefit" key={item.title}>
+            <span className="store-benefit-icon">{item.icon}</span>
+            <span>
+              <strong>{item.title}</strong>
+              <small>{item.description}</small>
+            </span>
+          </div>
+        ))}
       </section>
 
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div className="flex items-center gap-3 p-4 bg-white dark:bg-gray-800 rounded-xl">
-          <span className="text-2xl">Nhanh</span>
-          <div>
-            <p className="font-medium text-sm">Giao hàng nhanh</p>
-            <p className="text-xs text-gray-500">Giao hàng toàn quốc</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 p-4 bg-white dark:bg-gray-800 rounded-xl">
-          <span className="text-2xl">An toàn</span>
-          <div>
-            <p className="font-medium text-sm">Thanh toán bảo mật</p>
-            <p className="text-xs text-gray-500">Quy trình an toàn</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 p-4 bg-white dark:bg-gray-800 rounded-xl">
-          <span className="text-2xl">Đổi trả</span>
-          <div>
-            <p className="font-medium text-sm">Đổi trả dễ dàng</p>
-            <p className="text-xs text-gray-500">Trong 7 ngày</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 p-4 bg-white dark:bg-gray-800 rounded-xl">
-          <span className="text-2xl">Hỗ trợ</span>
-          <div>
-            <p className="font-medium text-sm">Hỗ trợ 24/7</p>
-            <p className="text-xs text-gray-500">Luôn sẵn sàng</p>
-          </div>
-        </div>
-      </section>
-
+      <PopularSearches />
       <CategoryGrid />
 
       <ProductSection
+        eyebrow="Vừa lên kệ"
+        title="Sách mới phát hành"
+        products={newArrivals}
+        isLoading={loadingNew}
+        link="/products?sort=newest"
+      />
+
+      <RankingSection products={bestsellers || []} isLoading={loadingBestsellers} />
+
+      <ProductSection
+        eyebrow="Gợi ý hôm nay"
         title="Sách nổi bật"
         products={featured}
         isLoading={loadingFeatured}
         link="/products?featured=true"
       />
 
-      <section className="my-10 bg-gradient-to-l from-primary-600 to-primary-800 rounded-xl p-8 text-white">
-        <div className="max-w-2xl">
-          <h3 className="text-2xl font-bold mb-2">Ưu đãi sách tâm lý</h3>
-          <p className="mb-4 text-white/90">Giảm đến 30% cho các sách tâm lý và phát triển bản thân</p>
-          <a href="/products?category=2" className="btn bg-white text-primary-700 hover:bg-gray-100">
-            Xem ưu đãi
-          </a>
+      <section className="store-promo-banner">
+        <div>
+          <span className="store-promo-kicker">Ưu đãi theo chủ đề</span>
+          <h2>Thêm sách hay vào kệ đọc của bạn</h2>
+          <p>Khám phá các đầu sách văn học, kỹ năng và thiếu nhi đang được độc giả quan tâm.</p>
         </div>
+        <a href="/products" className="store-promo-button">
+          Xem ưu đãi
+        </a>
       </section>
 
       <ProductSection
+        eyebrow="Được mua nhiều"
         title="Sách bán chạy"
         products={bestsellers}
         isLoading={loadingBestsellers}
         link="/products?bestseller=true"
       />
 
-      <ProductSection
-        title="Sách mới"
-        products={newArrivals}
-        isLoading={loadingNew}
-        link="/products?sort=newest"
-      />
+      <ComboSpotlight products={featured || []} isLoading={loadingFeatured} />
+      <EditorialNews />
     </div>
   )
 }

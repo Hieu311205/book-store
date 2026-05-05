@@ -61,7 +61,7 @@ export const CartProvider = ({ children }) => {
   })
 
   const addToCart = (productId, quantity = 1) => {
-    addToCartMutation.mutate({ product_id: productId, quantity })
+    return addToCartMutation.mutateAsync({ product_id: productId, quantity })
   }
 
   const updateQuantity = (productId, quantity) => {

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { FiX, FiTrash2, FiPlus, FiMinus } from 'react-icons/fi'
+import { FiMinus, FiPlus, FiTrash2, FiX } from 'react-icons/fi'
 import { useCart } from '../../context/CartContext'
 import { formatPrice } from '../../utils/formatPrice'
 
@@ -82,25 +82,13 @@ const MiniCart = () => {
 
           {items.length > 0 && (
             <div className="border-t dark:border-gray-700 p-4 space-y-3">
-              <div className="flex justify-between text-sm">
-                <span>Tạm tính:</span>
-                <span>{formatPrice(summary.subtotal)}</span>
-              </div>
               {summary.discount > 0 && (
                 <div className="flex justify-between text-sm text-green-600">
                   <span>Giảm giá:</span>
                   <span>- {formatPrice(summary.discount)}</span>
                 </div>
               )}
-              <div className="flex justify-between font-bold">
-                <span>Tổng cộng:</span>
-                <span className="text-primary-600">{formatPrice(summary.total)}</span>
-              </div>
-              <Link
-                to="/cart"
-                onClick={closeCart}
-                className="btn btn-primary w-full"
-              >
+              <Link to="/cart" onClick={closeCart} className="btn btn-primary w-full">
                 Xem giỏ hàng và thanh toán
               </Link>
             </div>

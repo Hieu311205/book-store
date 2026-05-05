@@ -8,7 +8,7 @@ const ProductGrid = ({ products, isLoading, columns = 4 }) => {
 
   if (!products || products.length === 0) {
     return (
-      <div className="text-center py-12 text-gray-500">
+      <div className="store-empty-state">
         <p>Không tìm thấy sách</p>
       </div>
     )
@@ -22,7 +22,7 @@ const ProductGrid = ({ products, isLoading, columns = 4 }) => {
   }
 
   return (
-    <div className={`grid ${gridCols[columns] || gridCols[4]} gap-4`}>
+    <div className={`store-product-grid grid ${gridCols[columns] || gridCols[4]}`}>
       {products.map((product) => (
         <ProductCard key={product.id} product={product} />
       ))}

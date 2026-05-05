@@ -1,19 +1,21 @@
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { FiShoppingCart, FiHeart, FiShare2, FiMinus, FiPlus, FiCheck } from 'react-icons/fi'
+import { FiChevronRight, FiHeart, FiMinus, FiPlus, FiShare2, FiShoppingCart } from 'react-icons/fi'
 import { FaStar } from 'react-icons/fa'
 import { productService } from '../../services/product.service'
 import { useCart } from '../../context/CartContext'
 import { useAuth } from '../../context/AuthContext'
 import { userService } from '../../services/user.service'
-import { formatPrice, formatNumber } from '../../utils/formatPrice'
+import { formatNumber, formatPrice } from '../../utils/formatPrice'
+import { saveBuyNowItem } from '../../utils/buyNowStorage'
 import { PageLoading } from '../../components/common/Loading'
 import ProductGrid from '../../components/product/ProductGrid'
 
 const ProductDetail = () => {
   const { slug } = useParams()
+  const navigate = useNavigate()
   const { addToCart } = useCart()
   const { isAuthenticated } = useAuth()
   const queryClient = useQueryClient()
@@ -29,7 +31,7 @@ const ProductDetail = () => {
   const { data: relatedProducts } = useQuery({
     queryKey: ['products', 'related', product?.category_id],
     queryFn: () => productService.getProducts({ category: product.category_id, limit: 4 }),
-    select: (res) => res.data?.products?.filter((p) => p.id !== product.id),
+    select: (res) => res.data?.products?.filter((item) => item.id !== product.id),
     enabled: !!product?.category_id,
   })
 
@@ -64,6 +66,11 @@ const ProductDetail = () => {
     addToCart(product.id, quantity)
   }
 
+  const handleBuyNow = () => {
+    saveBuyNowItem(product, quantity)
+    navigate('/checkout?mode=buy-now')
+  }
+
   const handleWishlist = () => {
     if (!isAuthenticated) {
       toast.error('Bạn cần đăng nhập để thêm yêu thích')
@@ -92,149 +99,114 @@ const ProductDetail = () => {
   }
 
   return (
-    <div>
-      <nav className="text-sm text-gray-500 mb-6">
-        <Link to="/" className="hover:text-primary-600">Trang chủ</Link>
-        <span className="mx-2">/</span>
-        <Link to="/products" className="hover:text-primary-600">Sách</Link>
+    <div className="store-product-detail-page">
+      <nav className="store-detail-breadcrumb">
+        <Link to="/">Trang chủ</Link>
+        <FiChevronRight />
+        <Link to="/products?sort=newest">SÁCH MỚI PHÁT HÀNH</Link>
         {product.category_name && (
           <>
-            <span className="mx-2">/</span>
-            <Link to={`/products?category=${product.category_id}`} className="hover:text-primary-600">
-              {product.category_name}
-            </Link>
+            <FiChevronRight />
+            <Link to={`/products?category=${product.category_id}`}>{product.category_name}</Link>
           </>
         )}
-        <span className="mx-2">/</span>
-        <span className="text-gray-900 dark:text-gray-100">{product.title}</span>
+        <FiChevronRight />
+        <span>{product.title}</span>
       </nav>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
-        <div className="space-y-4">
-          <div className="aspect-[3/4] bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden">
-            <img
-              src={mainImage}
-              alt={product.title}
-              className="w-full h-full object-cover"
-            />
+      <div className="store-detail-layout">
+        <div className="store-detail-gallery">
+          <div className="store-detail-main-image">
+            <img src={mainImage} alt={product.title} />
           </div>
           {product.images?.length > 1 && (
-            <div className="flex gap-2">
-              {product.images.map((img, i) => (
-                <div
-                  key={i}
-                  className="w-20 h-24 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden cursor-pointer hover:ring-2 ring-primary-600"
-                >
-                  <img src={img.image_url} alt="" className="w-full h-full object-cover" />
+            <div className="store-detail-thumbs">
+              {product.images.map((img, index) => (
+                <div key={index} className="store-detail-thumb">
+                  <img src={img.image_url} alt="" />
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        <div>
-          <h1 className="text-2xl font-bold mb-2">{product.title}</h1>
-          {product.title_en && (
-            <p className="text-gray-500 dark:text-gray-400 mb-4">{product.title_en}</p>
-          )}
+        <div className="store-detail-info">
+          <h1>{product.title}</h1>
+          {product.title_en && <p className="store-detail-subtitle">{product.title_en}</p>}
+
+          <div className="store-detail-rating-row">
+            <div className="store-detail-stars">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <FaStar key={star} className={star <= product.rating_avg ? 'is-filled' : ''} />
+              ))}
+            </div>
+            <span>
+              {product.rating_count > 0
+                ? `(${formatNumber(product.rating_count)} đánh giá)`
+                : '(Chưa có đánh giá)'}
+            </span>
+            <span className="store-detail-sold">Đã bán {formatNumber(product.sales_count || 0)}</span>
+          </div>
 
           {product.author_name && (
-            <p className="mb-2">
-              <span className="text-gray-500">Tác giả:</span>{' '}
-              <Link to={`/products?author=${product.author_id}`} className="text-primary-600 hover:underline">
-                {product.author_name}
-              </Link>
+            <p className="store-detail-author">
+              <span>Tác giả:</span>
+              <Link to={`/products?author=${product.author_id}`}>{product.author_name}</Link>
             </p>
           )}
 
           {product.publisher_name && (
-            <p className="mb-2">
-              <span className="text-gray-500">Nhà xuất bản:</span>{' '}
-              <span>{product.publisher_name}</span>
+            <p className="store-detail-meta">
+              <span>Nhà xuất bản:</span>
+              <strong>{product.publisher_name}</strong>
             </p>
           )}
 
-          {product.rating_avg > 0 && (
-            <div className="flex items-center gap-2 mb-4">
-              <div className="flex items-center gap-1">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <FaStar
-                    key={star}
-                    className={star <= product.rating_avg ? 'text-yellow-400' : 'text-gray-300'}
-                  />
-                ))}
-              </div>
-              <span className="text-sm text-gray-500">
-                ({formatNumber(product.rating_count)} đánh giá)
-              </span>
-            </div>
-          )}
-
-          <div className="flex items-center gap-4 my-6">
-            {product.discount_percent > 0 && (
-              <span className="bg-red-500 text-white text-sm px-2 py-1 rounded-full">
-                Giảm {product.discount_percent}%
-              </span>
-            )}
-            <span className="text-3xl font-bold text-primary-600">
-              {formatPrice(product.price)}
-            </span>
+          <div className="store-detail-price-row">
+            <strong>{formatPrice(product.price)}</strong>
             {product.compare_price && product.compare_price > product.price && (
-              <span className="text-gray-400 text-lg line-through">
-                {formatPrice(product.compare_price)}
-              </span>
+              <span>{formatPrice(product.compare_price)}</span>
             )}
+            {product.discount_percent > 0 && <em>- {product.discount_percent}%</em>}
           </div>
 
-          <div className="mb-6">
-            {product.stock > 0 ? (
-              <span className="flex items-center gap-2 text-green-600">
-                <FiCheck />
-                Còn hàng ({formatNumber(product.stock)} cuốn)
-              </span>
-            ) : (
-              <span className="text-red-500">Hết hàng</span>
-            )}
-          </div>
-
-          {product.stock > 0 && (
-            <div className="flex items-center gap-4 mb-6">
-              <div className="flex items-center border dark:border-gray-700 rounded-lg">
-                <button
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="p-3 hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  <FiMinus />
-                </button>
-                <span className="w-12 text-center">{quantity}</span>
-                <button
-                  onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
-                  className="p-3 hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  <FiPlus />
-                </button>
-              </div>
-              <button onClick={handleAddToCart} className="btn btn-primary flex-1 py-3">
-                <FiShoppingCart />
-                Thêm vào giỏ hàng
+          {product.stock > 0 ? (
+            <div className="store-detail-quantity">
+              <button onClick={() => setQuantity(Math.max(1, quantity - 1))} disabled={quantity <= 1}>
+                <FiMinus />
+              </button>
+              <span>{quantity}</span>
+              <button onClick={() => setQuantity(Math.min(product.stock, quantity + 1))} disabled={quantity >= product.stock}>
+                <FiPlus />
               </button>
             </div>
+          ) : (
+            <span className="store-detail-soldout">Hết hàng</span>
           )}
 
-          <div className="flex gap-4">
-            <button onClick={handleWishlist} disabled={wishlistMutation.isPending} className="btn btn-secondary flex-1 disabled:opacity-50">
+          <div className="store-detail-actions">
+            {product.stock > 0 && (
+              <button onClick={handleAddToCart} className="store-detail-cart-button">
+                Thêm vào giỏ hàng
+                <FiShoppingCart />
+              </button>
+            )}
+            {product.stock > 0 && (
+              <button onClick={handleBuyNow} className="store-detail-buy-button">
+                Mua ngay
+              </button>
+            )}
+            <button onClick={handleWishlist} disabled={wishlistMutation.isPending} className="store-detail-secondary-button">
               <FiHeart />
               Yêu thích
             </button>
-            <button onClick={handleShare} className="btn btn-secondary flex-1">
+            <button onClick={handleShare} className="store-detail-secondary-button">
               <FiShare2 />
               Chia sẻ
             </button>
           </div>
 
-          {product.short_description && (
-            <p className="mt-6 text-gray-600 dark:text-gray-400">{product.short_description}</p>
-          )}
+          {product.short_description && <p className="store-detail-description">{product.short_description}</p>}
         </div>
       </div>
 
@@ -306,7 +278,7 @@ const ProductDetail = () => {
                     <td className="py-3 text-gray-500">Định dạng</td>
                     <td className="py-3">
                       {product.format === 'hardcover' ? 'Bìa cứng' :
-                       product.format === 'paperback' ? 'Bìa mềm' : 'Sách điện tử'}
+                        product.format === 'paperback' ? 'Bìa mềm' : 'Sách điện tử'}
                     </td>
                   </tr>
                 )}

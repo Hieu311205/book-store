@@ -32,13 +32,40 @@ function createOrder($user) {
         jsonResponse(['success' => false, 'message' => 'Không tìm thấy địa chỉ'], 400);
     }
 
-    $items = queryAll(
-        "SELECT ci.*, p.title, p.price, p.stock,
-                (SELECT image_url FROM product_images WHERE product_id = p.id AND is_primary = 1 ORDER BY sort_order LIMIT 1) AS image_url
-         FROM cart_items ci LEFT JOIN products p ON ci.product_id = p.id
-         WHERE ci.user_id = ?",
-        [$user['id']]
-    );
+    $shouldClearCart = true;
+    $selectedCartProductIds = [];
+    $directItems = $input['items'] ?? null;
+    if (is_array($directItems) && count($directItems) > 0) {
+        $shouldClearCart = !empty($input['clear_selected_cart_items']);
+        $items = [];
+        foreach ($directItems as $directItem) {
+            $productId = (int)($directItem['product_id'] ?? 0);
+            $quantity = max(1, (int)($directItem['quantity'] ?? 1));
+            if ($productId <= 0) {
+                continue;
+            }
+            $product = queryOne(
+                "SELECT id AS product_id, title, price, stock,
+                        (SELECT image_url FROM product_images WHERE product_id = products.id AND is_primary = 1 ORDER BY sort_order LIMIT 1) AS image_url
+                 FROM products
+                 WHERE id = ? AND is_active = 1",
+                [$productId]
+            );
+            if ($product) {
+                $product['quantity'] = $quantity;
+                $items[] = $product;
+                $selectedCartProductIds[] = $productId;
+            }
+        }
+    } else {
+        $items = queryAll(
+            "SELECT ci.*, p.title, p.price, p.stock,
+                    (SELECT image_url FROM product_images WHERE product_id = p.id AND is_primary = 1 ORDER BY sort_order LIMIT 1) AS image_url
+             FROM cart_items ci LEFT JOIN products p ON ci.product_id = p.id
+             WHERE ci.user_id = ?",
+            [$user['id']]
+        );
+    }
     if (!$items) {
         jsonResponse(['success' => false, 'message' => 'Giỏ hàng đang trống'], 400);
     }
@@ -97,7 +124,14 @@ function createOrder($user) {
         ]);
         executeSql("UPDATE products SET stock = stock - ?, sales_count = COALESCE(sales_count, 0) + ? WHERE id = ?", [$item['quantity'], $item['quantity'], $item['product_id']]);
     }
-    executeSql("DELETE FROM cart_items WHERE user_id = ?", [$user['id']]);
+    if ($shouldClearCart) {
+        if ($selectedCartProductIds) {
+            $placeholders = implode(',', array_fill(0, count($selectedCartProductIds), '?'));
+            executeSql("DELETE FROM cart_items WHERE user_id = ? AND product_id IN ({$placeholders})", array_merge([$user['id']], $selectedCartProductIds));
+        } else {
+            executeSql("DELETE FROM cart_items WHERE user_id = ?", [$user['id']]);
+        }
+    }
     if ($coupon) {
         executeSql("UPDATE coupons SET used_count = COALESCE(used_count, 0) + 1 WHERE id = ?", [$coupon['id']]);
         insertRow('coupon_usage', ['coupon_id' => $coupon['id'], 'user_id' => $user['id'], 'order_id' => $orderId]);

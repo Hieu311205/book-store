@@ -6,5 +6,6 @@ export const cartService = {
   updateCartItem: (data) => api.put('/cart/update', data),
   removeFromCart: (itemId) => api.delete(`/cart/remove/${itemId}`),
   clearCart: () => api.delete('/cart/clear'),
+  getCoupons: () => api.get('/cart/coupons'),
   applyCoupon: (code) => api.post('/cart/apply-coupon', { code }),
 }

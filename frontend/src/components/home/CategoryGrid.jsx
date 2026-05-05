@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { FiBookOpen } from 'react-icons/fi'
 import { useQuery } from '@tanstack/react-query'
 import { categoryService } from '../../services/category.service'
 
@@ -11,11 +12,14 @@ const CategoryGrid = () => {
 
   if (isLoading) {
     return (
-      <section className="my-8">
-        <h2 className="text-xl font-bold mb-6">Danh mục sách</h2>
-        <div className="grid grid-cols-4 md:grid-cols-8 gap-4">
+      <section className="store-category-section">
+        <div className="store-section-heading">
+          <span className="store-section-kicker">Tủ sách</span>
+          <h2>Danh mục sách</h2>
+        </div>
+        <div className="store-category-grid">
           {Array.from({ length: 8 }).map((_, index) => (
-            <div key={index} className="h-24 bg-white dark:bg-gray-800 rounded-xl animate-pulse" />
+            <div key={index} className="store-category-skeleton" />
           ))}
         </div>
       </section>
@@ -23,17 +27,16 @@ const CategoryGrid = () => {
   }
 
   return (
-    <section className="my-8">
-      <h2 className="text-xl font-bold mb-6">Danh mục sách</h2>
-      <div className="grid grid-cols-4 md:grid-cols-8 gap-4">
+    <section className="store-category-section">
+      <div className="store-section-heading">
+        <span className="store-section-kicker">Tủ sách</span>
+        <h2>Danh mục sách</h2>
+      </div>
+      <div className="store-category-grid">
         {categories.map((cat) => (
-          <Link
-            key={cat.id}
-            to={`/products?category=${cat.slug || cat.id}`}
-            className="flex flex-col items-center p-4 bg-white dark:bg-gray-800 rounded-xl hover:shadow-md transition-shadow text-center"
-          >
-            <span className="text-sm font-bold mb-2 text-primary-600">{cat.icon || 'Sách'}</span>
-            <span className="text-sm font-medium">{cat.name}</span>
+          <Link key={cat.id} to={`/products?category=${cat.slug || cat.id}`} className="store-category-tile">
+            <span className="store-category-icon">{cat.icon || <FiBookOpen />}</span>
+            <strong>{cat.name}</strong>
           </Link>
         ))}
       </div>

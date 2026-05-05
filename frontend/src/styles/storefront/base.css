@@ -1,0 +1,82 @@
+:root {
+  --store-red: #9f1f1f;
+  --store-red-dark: #751717;
+  --store-red-soft: #fff1ee;
+  --store-gold: #d6a640;
+  --store-green: #316b58;
+  --store-ink: #2f2720;
+  --store-muted: #746a5d;
+  --store-line: #eadfce;
+  --store-paper: #fbf6ed;
+  --store-card: #fffdf8;
+  --store-shadow: 0 18px 45px rgba(82, 45, 28, 0.1);
+  --store-shadow-strong: 0 26px 70px rgba(82, 45, 28, 0.18);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(159, 31, 31, 0.08), transparent 28rem),
+    radial-gradient(circle at 92% 10%, rgba(214, 166, 64, 0.16), transparent 26rem),
+    linear-gradient(180deg, #fbf6ed 0%, #f8efe2 46%, #fdfaf4 100%);
+  color: var(--store-ink);
+  text-rendering: optimizeLegibility;
+}
+
+.dark body {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(159, 31, 31, 0.28), transparent 30rem),
+    radial-gradient(circle at 92% 10%, rgba(214, 166, 64, 0.14), transparent 24rem),
+    linear-gradient(180deg, #15110d 0%, #211915 55%, #15110d 100%);
+  color: #f7efe3;
+}
+
+::selection {
+  background: var(--store-red);
+  color: #fff;
+}
+
+img {
+  user-select: none;
+}
+
+.store-page-main {
+  padding-top: 1.25rem;
+  padding-bottom: 3.5rem;
+}
+
+.btn {
+  min-height: 2.65rem;
+  border-radius: 0.45rem;
+}
+
+.btn-primary {
+  background: var(--store-red);
+  box-shadow: 0 14px 24px rgba(159, 31, 31, 0.22);
+}
+
+.btn-primary:hover {
+  background: var(--store-red-dark);
+}
+
+.input {
+  border-radius: 0.45rem;
+  border-color: var(--store-line);
+  background: #fffdf8;
+}
+
+.card {
+  border: 1px solid var(--store-line);
+  border-radius: 0.5rem;
+  background: rgba(255, 253, 248, 0.96);
+  box-shadow: 0 12px 30px rgba(82, 45, 28, 0.08);
+}
+
+.dark .card,
+.dark .input {
+  border-color: rgba(234, 223, 206, 0.16);
+  background: rgba(39, 30, 25, 0.92);
+}

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { FiFilter, FiX } from 'react-icons/fi'
 import ProductGrid from '../../components/product/ProductGrid'
+import Pagination from '../../components/common/Pagination'
 import { productService } from '../../services/product.service'
 import { categoryService } from '../../services/category.service'
 
@@ -177,22 +178,12 @@ const Products = () => {
 
         <ProductGrid products={data?.products} isLoading={isLoading} />
 
-        {data?.pagination && data.pagination.totalPages > 1 && (
-          <div className="flex justify-center gap-2 mt-8">
-            {Array.from({ length: data.pagination.totalPages }).map((_, i) => (
-              <button
-                key={i}
-                onClick={() => updateParam('page', String(i + 1))}
-                className={`w-10 h-10 rounded-lg ${
-                  data.pagination.page === i + 1
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                {i + 1}
-              </button>
-            ))}
-          </div>
+        {data?.pagination && (
+          <Pagination
+            currentPage={data.pagination.page}
+            totalPages={data.pagination.totalPages}
+            onPageChange={(nextPage) => updateParam('page', String(nextPage))}
+          />
         )}
       </div>
 
