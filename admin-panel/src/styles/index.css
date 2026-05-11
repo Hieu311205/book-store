@@ -3,11 +3,11 @@
 @tailwind utilities;
 
 * {
-  font-family: Arial, sans-serif;
+  font-family: 'Inter', Arial, sans-serif;
 }
 
 body {
-  @apply bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100;
+  @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100;
   direction: ltr;
 }
 
@@ -21,20 +21,25 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-gray-400 dark:bg-gray-600 rounded-full;
+  @apply bg-gray-300 dark:bg-gray-600 rounded-full;
 }
 
 @layer components {
+  /* ── Buttons ── */
   .btn {
-    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50;
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer text-sm;
   }
 
   .btn-primary {
-    @apply bg-primary-600 text-white hover:bg-primary-700;
+    @apply bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800;
   }
 
   .btn-secondary {
-    @apply bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600;
+    @apply bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600;
+  }
+
+  .btn-outline {
+    @apply border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700;
   }
 
   .btn-danger {
@@ -45,64 +50,84 @@ body {
     @apply bg-green-600 text-white hover:bg-green-700;
   }
 
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  /* ── Input ── */
   .input {
-    @apply w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none;
+    @apply w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800
+           text-sm text-gray-900 dark:text-gray-100
+           focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none
+           transition-shadow duration-150;
   }
 
+  /* ── Card ── */
   .card {
-    @apply bg-white dark:bg-gray-800 rounded-xl shadow-sm;
+    @apply bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm;
   }
 
+  /* ── Table ── */
   .table-wrapper {
     @apply overflow-x-auto;
   }
 
   .table {
-    @apply w-full text-sm;
+    @apply w-full;
+  }
+
+  .table thead {
+    @apply border-b border-gray-200 dark:border-gray-700;
   }
 
   .table th {
-    @apply px-4 py-3 text-right bg-gray-50 dark:bg-gray-700 font-medium;
+    @apply px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap bg-gray-50 dark:bg-gray-800/60;
   }
 
   .table td {
-    @apply px-4 py-3 border-t dark:border-gray-700;
+    @apply px-4 py-3 border-t border-gray-100 dark:border-gray-700/60 text-sm align-middle;
   }
 
-  .table tr:hover td {
-    @apply bg-gray-50 dark:bg-gray-700/50;
+  .table tbody tr:hover td {
+    @apply bg-gray-50 dark:bg-gray-700/30;
   }
 
+  /* ── Badges ── */
   .badge {
-    @apply px-2 py-1 text-xs font-medium rounded-full;
+    @apply inline-flex items-center px-2.5 py-0.5 text-xs font-semibold rounded-full whitespace-nowrap;
   }
 
   .badge-success {
-    @apply bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200;
+    @apply bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300;
   }
 
   .badge-warning {
-    @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-200;
+    @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300;
   }
 
   .badge-danger {
-    @apply bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200;
+    @apply bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300;
   }
 
   .badge-info {
-    @apply bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200;
+    @apply bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300;
   }
 
+  .badge-gray {
+    @apply bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300;
+  }
+
+  /* ── Stat cards ── */
   .stat-card {
-    @apply card p-6;
+    @apply card p-5;
   }
 
   .stat-card-icon {
-    @apply w-12 h-12 rounded-lg flex items-center justify-center text-white;
+    @apply w-11 h-11 rounded-xl flex items-center justify-center text-white flex-shrink-0;
   }
 
   .stat-card-value {
-    @apply text-2xl font-bold mt-2;
+    @apply text-2xl font-bold mt-1;
   }
 
   .stat-card-label {

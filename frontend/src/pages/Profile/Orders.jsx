@@ -4,37 +4,38 @@ import toast from 'react-hot-toast'
 import { orderService } from '../../services/order.service'
 import { formatPrice } from '../../utils/formatPrice'
 
-const statusText = {
-  pending: 'Chờ xử lý',
-  paid: 'Đã thanh toán',
-  processing: 'Đang xử lý',
-  shipped: 'Đang giao',
-  delivered: 'Đã giao',
-  cancelled: 'Đã hủy',
-  refunded: 'Đã hoàn tiền',
+// Đồng bộ với admin-panel/src/pages/Orders/index.jsx — statusLabels
+const statusLabels = {
+  pending:    { label: 'Chờ xử lý',    cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' },
+  paid:       { label: 'Đã thanh toán', cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
+  processing: { label: 'Đang xử lý',   cls: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400' },
+  shipped:    { label: 'Đang giao',     cls: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' },
+  delivered:  { label: 'Đã giao',      cls: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' },
+  cancelled:  { label: 'Đã hủy',       cls: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' },
+  refunded:   { label: 'Đã hoàn tiền', cls: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
 }
 
-const statusColor = {
-  pending: 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20',
-  paid: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20',
-  processing: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20',
-  shipped: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20',
-  delivered: 'text-green-600 bg-green-50 dark:bg-green-900/20',
-  cancelled: 'text-red-600 bg-red-50 dark:bg-red-900/20',
-  refunded: 'text-gray-600 bg-gray-50 dark:bg-gray-900/20',
+const StatusBadge = ({ status }) => {
+  const s = statusLabels[status]
+  if (!s) return <span className="text-gray-400 text-xs">{status}</span>
+  return (
+    <span className={`inline-block text-xs font-semibold px-2.5 py-0.5 rounded-full ${s.cls}`}>
+      {s.label}
+    </span>
+  )
 }
 
-const paymentStatusText = {
-  pending: 'Chờ thanh toán',
-  paid: 'Đã thanh toán',
-  failed: 'Thất bại',
-  refunded: 'Đã hoàn tiền',
+const paymentStatusLabels = {
+  pending:  { label: 'Chờ thanh toán', cls: 'text-yellow-600' },
+  paid:     { label: 'Đã thanh toán',  cls: 'text-green-600 font-semibold' },
+  failed:   { label: 'Thất bại',       cls: 'text-red-600' },
+  refunded: { label: 'Đã hoàn tiền',   cls: 'text-gray-500' },
 }
 
 const paymentMethodText = {
-  cod: 'COD',
-  bank_transfer: 'Chuyển khoản',
-  card: 'Thẻ tín dụng',
+  cod:          'COD (tiền mặt khi nhận)',
+  bank_transfer:'Chuyển khoản ngân hàng',
+  card:         'Thẻ tín dụng/ghi nợ',
 }
 
 const OrderDetailModal = ({ orderId, onClose }) => {

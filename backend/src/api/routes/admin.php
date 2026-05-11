@@ -156,21 +156,53 @@ function handleAdminProducts($method, $pathParts) {
         $params = [];
 
         if (!empty($_GET['search'])) {
-            $where[] = '(p.title LIKE ? OR p.sku LIKE ?)';
+            $where[] = '(p.title LIKE ? OR p.sku LIKE ? OR p.isbn LIKE ? OR a.name LIKE ?)';
             $term = '%' . $_GET['search'] . '%';
-            array_push($params, $term, $term);
+            array_push($params, $term, $term, $term, $term);
         }
         if (!empty($_GET['category'])) {
             $where[] = 'p.category_id = ?';
-            $params[] = $_GET['category'];
+            $params[] = (int)$_GET['category'];
+        }
+        if (!empty($_GET['author'])) {
+            $where[] = 'p.author_id = ?';
+            $params[] = (int)$_GET['author'];
+        }
+        if (!empty($_GET['price_min'])) {
+            $where[] = 'p.price >= ?';
+            $params[] = (float)$_GET['price_min'];
+        }
+        if (!empty($_GET['price_max'])) {
+            $where[] = 'p.price <= ?';
+            $params[] = (float)$_GET['price_max'];
         }
         if (($_GET['status'] ?? '') === 'active') {
             $where[] = 'p.is_active = 1';
         } elseif (($_GET['status'] ?? '') === 'inactive') {
             $where[] = 'p.is_active = 0';
         } elseif (($_GET['status'] ?? '') === 'low_stock') {
-            $where[] = 'p.stock < 10';
+            $where[] = 'p.stock > 0 AND p.stock < 10';
+        } elseif (($_GET['status'] ?? '') === 'out_of_stock') {
+            $where[] = 'p.stock = 0';
         }
+        if (!empty($_GET['is_featured'])) {
+            $where[] = 'p.is_featured = 1';
+        }
+        if (!empty($_GET['is_bestseller'])) {
+            $where[] = 'p.is_bestseller = 1';
+        }
+
+        $sortMap = [
+            'newest'     => 'p.created_at DESC',
+            'oldest'     => 'p.created_at ASC',
+            'price_asc'  => 'p.price ASC',
+            'price_desc' => 'p.price DESC',
+            'stock_asc'  => 'p.stock ASC',
+            'stock_desc' => 'p.stock DESC',
+            'name_asc'   => 'p.title ASC',
+            'bestseller' => 'p.sales_count DESC',
+        ];
+        $orderBy = $sortMap[$_GET['sort'] ?? 'newest'] ?? 'p.created_at DESC';
 
         $whereSql = implode(' AND ', $where);
         $from = "FROM products p LEFT JOIN categories c ON p.category_id = c.id LEFT JOIN authors a ON p.author_id = a.id LEFT JOIN publishers pub ON p.publisher_id = pub.id";
@@ -178,7 +210,7 @@ function handleAdminProducts($method, $pathParts) {
         $products = queryAll(
             "SELECT p.*, c.name AS category_name, a.name AS author_name, pub.name AS publisher_name
              {$from} WHERE {$whereSql}
-             ORDER BY p.created_at DESC LIMIT ? OFFSET ?",
+             ORDER BY {$orderBy} LIMIT ? OFFSET ?",
             array_merge($params, [$limit, $offset])
         );
         $products = attachAdminProductImages($products);
@@ -362,16 +394,36 @@ function handleAdminOrders($method, $pathParts) {
     if ($method === 'PUT' && $id && (($pathParts[3] ?? '') === 'status')) {
         $input = requestJson();
         $newStatus = $input['status'] ?? 'pending';
+        $order = queryOne("SELECT payment_method, payment_status FROM orders WHERE id = ?", [$id]);
+        if (!$order) {
+            jsonResponse(['success' => false, 'message' => 'Không tìm thấy đơn hàng'], 404);
+        }
         $updateData = [
             'status' => $newStatus,
             'admin_note' => $input['admin_note'] ?? null,
             'updated_at' => date('Y-m-d H:i:s'),
         ];
-        if (in_array($newStatus, ['paid', 'processing', 'shipped', 'delivered'], true)) {
-            $updateData['payment_status'] = 'paid';
-        } elseif ($newStatus === 'refunded') {
-            $updateData['payment_status'] = 'refunded';
+
+        // COD: tiền mặt khi nhận — chỉ xác nhận thanh toán khi giao thành công
+        if (($order['payment_method'] ?? 'cod') === 'cod') {
+            if ($newStatus === 'delivered') {
+                $updateData['payment_status'] = 'paid';
+            } elseif ($newStatus === 'refunded') {
+                $updateData['payment_status'] = 'refunded';
+            } elseif ($newStatus === 'cancelled' && $order['payment_status'] === 'paid') {
+                $updateData['payment_status'] = 'refunded';
+            }
+        } else {
+            // bank_transfer / card: admin xác nhận thanh toán khi chuyển sang trạng thái xử lý
+            if (in_array($newStatus, ['paid', 'processing', 'shipped', 'delivered'], true)) {
+                $updateData['payment_status'] = 'paid';
+            } elseif ($newStatus === 'refunded') {
+                $updateData['payment_status'] = 'refunded';
+            } elseif ($newStatus === 'cancelled' && $order['payment_status'] === 'paid') {
+                $updateData['payment_status'] = 'refunded';
+            }
         }
+
         if ($newStatus === 'shipped') {
             $updateData['shipped_at'] = date('Y-m-d H:i:s');
         }
@@ -379,7 +431,7 @@ function handleAdminOrders($method, $pathParts) {
             $updateData['delivered_at'] = date('Y-m-d H:i:s');
         }
         updateRow('orders', $id, $updateData);
-        jsonResponse(['success' => true, 'message' => 'Da cap nhat trang thai don hang']);
+        jsonResponse(['success' => true, 'message' => 'Đã cập nhật trạng thái đơn hàng']);
     }
 
     if ($method === 'PUT' && $id && (($pathParts[3] ?? '') === 'payment-status')) {
