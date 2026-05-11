@@ -333,9 +333,20 @@ function savePrimaryProductImage($productId, $imageUrl, $title = null) {
 function handleAdminCategories($method, $pathParts) {
     $allowed = ['name', 'name_en', 'parent_id', 'description', 'image_url', 'icon', 'sort_order', 'is_active'];
 
+    if ($method === 'GET') {
+        jsonResponse(['success' => true, 'data' => queryAll(
+            "SELECT c.*,
+                    p.name AS parent_name,
+                    (SELECT COUNT(*) FROM products pr WHERE pr.category_id = c.id) AS product_count
+             FROM categories c
+             LEFT JOIN categories p ON c.parent_id = p.id
+             ORDER BY c.sort_order ASC, c.id ASC"
+        )]);
+    }
+
     if ($method === 'POST') {
         $input = requestJson();
-        $data = filterInput($input, $allowed);
+        $data = cleanCategoryData(filterInput($input, $allowed));
         $data['slug'] = slugifyText($input['name_en'] ?? $input['name'] ?? 'category') . '-' . substr((string)time(), -4);
         $id = insertRow('categories', $data);
         jsonResponse(['success' => true, 'message' => 'Da them danh muc', 'data' => queryOne("SELECT * FROM categories WHERE id = ?", [$id])], 201);
@@ -343,7 +354,7 @@ function handleAdminCategories($method, $pathParts) {
 
     $id = $pathParts[2] ?? null;
     if ($method === 'PUT' && $id) {
-        updateRow('categories', $id, filterInput(requestJson(), $allowed));
+        updateRow('categories', $id, cleanCategoryData(filterInput(requestJson(), $allowed)));
         jsonResponse(['success' => true, 'message' => 'Da cap nhat danh muc', 'data' => queryOne("SELECT * FROM categories WHERE id = ?", [$id])]);
     }
     if ($method === 'DELETE' && $id) {
@@ -352,6 +363,22 @@ function handleAdminCategories($method, $pathParts) {
     }
 
     jsonResponse(['success' => false, 'message' => 'Khong tim thay thao tac'], 404);
+}
+
+function cleanCategoryData($data) {
+    foreach (['parent_id', 'name_en', 'description', 'image_url', 'icon'] as $field) {
+        if (array_key_exists($field, $data) && $data[$field] === '') {
+            $data[$field] = null;
+        }
+    }
+
+    foreach (['parent_id', 'sort_order', 'is_active'] as $field) {
+        if (array_key_exists($field, $data) && $data[$field] !== null) {
+            $data[$field] = (int)$data[$field];
+        }
+    }
+
+    return $data;
 }
 
 function handleAdminOrders($method, $pathParts) {

@@ -47,13 +47,16 @@ const Footer = () => {
               <li><Link to="/faq">Câu hỏi thường gặp</Link></li>
               <li><Link to="/shipping">Giao hàng</Link></li>
               <li><Link to="/returns">Đổi trả</Link></li>
-              <li><Link to="/contact">Liên hệ</Link></li>
             </ul>
           </div>
 
           <div>
             <h3>Liên hệ</h3>
             <ul className="store-contact-list">
+              <li>
+                <FiMail />
+                <Link to="/contact">Liên hệ</Link>
+              </li>
               {settings.contact_phone && (
                 <li>
                   <FiPhone />

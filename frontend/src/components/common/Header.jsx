@@ -17,6 +17,12 @@ const popularTerms = [
   { label: 'Văn học', to: '/search?q=v%C4%83n%20h%E1%BB%8Dc' },
 ]
 
+const flattenCategories = (items = [], depth = 0) =>
+  items.flatMap((item) => [
+    { ...item, depth },
+    ...flattenCategories(item.children || [], depth + 1),
+  ])
+
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -53,7 +59,9 @@ const Header = () => {
   }
 
   const categoryLink = (cat) => `/products?category=${cat.slug || cat.id}`
-  const visibleCategories = categories.slice(0, 6)
+  const activeCategories = categories.filter((cat) => Number(cat.is_active) !== 0)
+  const visibleCategories = activeCategories.slice(0, 6)
+  const mobileCategories = flattenCategories(activeCategories).filter((cat) => Number(cat.is_active) !== 0)
   const currentParams = new URLSearchParams(location.search)
   const currentCategory = currentParams.get('category')
   const isProductsPage = location.pathname === '/products'
@@ -172,9 +180,14 @@ const Header = () => {
           <div className="container mx-auto px-4 py-4">
             <ul className="grid gap-2">
               <li><Link to="/products" className="store-mobile-link" onClick={() => setIsMenuOpen(false)}>Tất cả sách</Link></li>
-              {categories.map((cat) => (
+              {mobileCategories.map((cat) => (
                 <li key={cat.id}>
-                  <Link to={categoryLink(cat)} className="store-mobile-link" onClick={() => setIsMenuOpen(false)}>
+                  <Link
+                    to={categoryLink(cat)}
+                    className="store-mobile-link"
+                    style={{ paddingLeft: `${0.8 + cat.depth * 1}rem` }}
+                    onClick={() => setIsMenuOpen(false)}
+                  >
                     {cat.name}
                   </Link>
                 </li>

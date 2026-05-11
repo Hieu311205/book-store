@@ -23,7 +23,7 @@ export const adminService = {
   updateProductStock: (id, stock) => api.put(`/admin/products/${id}/stock`, { stock }),
 
   // Categories
-  getCategories: () => api.get('/categories'),
+  getCategories: () => api.get('/admin/categories'),
   createCategory: (data) => api.post('/admin/categories', data),
   updateCategory: (id, data) => api.put(`/admin/categories/${id}`, data),
   deleteCategory: (id) => api.delete(`/admin/categories/${id}`),

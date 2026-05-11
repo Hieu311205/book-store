@@ -32,6 +32,11 @@ const paymentStatusLabels = {
   refunded: { label: 'Đã hoàn tiền',   cls: 'text-gray-500' },
 }
 
+const PaymentStatusText = ({ status }) => {
+  const s = paymentStatusLabels[status]
+  return <span className={s?.cls || 'text-gray-500'}>{s?.label || status}</span>
+}
+
 const paymentMethodText = {
   cod:          'COD (tiền mặt khi nhận)',
   bank_transfer:'Chuyển khoản ngân hàng',
@@ -69,15 +74,11 @@ const OrderDetailModal = ({ orderId, onClose }) => {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-500">Trạng thái</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor[order.status] || ''}`}>
-                  {statusText[order.status] || order.status}
-                </span>
+                <StatusBadge status={order.status} />
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Thanh toán</span>
-                <span className={order.payment_status === 'paid' ? 'text-green-600 font-medium' : 'text-yellow-600'}>
-                  {paymentStatusText[order.payment_status] || order.payment_status}
-                </span>
+                <PaymentStatusText status={order.payment_status} />
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Phương thức</span>
@@ -197,9 +198,7 @@ const ProfileOrders = () => {
                 </div>
                 <div className="text-right space-y-1">
                   <p className="font-bold text-primary-600">{formatPrice(order.total_amount)} đ</p>
-                  <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${statusColor[order.status] || ''}`}>
-                    {statusText[order.status] || order.status}
-                  </span>
+                  <StatusBadge status={order.status} />
                 </div>
               </div>
 
@@ -216,9 +215,7 @@ const ProfileOrders = () => {
                 )}
                 <div>
                   <span className="text-gray-500">Thanh toán: </span>
-                  <span className={order.payment_status === 'paid' ? 'text-green-600 font-medium' : 'text-yellow-600'}>
-                    {paymentStatusText[order.payment_status] || order.payment_status}
-                  </span>
+                  <PaymentStatusText status={order.payment_status} />
                 </div>
                 {order.tracking_code && (
                   <div>

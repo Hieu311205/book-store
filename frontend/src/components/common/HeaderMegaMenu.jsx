@@ -2,15 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FiChevronDown, FiGrid } from 'react-icons/fi'
 
-const groupLabels = ['Hư cấu', 'Phi hư cấu', 'Thiếu nhi', 'Phân loại khác']
-
 const HeaderMegaMenu = ({ categories = [] }) => {
   const [isOpen, setIsOpen] = useState(false)
   const menuRef = useRef(null)
-  const buckets = groupLabels.map((label, index) => ({
-    label,
-    items: categories.filter((_, itemIndex) => itemIndex % groupLabels.length === index).slice(0, 8),
-  }))
+  const visibleGroups = categories.filter((cat) => Number(cat.is_active) !== 0)
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -46,22 +41,35 @@ const HeaderMegaMenu = ({ categories = [] }) => {
         </div>
 
         <div className="store-mega-groups">
-          {buckets.map((group) => (
-            <div className="store-mega-group" key={group.label}>
-              <h3>{group.label}</h3>
-              <ul>
-                {group.items.length > 0 ? (
-                  group.items.map((cat) => (
-                    <li key={cat.id}>
-                      <Link to={`/products?category=${cat.slug || cat.id}`} onClick={closeMenu}>{cat.name}</Link>
-                    </li>
-                  ))
-                ) : (
-                  <li><Link to="/products" onClick={closeMenu}>Đang cập nhật</Link></li>
+          {visibleGroups.length > 0 ? visibleGroups.map((group) => {
+            const children = Array.isArray(group.children)
+              ? group.children.filter((cat) => Number(cat.is_active) !== 0)
+              : []
+
+            return (
+              <div className="store-mega-group" key={group.id}>
+                <h3>
+                  <Link to={`/products?category=${group.slug || group.id}`} onClick={closeMenu}>{group.name}</Link>
+                </h3>
+                {children.length > 0 && (
+                  <ul>
+                    {children.map((cat) => (
+                      <li key={cat.id}>
+                        <Link to={`/products?category=${cat.slug || cat.id}`} onClick={closeMenu}>{cat.name}</Link>
+                      </li>
+                    ))}
+                  </ul>
                 )}
+              </div>
+            )
+          }) : (
+            <div className="store-mega-group">
+              <h3>Danh mục</h3>
+              <ul>
+                <li><Link to="/products" onClick={closeMenu}>Đang cập nhật</Link></li>
               </ul>
             </div>
-          ))}
+          )}
         </div>
       </div>
     </div>
