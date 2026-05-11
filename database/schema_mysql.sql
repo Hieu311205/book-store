@@ -189,6 +189,18 @@ CREATE TABLE coupons (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+INSERT INTO coupons (code, type, value, min_purchase, max_discount, usage_limit, used_count, per_user_limit, start_date, end_date, is_active) VALUES
+('WELCOME10', 'percentage', 10, 100000, 30000, 200, 0, 1, NOW(), DATE_ADD(NOW(), INTERVAL 90 DAY), 1),
+('BOOK15', 'percentage', 15, 200000, 50000, 150, 0, 1, NOW(), DATE_ADD(NOW(), INTERVAL 90 DAY), 1),
+('NEWBOOK20', 'percentage', 20, 300000, 70000, 100, 0, 1, NOW(), DATE_ADD(NOW(), INTERVAL 60 DAY), 1),
+('FREESHIP25', 'fixed', 25000, 150000, NULL, 300, 0, 1, NOW(), DATE_ADD(NOW(), INTERVAL 120 DAY), 1),
+('SAVE30K', 'fixed', 30000, 250000, NULL, 200, 0, 1, NOW(), DATE_ADD(NOW(), INTERVAL 90 DAY), 1),
+('SAVE50K', 'fixed', 50000, 400000, NULL, 120, 0, 1, NOW(), DATE_ADD(NOW(), INTERVAL 90 DAY), 1),
+('STUDENT12', 'percentage', 12, 120000, 40000, 180, 0, 1, NOW(), DATE_ADD(NOW(), INTERVAL 120 DAY), 1),
+('KIDBOOK10', 'percentage', 10, 100000, 35000, 160, 0, 1, NOW(), DATE_ADD(NOW(), INTERVAL 90 DAY), 1),
+('COMBO18', 'percentage', 18, 350000, 80000, 100, 0, 1, NOW(), DATE_ADD(NOW(), INTERVAL 75 DAY), 1),
+('VIP100K', 'fixed', 100000, 800000, NULL, 50, 0, 1, NOW(), DATE_ADD(NOW(), INTERVAL 60 DAY), 1);
+
 CREATE TABLE orders (
   id INT AUTO_INCREMENT PRIMARY KEY,
   order_number VARCHAR(20) UNIQUE NOT NULL,
