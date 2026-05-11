@@ -9,7 +9,13 @@ import { useTheme } from '../../context/ThemeContext'
 import { categoryService } from '../../services/category.service'
 import { settingsService } from '../../services/settings.service'
 
-const popularTerms = ['Sách mới', 'Sách bán chạy', 'Thiếu nhi', 'Kỹ năng', 'Văn học']
+const popularTerms = [
+  { label: 'Sách mới', to: '/products?sort=newest' },
+  { label: 'Sách bán chạy', to: '/products?bestseller=true' },
+  { label: 'Thiếu nhi', to: '/search?q=thi%E1%BA%BFu%20nhi' },
+  { label: 'Kỹ năng', to: '/search?q=k%E1%BB%B9%20n%C4%83ng' },
+  { label: 'Văn học', to: '/search?q=v%C4%83n%20h%E1%BB%8Dc' },
+]
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -42,7 +48,7 @@ const Header = () => {
   }
 
   const goToSearchTerm = (term) => {
-    navigate(`/search?q=${encodeURIComponent(term)}`)
+    navigate(term.to)
     setIsMenuOpen(false)
   }
 
@@ -103,8 +109,8 @@ const Header = () => {
               <div className="store-search-tags" aria-label="Từ khóa được tìm kiếm nhiều">
                 <span>Được tìm kiếm nhiều:</span>
                 {popularTerms.map((term) => (
-                  <button key={term} type="button" onClick={() => goToSearchTerm(term)}>
-                    {term}
+                  <button key={term.label} type="button" onClick={() => goToSearchTerm(term)}>
+                    {term.label}
                   </button>
                 ))}
               </div>
