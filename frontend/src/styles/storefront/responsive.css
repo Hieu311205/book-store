@@ -1,0 +1,209 @@
+@media (max-width: 1024px) {
+  .store-benefits,
+  .store-footer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .store-category-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .store-search-card-grid,
+  .store-combo-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .store-ranking-section,
+  .store-combo-section {
+    grid-template-columns: 1fr;
+  }
+
+  .store-cart-page {
+    grid-template-columns: 1fr;
+  }
+
+  .store-cart-summary {
+    position: static;
+  }
+
+  .store-detail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .store-detail-info {
+    max-width: none;
+  }
+
+  .store-cart-row {
+    grid-template-columns: auto 6rem minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  .store-cart-price,
+  .store-cart-quantity,
+  .store-cart-remove {
+    grid-column: 3;
+  }
+
+  .store-cart-price {
+    text-align: left;
+  }
+
+  .store-cart-quantity {
+    justify-self: start;
+  }
+
+  .store-cart-remove {
+    justify-self: start;
+  }
+
+  .store-editorial-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .store-page-main {
+    padding-top: 1rem;
+    padding-bottom: 2.5rem;
+  }
+
+  .store-topbar {
+    display: none;
+  }
+
+  .store-logo small {
+    display: none;
+  }
+
+  .store-hero-slider .swiper-button-next,
+  .store-hero-slider .swiper-button-prev {
+    display: none !important;
+  }
+
+  .store-hero-content,
+  .store-hero-fallback > div {
+    padding: 2rem 1.25rem;
+  }
+
+  .store-benefits {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .store-benefit {
+    align-items: flex-start;
+    padding: 0.85rem;
+  }
+
+  .store-benefit-icon {
+    width: 2.4rem;
+    height: 2.4rem;
+  }
+
+  .store-section-top,
+  .store-promo-banner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .store-search-card-grid,
+  .store-ranking-list,
+  .store-combo-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .store-product-grid {
+    gap: 0.8rem;
+  }
+
+  .store-book-info {
+    padding: 0.8rem;
+  }
+
+  .store-book-title {
+    min-height: 2.5rem;
+    font-size: 0.9rem;
+  }
+
+  .store-buy-button {
+    font-size: 0.84rem;
+  }
+
+  .store-cart-button {
+    font-size: 0.82rem;
+  }
+
+  .store-heart-button {
+    width: 2.35rem;
+  }
+
+  .store-cart-row {
+    grid-template-columns: auto 5rem minmax(0, 1fr);
+  }
+
+  .store-cart-cover img {
+    width: 4.6rem;
+    height: 6.8rem;
+  }
+
+  .store-cart-heading {
+    padding-bottom: 1rem;
+  }
+
+  .store-detail-breadcrumb {
+    flex-wrap: wrap;
+    margin-inline: -1rem;
+  }
+
+  .store-detail-main-image {
+    min-height: 26rem;
+  }
+
+  .store-detail-main-image img {
+    max-height: 23rem;
+  }
+
+  .store-detail-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .store-benefits,
+  .store-footer-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .store-category-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .store-search-card-grid,
+  .store-ranking-list,
+  .store-combo-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .store-category-tile,
+  .store-category-skeleton {
+    min-height: 6.8rem;
+  }
+
+  .store-cart-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .store-cart-cover,
+  .store-cart-title,
+  .store-cart-price,
+  .store-cart-quantity,
+  .store-cart-remove {
+    grid-column: 2;
+  }
+
+  .store-cart-cover img {
+    width: 5.2rem;
+    height: 7.4rem;
+  }
+}

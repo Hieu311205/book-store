@@ -1,0 +1,12 @@
+{
+  "name": "online-bookstore-backend",
+  "version": "1.0.0",
+  "description": "API Nha Sach Truc Tuyen - PHP + MySQL",
+  "main": "index.php",
+  "scripts": {
+    "start": "php -S localhost:5000 index.php",
+    "dev": "php -S localhost:5000 index.php"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
