@@ -58,13 +58,32 @@ function createOrder($user) {
             }
         }
     } else {
-        $items = queryAll(
-            "SELECT ci.*, p.title, p.price, p.stock,
+        $sessionId = $_SERVER['HTTP_X_SESSION_ID'] ?? null;
+        $cartSql = "SELECT ci.*, p.title, p.price, p.stock,
                     (SELECT image_url FROM product_images WHERE product_id = p.id AND is_primary = 1 ORDER BY sort_order LIMIT 1) AS image_url
              FROM cart_items ci LEFT JOIN products p ON ci.product_id = p.id
-             WHERE ci.user_id = ?",
-            [$user['id']]
-        );
+             WHERE ci.user_id = ?";
+        $cartParams = [$user['id']];
+        if ($sessionId) {
+            $cartSql .= " OR ci.session_id = ?";
+            $cartParams[] = $sessionId;
+        }
+        $items = queryAll($cartSql, $cartParams);
+
+        // Nếu vẫn rỗng và có session, thử merge session cart trước
+        if (!$items && $sessionId) {
+            executeSql(
+                "UPDATE cart_items SET user_id = ?, session_id = NULL WHERE session_id = ?",
+                [$user['id'], $sessionId]
+            );
+            $items = queryAll(
+                "SELECT ci.*, p.title, p.price, p.stock,
+                        (SELECT image_url FROM product_images WHERE product_id = p.id AND is_primary = 1 ORDER BY sort_order LIMIT 1) AS image_url
+                 FROM cart_items ci LEFT JOIN products p ON ci.product_id = p.id
+                 WHERE ci.user_id = ?",
+                [$user['id']]
+            );
+        }
     }
     if (!$items) {
         jsonResponse(['success' => false, 'message' => 'Giỏ hàng đang trống'], 400);
@@ -80,7 +99,7 @@ function createOrder($user) {
     $discount = 0;
     $coupon = null;
     if ($couponCode) {
-        $coupon = queryOne("SELECT * FROM coupons WHERE code = ? AND is_active = 1 AND (start_date IS NULL OR start_date <= NOW()) AND (end_date IS NULL OR end_date >= NOW())", [$couponCode]);
+        $coupon = queryOne("SELECT * FROM coupons WHERE code = ? AND is_active = 1 AND (start_date IS NULL OR start_date <= NOW()) AND (end_date IS NULL OR end_date >= NOW()) AND (usage_limit IS NULL OR used_count < usage_limit)", [$couponCode]);
         if ($coupon && $subtotal >= (float)$coupon['min_purchase']) {
             $discount = $coupon['type'] === 'percentage' ? floor($subtotal * ((float)$coupon['value'] / 100)) : (float)$coupon['value'];
             if ($coupon['max_discount'] && $discount > (float)$coupon['max_discount']) {
@@ -125,11 +144,18 @@ function createOrder($user) {
         executeSql("UPDATE products SET stock = stock - ?, sales_count = COALESCE(sales_count, 0) + ? WHERE id = ?", [$item['quantity'], $item['quantity'], $item['product_id']]);
     }
     if ($shouldClearCart) {
+        $sessionId = $_SERVER['HTTP_X_SESSION_ID'] ?? null;
         if ($selectedCartProductIds) {
             $placeholders = implode(',', array_fill(0, count($selectedCartProductIds), '?'));
             executeSql("DELETE FROM cart_items WHERE user_id = ? AND product_id IN ({$placeholders})", array_merge([$user['id']], $selectedCartProductIds));
+            if ($sessionId) {
+                executeSql("DELETE FROM cart_items WHERE session_id = ? AND product_id IN ({$placeholders})", array_merge([$sessionId], $selectedCartProductIds));
+            }
         } else {
             executeSql("DELETE FROM cart_items WHERE user_id = ?", [$user['id']]);
+            if ($sessionId) {
+                executeSql("DELETE FROM cart_items WHERE session_id = ?", [$sessionId]);
+            }
         }
     }
     if ($coupon) {

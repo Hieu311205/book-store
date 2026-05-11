@@ -1,11 +1,11 @@
 export const formatPrice = (price) => {
-  if (!price && price !== 0) return ''
-  return '$' + new Intl.NumberFormat('en-US').format(price)
+  if (price === null || price === undefined || price === '') return ''
+  return new Intl.NumberFormat('vi-VN').format(Number(price))
 }
 
 export const formatNumber = (num) => {
   if (!num && num !== 0) return ''
-  return new Intl.NumberFormat('en-US').format(num)
+  return new Intl.NumberFormat('vi-VN').format(num)
 }
 
 export const calculateDiscount = (price, comparePrice) => {

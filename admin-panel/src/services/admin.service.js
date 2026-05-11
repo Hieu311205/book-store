@@ -38,6 +38,7 @@ export const adminService = {
   getOrders: (params) => api.get('/admin/orders', { params }),
   getOrderById: (id) => api.get(`/admin/orders/${id}`),
   updateOrderStatus: (id, data) => api.put(`/admin/orders/${id}/status`, data),
+  updatePaymentStatus: (id, data) => api.put(`/admin/orders/${id}/payment-status`, data),
   addTrackingCode: (id, data) => api.put(`/admin/orders/${id}/tracking`, data),
 
   // Users

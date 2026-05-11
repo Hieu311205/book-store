@@ -56,7 +56,6 @@ export const CartProvider = ({ children }) => {
     mutationFn: cartService.clearCart,
     onSuccess: (res) => {
       queryClient.setQueryData(['cart'], res)
-      toast.success('Đã xóa toàn bộ giỏ hàng')
     },
   })
 
@@ -72,8 +71,9 @@ export const CartProvider = ({ children }) => {
     removeFromCartMutation.mutate(productId)
   }
 
-  const clearCart = () => {
-    clearCartMutation.mutate()
+  const clearCart = async (showToast = false) => {
+    await clearCartMutation.mutateAsync()
+    if (showToast) toast.success('Đã xóa toàn bộ giỏ hàng')
   }
 
   const openCart = () => setIsOpen(true)

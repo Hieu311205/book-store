@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { userService } from '../../services/user.service'
 import { orderService } from '../../services/order.service'
@@ -11,6 +11,7 @@ import CouponList from '../../components/checkout/CouponList'
 
 const Checkout = () => {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
   const { items, summary, clearCart } = useCart()
   const [buyNowItem] = useState(() => (searchParams.get('mode') === 'buy-now' ? getBuyNowItem() : null))
@@ -74,14 +75,16 @@ const Checkout = () => {
 
   const createMutation = useMutation({
     mutationFn: orderService.createOrder,
-    onSuccess: async () => {
+    onSuccess: async (response) => {
+      const newOrder = response?.data
       if (isBuyNow) {
         clearBuyNowItem()
       } else {
-        await clearCart()
+        await clearCart(false)
       }
-      toast.success('Đã tạo đơn hàng')
-      navigate('/profile/orders')
+      await queryClient.invalidateQueries({ queryKey: ['my-orders'] })
+      await queryClient.invalidateQueries({ queryKey: ['cart'] })
+      navigate('/order-success', { state: { order: newOrder } })
     },
     onError: (error) => toast.error(error.message || 'Không thể tạo đơn hàng'),
   })

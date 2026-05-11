@@ -70,6 +70,30 @@ function login() {
         jsonResponse(['success' => false, 'message' => 'Tài khoản đã bị khóa'], 403);
     }
 
+    // Merge session cart into user cart
+    $sessionId = $_SERVER['HTTP_X_SESSION_ID'] ?? null;
+    if ($sessionId) {
+        $sessionItems = queryAll("SELECT * FROM cart_items WHERE session_id = ?", [$sessionId]);
+        foreach ($sessionItems as $item) {
+            $existing = queryOne(
+                "SELECT * FROM cart_items WHERE user_id = ? AND product_id = ?",
+                [$user['id'], $item['product_id']]
+            );
+            if ($existing) {
+                executeSql(
+                    "UPDATE cart_items SET quantity = quantity + ? WHERE id = ?",
+                    [$item['quantity'], $existing['id']]
+                );
+                executeSql("DELETE FROM cart_items WHERE id = ?", [$item['id']]);
+            } else {
+                executeSql(
+                    "UPDATE cart_items SET user_id = ?, session_id = NULL WHERE id = ?",
+                    [$user['id'], $item['id']]
+                );
+            }
+        }
+    }
+
     $token = generateToken($user['id']);
 
     $userData = [

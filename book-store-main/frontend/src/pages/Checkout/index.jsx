@@ -14,6 +14,7 @@ const Checkout = () => {
   const [shippingMethod, setShippingMethod] = useState('standard')
   const [customerNote, setCustomerNote] = useState('')
 
+  const [paymentMethod, setPaymentMethod] = useState('cod')
   const { data: addresses } = useQuery({
     queryKey: ['addresses'],
     queryFn: userService.getAddresses,
@@ -38,6 +39,7 @@ const Checkout = () => {
     createMutation.mutate({
       address_id: Number(addressId),
       shipping_method: shippingMethod,
+      payment_method: paymentMethod,
       customer_note: customerNote,
     })
   }
@@ -88,6 +90,53 @@ const Checkout = () => {
             <option value="standard">Tieu chuan - 25.000 d</option>
             <option value="express">Nhanh - 50.000 d</option>
           </select>
+          <div className="mt-6">
+            <h3 className="font-semibold mb-3">Phuong thuc thanh toan</h3>
+            <div className="space-y-3">
+              <label className="flex items-start gap-3 border dark:border-gray-700 rounded-lg p-4 cursor-pointer">
+                <input
+                  type="radio"
+                  name="payment_method"
+                  value="cod"
+                  checked={paymentMethod === 'cod'}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="mt-1"
+                />
+                <div>
+                  <span className="font-medium">Thanh toan khi nhan hang (COD)</span>
+                  <p className="text-sm text-gray-500">Thanh toan tien mat hoac qua vi dien tu cho nguoi giao hang.</p>
+                </div>
+              </label>
+              <label className="flex items-start gap-3 border dark:border-gray-700 rounded-lg p-4 cursor-pointer">
+                <input
+                  type="radio"
+                  name="payment_method"
+                  value="bank_transfer"
+                  checked={paymentMethod === 'bank_transfer'}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="mt-1"
+                />
+                <div>
+                  <span className="font-medium">Chuyen khoan ngan hang</span>
+                  <p className="text-sm text-gray-500">Chuyen tien vao tai khoan cua shop sau khi dat hang.</p>
+                </div>
+              </label>
+              <label className="flex items-start gap-3 border dark:border-gray-700 rounded-lg p-4 cursor-pointer">
+                <input
+                  type="radio"
+                  name="payment_method"
+                  value="card"
+                  checked={paymentMethod === 'card'}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="mt-1"
+                />
+                <div>
+                  <span className="font-medium">The tin dung / The ngan hang</span>
+                  <p className="text-sm text-gray-500">Thanh toan qua the. Ban se nhan huong dan tiep theo sau khi dat hang.</p>
+                </div>
+              </label>
+            </div>
+          </div>
           <textarea
             className="input mt-4 min-h-24"
             placeholder="Ghi chu cho don hang"
@@ -110,6 +159,7 @@ const Checkout = () => {
         <div className="border-t dark:border-gray-700 pt-4 space-y-2">
           <div className="flex justify-between"><span>Tam tinh</span><span>{formatPrice(summary.subtotal)}</span></div>
           <div className="flex justify-between"><span>Van chuyen</span><span>{formatPrice(shippingMethod === 'express' ? 50000 : 25000)}</span></div>
+          <div className="flex justify-between"><span>Phuong thuc thanh toan</span><span className="capitalize">{paymentMethod.replace('_', ' ')}</span></div>
           <div className="flex justify-between font-bold text-lg"><span>Tong</span><span className="text-primary-600">{formatPrice(summary.total + (shippingMethod === 'express' ? 50000 : 25000))}</span></div>
         </div>
         <button onClick={submit} className="btn btn-primary w-full mt-6" disabled={createMutation.isPending}>

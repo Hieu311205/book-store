@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import { FiDollarSign, FiShoppingCart, FiUsers, FiPackage, FiAlertCircle } from 'react-icons/fi'
+import { FiDollarSign, FiShoppingCart, FiUsers, FiPackage, FiAlertCircle, FiArrowRight } from 'react-icons/fi'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { Link } from 'react-router-dom'
 import { adminService } from '../../services/admin.service'
+import { StatusBadge } from '../Orders'
 
 const formatPrice = (price) => {
   if (!price) return '0'
@@ -27,6 +29,7 @@ const Dashboard = () => {
     queryKey: ['dashboard-stats'],
     queryFn: adminService.getDashboardStats,
     select: (res) => res.data,
+    staleTime: 0,
   })
 
   const { data: salesData } = useQuery({
@@ -39,16 +42,8 @@ const Dashboard = () => {
     queryKey: ['recent-orders'],
     queryFn: adminService.getRecentOrders,
     select: (res) => res.data,
+    staleTime: 0,
   })
-
-  const statusLabels = {
-    pending: { label: 'Chờ xử lý', class: 'badge-warning' },
-    paid: { label: 'Đã thanh toán', class: 'badge-info' },
-    processing: { label: 'Đang xử lý', class: 'badge-info' },
-    shipped: { label: 'Đang giao', class: 'badge-info' },
-    delivered: { label: 'Đã giao', class: 'badge-success' },
-    cancelled: { label: 'Đã hủy', class: 'badge-danger' },
-  }
 
   return (
     <div className="space-y-6">
@@ -125,8 +120,11 @@ const Dashboard = () => {
       </div>
 
       <div className="card">
-        <div className="p-6 border-b dark:border-gray-700">
+        <div className="p-6 border-b dark:border-gray-700 flex items-center justify-between">
           <h3 className="font-bold">Đơn hàng gần đây</h3>
+          <Link to="/orders" className="flex items-center gap-1 text-sm text-primary-600 hover:underline">
+            Xem tất cả <FiArrowRight size={14} />
+          </Link>
         </div>
         <div className="table-wrapper">
           <table className="table">
@@ -143,13 +141,13 @@ const Dashboard = () => {
               {recentOrders?.map((order) => (
                 <tr key={order.id}>
                   <td className="font-medium">{order.order_number}</td>
-                  <td>{order.first_name} {order.last_name}</td>
-                  <td>{formatPrice(order.total_amount)} đ</td>
                   <td>
-                    <span className={`badge ${statusLabels[order.status]?.class}`}>
-                      {statusLabels[order.status]?.label}
-                    </span>
+                    {order.first_name || order.last_name
+                      ? `${order.first_name || ''} ${order.last_name || ''}`.trim()
+                      : order.shipping_name || '—'}
                   </td>
+                  <td>{formatPrice(order.total_amount)} đ</td>
+                  <td><StatusBadge status={order.status} /></td>
                   <td className="text-gray-500">
                     {new Date(order.created_at).toLocaleDateString('vi-VN')}
                   </td>

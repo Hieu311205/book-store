@@ -329,12 +329,18 @@ function handleAdminOrders($method, $pathParts) {
         $page = max(1, (int)($_GET['page'] ?? 1));
         $limit = min(100, max(1, (int)($_GET['limit'] ?? 20)));
         $offset = ($page - 1) * $limit;
-        $count = (int)(queryOne("SELECT COUNT(*) AS count FROM orders")['count'] ?? 0);
+        $where = '1=1';
+        $params = [];
+        if (!empty($_GET['status'])) {
+            $where .= ' AND o.status = ?';
+            $params[] = $_GET['status'];
+        }
+        $count = (int)(queryOne("SELECT COUNT(*) AS count FROM orders o WHERE {$where}", $params)['count'] ?? 0);
         $orders = queryAll(
             "SELECT o.*, u.first_name, u.last_name, u.email
              FROM orders o LEFT JOIN users u ON o.user_id = u.id
-             ORDER BY o.created_at DESC LIMIT ? OFFSET ?",
-            [$limit, $offset]
+             WHERE {$where} ORDER BY o.created_at DESC LIMIT ? OFFSET ?",
+            array_merge($params, [$limit, $offset])
         );
         jsonResponse(['success' => true, 'data' => ['orders' => $orders, 'pagination' => [
             'page' => $page,
@@ -355,8 +361,36 @@ function handleAdminOrders($method, $pathParts) {
 
     if ($method === 'PUT' && $id && (($pathParts[3] ?? '') === 'status')) {
         $input = requestJson();
-        updateRow('orders', $id, ['status' => $input['status'] ?? 'pending', 'admin_note' => $input['admin_note'] ?? null, 'updated_at' => date('Y-m-d H:i:s')]);
+        $newStatus = $input['status'] ?? 'pending';
+        $updateData = [
+            'status' => $newStatus,
+            'admin_note' => $input['admin_note'] ?? null,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        if (in_array($newStatus, ['paid', 'processing', 'shipped', 'delivered'], true)) {
+            $updateData['payment_status'] = 'paid';
+        } elseif ($newStatus === 'refunded') {
+            $updateData['payment_status'] = 'refunded';
+        }
+        if ($newStatus === 'shipped') {
+            $updateData['shipped_at'] = date('Y-m-d H:i:s');
+        }
+        if ($newStatus === 'delivered') {
+            $updateData['delivered_at'] = date('Y-m-d H:i:s');
+        }
+        updateRow('orders', $id, $updateData);
         jsonResponse(['success' => true, 'message' => 'Da cap nhat trang thai don hang']);
+    }
+
+    if ($method === 'PUT' && $id && (($pathParts[3] ?? '') === 'payment-status')) {
+        $input = requestJson();
+        $newPaymentStatus = $input['payment_status'] ?? 'pending';
+        $allowedPaymentStatuses = ['pending', 'paid', 'failed', 'refunded'];
+        if (!in_array($newPaymentStatus, $allowedPaymentStatuses, true)) {
+            jsonResponse(['success' => false, 'message' => 'Trang thai thanh toan khong hop le'], 400);
+        }
+        updateRow('orders', $id, ['payment_status' => $newPaymentStatus, 'updated_at' => date('Y-m-d H:i:s')]);
+        jsonResponse(['success' => true, 'message' => 'Da cap nhat trang thai thanh toan']);
     }
 
     if ($method === 'PUT' && $id && (($pathParts[3] ?? '') === 'tracking')) {
