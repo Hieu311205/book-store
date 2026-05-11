@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FiEye, FiTruck, FiX, FiRefreshCw } from 'react-icons/fi'
+import { FiEye, FiTruck, FiX, FiRefreshCw, FiSearch, FiFilter, FiChevronLeft, FiChevronRight } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 import { adminService } from '../../services/admin.service'
 
@@ -43,17 +43,50 @@ const paymentMethodLabels = {
   card: 'Thẻ',
 }
 
+const LIMIT = 20
+
 const Orders = () => {
   const queryClient = useQueryClient()
+
+  // filter state
   const [status, setStatus] = useState('')
+  const [customerName, setCustomerName] = useState('')
+  const [minAmount, setMinAmount] = useState('')
+  const [maxAmount, setMaxAmount] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [page, setPage] = useState(1)
+
+  // modal state
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [trackingOrder, setTrackingOrder] = useState(null)
   const [trackingCode, setTrackingCode] = useState('')
 
+  // applied filter (committed on search button click)
+  const [appliedFilters, setAppliedFilters] = useState({})
+
+  const applyFilters = useCallback(() => {
+    setAppliedFilters({
+      status: status || undefined,
+      customer_name: customerName || undefined,
+      min_amount: minAmount || undefined,
+      max_amount: maxAmount || undefined,
+      date_from: dateFrom || undefined,
+      date_to: dateTo || undefined,
+    })
+    setPage(1)
+  }, [status, customerName, minAmount, maxAmount, dateFrom, dateTo])
+
+  const resetFilters = () => {
+    setStatus(''); setCustomerName(''); setMinAmount(''); setMaxAmount('')
+    setDateFrom(''); setDateTo('')
+    setAppliedFilters({})
+    setPage(1)
+  }
+
   const { data, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ['admin-orders', { page, status }],
-    queryFn: () => adminService.getOrders({ page, limit: 20, status: status || undefined }),
+    queryKey: ['admin-orders', { page, ...appliedFilters }],
+    queryFn: () => adminService.getOrders({ page, limit: LIMIT, ...appliedFilters }),
     select: (res) => res.data,
     staleTime: 0,
   })
@@ -84,39 +117,117 @@ const Orders = () => {
     onError: (error) => toast.error(error.message || 'Có lỗi xảy ra'),
   })
 
-  const customerName = (order) =>
+  const getCustomerName = (order) =>
     order.first_name || order.last_name
       ? `${order.first_name || ''} ${order.last_name || ''}`.trim()
       : order.shipping_name || '—'
 
   const totalPages = data?.pagination?.totalPages || 1
+  const totalItems = data?.pagination?.totalItems ?? 0
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Quản lý đơn hàng</h1>
-
-      <div className="card p-4 flex gap-4 flex-wrap items-center justify-between">
-        <select
-          value={status}
-          onChange={(e) => { setStatus(e.target.value); setPage(1) }}
-          className="input w-auto"
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Quản lý đơn hàng</h1>
+        <button
+          onClick={() => refetch()}
+          disabled={isFetching}
+          className="btn btn-outline btn-sm flex items-center gap-1.5"
         >
-          {statusOptions.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-500">
-            Tổng: {data?.pagination?.totalItems ?? 0} đơn
-          </span>
-          <button
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="flex items-center gap-1.5 text-sm btn btn-outline"
-          >
-            <FiRefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
-            Làm mới
+          <FiRefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
+          Làm mới
+        </button>
+      </div>
+
+      {/* Filter bar */}
+      <div className="card p-4 space-y-3">
+        <div className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-300">
+          <FiFilter size={14} />
+          Bộ lọc
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {/* Trạng thái */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Trạng thái</label>
+            <select value={status} onChange={(e) => setStatus(e.target.value)} className="input">
+              {statusOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Tên khách hàng */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Tên / Email khách</label>
+            <div className="relative">
+              <FiSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Tìm tên, email..."
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
+                className="input pl-8"
+              />
+            </div>
+          </div>
+
+          {/* Khoảng giá */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Giá từ (đ)</label>
+            <input
+              type="number"
+              placeholder="VD: 100000"
+              min="0"
+              value={minAmount}
+              onChange={(e) => setMinAmount(e.target.value)}
+              className="input"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Giá đến (đ)</label>
+            <input
+              type="number"
+              placeholder="VD: 500000"
+              min="0"
+              value={maxAmount}
+              onChange={(e) => setMaxAmount(e.target.value)}
+              className="input"
+            />
+          </div>
+
+          {/* Khoảng ngày */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Ngày đặt từ</label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="input"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Ngày đặt đến</label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="input"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 pt-1">
+          <button onClick={applyFilters} className="btn btn-primary btn-sm flex items-center gap-1.5">
+            <FiSearch size={13} />
+            Tìm kiếm
           </button>
+          <button onClick={resetFilters} className="btn btn-outline btn-sm">
+            Xóa bộ lọc
+          </button>
+          <span className="text-sm text-gray-500 ml-auto">
+            Tìm thấy <span className="font-semibold text-gray-800 dark:text-gray-100">{totalItems}</span> đơn hàng
+          </span>
         </div>
       </div>
 
@@ -151,7 +262,7 @@ const Orders = () => {
                   <tr key={order.id}>
                     <td className="font-medium">{order.order_number}</td>
                     <td>
-                      <p>{customerName(order)}</p>
+                      <p>{getCustomerName(order)}</p>
                       <p className="text-xs text-gray-500">{order.email || order.shipping_phone}</p>
                     </td>
                     <td className="font-medium">{formatPrice(order.total_amount)} đ</td>
@@ -194,11 +305,54 @@ const Orders = () => {
           </table>
         </div>
 
-        {totalPages > 1 && (
-          <div className="flex justify-center gap-2 p-4">
-            <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="btn btn-outline btn-sm">Trước</button>
-            <span className="px-3 py-1 text-sm">{page} / {totalPages}</span>
-            <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="btn btn-outline btn-sm">Sau</button>
+        {totalPages > 0 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t dark:border-gray-700">
+            <p className="text-sm text-gray-500">
+              Trang <span className="font-medium text-gray-800 dark:text-gray-100">{page}</span> / {totalPages}
+              &nbsp;·&nbsp;{totalItems} đơn hàng
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                disabled={page === 1}
+                onClick={() => setPage(1)}
+                className="btn btn-outline btn-sm px-2"
+                title="Trang đầu"
+              >«</button>
+              <button
+                disabled={page === 1}
+                onClick={() => setPage((p) => p - 1)}
+                className="btn btn-outline btn-sm flex items-center gap-1"
+              >
+                <FiChevronLeft size={14} /> Trước
+              </button>
+
+              {/* page number buttons */}
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const start = Math.max(1, Math.min(page - 2, totalPages - 4))
+                const p = start + i
+                return (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`btn btn-sm px-3 ${p === page ? 'btn-primary' : 'btn-outline'}`}
+                  >{p}</button>
+                )
+              })}
+
+              <button
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => p + 1)}
+                className="btn btn-outline btn-sm flex items-center gap-1"
+              >
+                Sau <FiChevronRight size={14} />
+              </button>
+              <button
+                disabled={page >= totalPages}
+                onClick={() => setPage(totalPages)}
+                className="btn btn-outline btn-sm px-2"
+                title="Trang cuối"
+              >»</button>
+            </div>
           </div>
         )}
       </div>
@@ -220,7 +374,7 @@ const Orders = () => {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-gray-500 mb-1">Khách hàng</p>
-                  <p className="font-medium">{customerName(selectedOrder)}</p>
+                  <p className="font-medium">{getCustomerName(selectedOrder)}</p>
                 </div>
                 <div>
                   <p className="text-gray-500 mb-1">Số điện thoại</p>

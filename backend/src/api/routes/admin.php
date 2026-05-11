@@ -363,11 +363,37 @@ function handleAdminOrders($method, $pathParts) {
         $offset = ($page - 1) * $limit;
         $where = '1=1';
         $params = [];
+
         if (!empty($_GET['status'])) {
             $where .= ' AND o.status = ?';
             $params[] = $_GET['status'];
         }
-        $count = (int)(queryOne("SELECT COUNT(*) AS count FROM orders o WHERE {$where}", $params)['count'] ?? 0);
+        if (!empty($_GET['customer_name'])) {
+            $like = '%' . $_GET['customer_name'] . '%';
+            $where .= ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR o.shipping_name LIKE ? OR u.email LIKE ?)';
+            $params[] = $like; $params[] = $like; $params[] = $like; $params[] = $like;
+        }
+        if (isset($_GET['min_amount']) && $_GET['min_amount'] !== '') {
+            $where .= ' AND o.total_amount >= ?';
+            $params[] = (float)$_GET['min_amount'];
+        }
+        if (isset($_GET['max_amount']) && $_GET['max_amount'] !== '') {
+            $where .= ' AND o.total_amount <= ?';
+            $params[] = (float)$_GET['max_amount'];
+        }
+        if (!empty($_GET['date_from'])) {
+            $where .= ' AND DATE(o.created_at) >= ?';
+            $params[] = $_GET['date_from'];
+        }
+        if (!empty($_GET['date_to'])) {
+            $where .= ' AND DATE(o.created_at) <= ?';
+            $params[] = $_GET['date_to'];
+        }
+
+        $count = (int)(queryOne(
+            "SELECT COUNT(*) AS count FROM orders o LEFT JOIN users u ON o.user_id = u.id WHERE {$where}",
+            $params
+        )['count'] ?? 0);
         $orders = queryAll(
             "SELECT o.*, u.first_name, u.last_name, u.email
              FROM orders o LEFT JOIN users u ON o.user_id = u.id
