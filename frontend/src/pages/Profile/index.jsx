@@ -93,7 +93,7 @@ export const ProfileDashboard = () => {
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6">
         <h2 className="text-xl font-bold mb-4">Tổng quan</h2>
         <p className="text-gray-600 dark:text-gray-400">
-          Xin chào {user?.first_name}. Đây là thông tin tài khoản được đồng bộ từ database.
+          Xin chào {user?.first_name}.
         </p>
       </div>
 

@@ -17,6 +17,8 @@ import Addresses from './pages/Profile/Addresses'
 import Settings from './pages/Profile/Settings'
 import Search from './pages/Search'
 import OrderSuccess from './pages/OrderSuccess'
+import Contact from './pages/Contact'
+import FAQ from './pages/FAQ'
 
 const App = () => {
   return (
@@ -32,6 +34,8 @@ const App = () => {
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/order-success" element={<OrderSuccess />} />
           <Route path="/search" element={<Search />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/faq" element={<FAQ />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/profile" element={<Profile />}>

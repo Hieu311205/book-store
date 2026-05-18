@@ -15,6 +15,12 @@ const sortOptions = [
   { value: 'popular', label: 'Phổ biến nhất' },
 ]
 
+const flattenCategories = (items = [], depth = 0) =>
+  items.flatMap((item) => [
+    { ...item, depth },
+    ...flattenCategories(item.children || [], depth + 1),
+  ])
+
 const Products = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const [showFilters, setShowFilters] = useState(false)
@@ -42,6 +48,8 @@ const Products = () => {
     queryFn: categoryService.getCategories,
     select: (res) => res.data,
   })
+
+  const filterCategories = flattenCategories(categories)
 
   const updateParam = (key, value) => {
     const newParams = new URLSearchParams(searchParams)
@@ -71,10 +79,14 @@ const Products = () => {
       <div>
         <h4 className="font-medium mb-3">Danh mục</h4>
         <div className="space-y-2">
-          {categories.map((cat) => {
+          {filterCategories.map((cat) => {
             const value = cat.slug || String(cat.id)
             return (
-              <label key={cat.id} className="flex items-center gap-2 cursor-pointer">
+              <label
+                key={cat.id}
+                className="flex items-center gap-2 cursor-pointer"
+                style={{ paddingLeft: `${cat.depth * 12}px` }}
+              >
                 <input
                   type="radio"
                   name="category"

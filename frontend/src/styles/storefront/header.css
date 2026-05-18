@@ -295,8 +295,12 @@
 
 .store-mega-groups {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  align-content: start;
   gap: 1rem;
+  max-height: 24rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
 }
 
 .store-mega-group h3 {

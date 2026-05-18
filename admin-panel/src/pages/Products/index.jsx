@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FiPlus, FiEdit2, FiTrash2, FiSearch, FiX, FiFilter, FiRefreshCw } from 'react-icons/fi'
+import { FiChevronLeft, FiChevronRight, FiPlus, FiEdit2, FiTrash2, FiSearch, FiX, FiFilter, FiRefreshCw } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 import { adminService } from '../../services/admin.service'
+import PaginationNumbers from '../../components/common/PaginationNumbers'
 
 const formatPrice = (price) => new Intl.NumberFormat('vi-VN').format(price || 0)
 
@@ -184,6 +185,7 @@ const Products = () => {
 
   const isSaving    = createMutation.isPending || updateMutation.isPending
   const totalPages  = data?.pagination?.totalPages || 1
+  const totalItems  = data?.pagination?.totalItems ?? 0
 
   return (
     <div className="space-y-5">
@@ -387,24 +389,31 @@ const Products = () => {
           </table>
         </div>
 
-        {totalPages > 1 && (
-          <div className="flex justify-center items-center gap-2 p-4 border-t dark:border-gray-700">
-            <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)}
-              className="btn btn-outline btn-sm">Trước</button>
-            {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-              const n = totalPages <= 7 ? i + 1
-                : page <= 4 ? i + 1
-                : page >= totalPages - 3 ? totalPages - 6 + i
-                : page - 3 + i
-              return (
-                <button key={n} onClick={() => setPage(n)}
-                  className={`w-8 h-8 rounded text-sm font-medium ${
-                    page === n ? 'bg-primary-600 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}>{n}</button>
-              )
-            })}
-            <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}
-              className="btn btn-outline btn-sm">Sau</button>
+        {totalPages > 0 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t dark:border-gray-700">
+            <p className="text-sm text-gray-500">
+              Trang <span className="font-medium text-gray-800 dark:text-gray-100">{page}</span> / {totalPages}
+              &nbsp;·&nbsp;{totalItems} sách
+            </p>
+            <div className="flex items-center gap-1">
+              <button disabled={page === 1} onClick={() => setPage(1)} className="btn btn-outline btn-sm px-2" title="Trang đầu">«</button>
+              <button
+                disabled={page === 1}
+                onClick={() => setPage((p) => p - 1)}
+                className="btn btn-outline btn-sm flex items-center gap-1"
+              >
+                <FiChevronLeft size={14} /> Trước
+              </button>
+              <PaginationNumbers page={page} totalPages={totalPages} onPageChange={setPage} />
+              <button
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => p + 1)}
+                className="btn btn-outline btn-sm flex items-center gap-1"
+              >
+                Sau <FiChevronRight size={14} />
+              </button>
+              <button disabled={page >= totalPages} onClick={() => setPage(totalPages)} className="btn btn-outline btn-sm px-2" title="Trang cuối">»</button>
+            </div>
           </div>
         )}
       </div>

@@ -112,6 +112,15 @@ function updateRow($table, $id, $data) {
     executeSql("UPDATE {$table} SET {$sets} WHERE id = ?", $params);
 }
 
+function tableHasColumn($table, $column) {
+    static $cache = [];
+    $key = "{$table}.{$column}";
+    if (!array_key_exists($key, $cache)) {
+        $cache[$key] = (bool)queryOne("SHOW COLUMNS FROM {$table} LIKE ?", [$column]);
+    }
+    return $cache[$key];
+}
+
 function filterInput($input, $allowed) {
     return array_filter(
         array_intersect_key($input, array_flip($allowed)),
