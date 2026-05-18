@@ -597,6 +597,13 @@ function handleAdminOrders($method, $pathParts) {
 
     if ($method === 'PUT' && $id && (($pathParts[3] ?? '') === 'tracking')) {
         $input = requestJson();
+        $order = queryOne("SELECT status FROM orders WHERE id = ?", [$id]);
+        if (!$order) {
+            jsonResponse(['success' => false, 'message' => 'Khong tim thay don hang'], 404);
+        }
+        if (in_array($order['status'] ?? '', ['delivered', 'cancelled', 'refunded'], true)) {
+            jsonResponse(['success' => false, 'message' => 'Khong the cap nhat van chuyen cho don hang da ket thuc'], 400);
+        }
         if (empty(trim((string)($input['tracking_code'] ?? '')))) {
             jsonResponse(['success' => false, 'message' => 'Vui lòng nhập mã vận đơn'], 400);
         }
@@ -605,6 +612,8 @@ function handleAdminOrders($method, $pathParts) {
         }
         $updateData = [
             'tracking_code' => trim((string)$input['tracking_code']),
+            'status' => 'shipped',
+            'shipped_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s'),
         ];
         if (tableHasColumn('orders', 'shipping_provider')) {
