@@ -195,6 +195,22 @@ const Orders = () => {
   const totalPages = data?.pagination?.totalPages || 1
   const totalItems = data?.pagination?.totalItems ?? 0
 
+  const openTrackingForm = (order) => {
+    setTrackingOrder(order)
+    setTrackingCode(order.tracking_code || '')
+    setShippingProvider(order.shipping_provider || order.shipping_method || 'giao_hang_tiet_kiem')
+    setShippingFee(order.shipping_cost || '')
+  }
+
+  const handleStatusChange = (order, nextStatus) => {
+    if (nextStatus === 'shipped' && (!order.tracking_code || !order.shipping_provider)) {
+      openTrackingForm(order)
+      toast.error('Nhập thông tin vận chuyển trước khi chuyển sang đang giao')
+      return
+    }
+    updateStatusMutation.mutate({ id: order.id, status: nextStatus })
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -374,7 +390,7 @@ const Orders = () => {
                     <td>
                       <select
                         value={order.status}
-                        onChange={(e) => updateStatusMutation.mutate({ id: order.id, status: e.target.value })}
+                        onChange={(e) => handleStatusChange(order, e.target.value)}
                         className={`text-xs border rounded px-2 py-1 font-medium cursor-pointer ${statusLabels[order.status]?.cls || ''}`}
                       >
                         {statusOptions.slice(1).map((opt) => (
@@ -407,12 +423,7 @@ const Orders = () => {
                           <FiEye size={16} />
                         </button>
                         <button
-                          onClick={() => {
-                            setTrackingOrder(order)
-                            setTrackingCode(order.tracking_code || '')
-                            setShippingProvider(order.shipping_provider || order.shipping_method || 'giao_hang_tiet_kiem')
-                            setShippingFee(order.shipping_cost || '')
-                          }}
+                          onClick={() => openTrackingForm(order)}
                           className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
                           title="Mã vận đơn"
                         >
@@ -520,8 +531,10 @@ const Orders = () => {
                     <select
                       value={selectedOrder.status}
                       onChange={(e) => {
-                        updateStatusMutation.mutate({ id: selectedOrder.id, status: e.target.value })
-                        setSelectedOrder({ ...selectedOrder, status: e.target.value })
+                        handleStatusChange(selectedOrder, e.target.value)
+                        if (e.target.value !== 'shipped' || (selectedOrder.tracking_code && selectedOrder.shipping_provider)) {
+                          setSelectedOrder({ ...selectedOrder, status: e.target.value })
+                        }
                       }}
                       className={`text-xs border rounded px-2 py-1 font-medium cursor-pointer ${statusLabels[selectedOrder.status]?.cls || ''}`}
                     >
@@ -598,12 +611,22 @@ const Orders = () => {
             <div className="flex gap-3 justify-end">
               <button onClick={() => setTrackingOrder(null)} className="btn btn-outline">Hủy</button>
               <button
-                onClick={() => addTrackingMutation.mutate({
-                  id: trackingOrder.id,
-                  tracking_code: trackingCode,
-                  shipping_provider: shippingProvider,
-                  shipping_fee: shippingFee,
-                })}
+                onClick={() => {
+                  if (!trackingCode.trim()) {
+                    toast.error('Nhập mã vận đơn')
+                    return
+                  }
+                  if (!shippingProvider) {
+                    toast.error('Chọn đơn vị vận chuyển')
+                    return
+                  }
+                  addTrackingMutation.mutate({
+                    id: trackingOrder.id,
+                    tracking_code: trackingCode,
+                    shipping_provider: shippingProvider,
+                    shipping_fee: shippingFee,
+                  })
+                }}
                 disabled={addTrackingMutation.isPending}
                 className="btn btn-primary"
               >

@@ -524,9 +524,15 @@ function handleAdminOrders($method, $pathParts) {
         if (!in_array($newStatus, $allowedOrderStatuses, true)) {
             jsonResponse(['success' => false, 'message' => 'Trang thai don hang khong hop le'], 400);
         }
-        $order = queryOne("SELECT payment_method, payment_status FROM orders WHERE id = ?", [$id]);
+        $order = queryOne("SELECT * FROM orders WHERE id = ?", [$id]);
         if (!$order) {
             jsonResponse(['success' => false, 'message' => 'Không tìm thấy đơn hàng'], 404);
+        }
+        if ($newStatus === 'shipped') {
+            $hasShippingProvider = !tableHasColumn('orders', 'shipping_provider') || !empty($order['shipping_provider']);
+            if (empty($order['tracking_code']) || !$hasShippingProvider) {
+                jsonResponse(['success' => false, 'message' => 'Vui lòng nhập thông tin vận chuyển trước khi chuyển sang đang giao'], 400);
+            }
         }
         $updateData = [
             'status' => $newStatus,
@@ -588,12 +594,18 @@ function handleAdminOrders($method, $pathParts) {
 
     if ($method === 'PUT' && $id && (($pathParts[3] ?? '') === 'tracking')) {
         $input = requestJson();
+        if (empty(trim((string)($input['tracking_code'] ?? '')))) {
+            jsonResponse(['success' => false, 'message' => 'Vui lòng nhập mã vận đơn'], 400);
+        }
+        if (tableHasColumn('orders', 'shipping_provider') && empty(trim((string)($input['shipping_provider'] ?? '')))) {
+            jsonResponse(['success' => false, 'message' => 'Vui lòng chọn đơn vị vận chuyển'], 400);
+        }
         $updateData = [
-            'tracking_code' => $input['tracking_code'] ?? null,
+            'tracking_code' => trim((string)$input['tracking_code']),
             'updated_at' => date('Y-m-d H:i:s'),
         ];
         if (tableHasColumn('orders', 'shipping_provider')) {
-            $updateData['shipping_provider'] = $input['shipping_provider'] ?? null;
+            $updateData['shipping_provider'] = trim((string)$input['shipping_provider']);
         }
         if (isset($input['shipping_fee'])) {
             $updateData['shipping_cost'] = (float)$input['shipping_fee'];
