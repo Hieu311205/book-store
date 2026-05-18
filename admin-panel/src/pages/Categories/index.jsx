@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { FiEdit2, FiPlus, FiSave, FiTrash2, FiX } from 'react-icons/fi'
+import { FiChevronLeft, FiChevronRight, FiEdit2, FiFilter, FiPlus, FiRefreshCw, FiSave, FiSearch, FiTrash2, FiX } from 'react-icons/fi'
 import { adminService } from '../../services/admin.service'
+import PaginationNumbers from '../../components/common/PaginationNumbers'
 
 const emptyForm = {
   name: '',
@@ -14,6 +15,28 @@ const emptyForm = {
   sort_order: 0,
   is_active: 1,
 }
+
+const statusOptions = [
+  { value: '', label: 'Tất cả trạng thái' },
+  { value: 'active', label: 'Hiện' },
+  { value: 'inactive', label: 'Ẩn' },
+]
+
+const parentFilterOptions = [
+  { value: '', label: 'Tất cả cấp danh mục' },
+  { value: 'root', label: 'Danh mục gốc' },
+  { value: 'child', label: 'Danh mục con' },
+]
+
+const sortOptions = [
+  { value: 'sort_order', label: 'Thứ tự hiển thị' },
+  { value: 'newest', label: 'Mới nhất' },
+  { value: 'oldest', label: 'Cũ nhất' },
+  { value: 'name_asc', label: 'Tên A - Z' },
+  { value: 'products_desc', label: 'Nhiều sách nhất' },
+]
+
+const LIMIT = 10
 
 const normalizeCategoryPayload = (form) => ({
   name: form.name.trim(),
@@ -32,14 +55,38 @@ const Categories = () => {
   const [editingId, setEditingId] = useState(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
 
-  const { data = [], isLoading } = useQuery({
-    queryKey: ['admin-categories'],
-    queryFn: adminService.getCategories,
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState('')
+  const [parentFilter, setParentFilter] = useState('')
+  const [sort, setSort] = useState('sort_order')
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [page, setPage] = useState(1)
+
+  const hasFilters = !!(search || status || parentFilter)
+  const queryParams = {
+    page,
+    limit: LIMIT,
+    search: search || undefined,
+    status: status || undefined,
+    parent: parentFilter || undefined,
+    sort,
+  }
+
+  const { data, isLoading, isFetching, refetch } = useQuery({
+    queryKey: ['admin-categories', queryParams],
+    queryFn: () => adminService.getCategories(queryParams),
+    select: (res) => res.data,
+  })
+
+  const { data: allCategories = [] } = useQuery({
+    queryKey: ['admin-categories-all'],
+    queryFn: () => adminService.getCategories(),
     select: (res) => res.data || [],
   })
 
   const refreshCategories = () => {
     queryClient.invalidateQueries({ queryKey: ['admin-categories'] })
+    queryClient.invalidateQueries({ queryKey: ['admin-categories-all'] })
     queryClient.invalidateQueries({ queryKey: ['categories'] })
   }
 
@@ -47,6 +94,14 @@ const Categories = () => {
     setForm(emptyForm)
     setEditingId(null)
     setIsFormOpen(false)
+  }
+
+  const resetFilters = () => {
+    setSearch('')
+    setStatus('')
+    setParentFilter('')
+    setSort('sort_order')
+    setPage(1)
   }
 
   const createMutation = useMutation({
@@ -109,8 +164,11 @@ const Categories = () => {
     setIsFormOpen(true)
   }
 
-  const parentOptions = data.filter((item) => Number(item.id) !== Number(editingId))
+  const parentOptions = allCategories.filter((item) => Number(item.id) !== Number(editingId))
   const isSubmitting = createMutation.isPending || updateMutation.isPending
+  const categories = data?.categories || []
+  const totalPages = data?.pagination?.totalPages || 1
+  const totalItems = data?.pagination?.totalItems ?? categories.length
 
   return (
     <div className="space-y-6">
@@ -119,6 +177,76 @@ const Categories = () => {
         <button type="button" onClick={openCreate} className="btn btn-primary">
           <FiPlus /> Thêm danh mục
         </button>
+      </div>
+
+      <div className="card p-4 space-y-3">
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="relative flex-1 min-w-64">
+            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+              placeholder="Tên danh mục, tên tiếng Anh..."
+              className="input pl-9 text-sm"
+            />
+          </div>
+
+          <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }} className="input w-auto text-sm">
+            {statusOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+
+          <select value={sort} onChange={(e) => { setSort(e.target.value); setPage(1) }} className="input w-auto text-sm">
+            {sortOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((current) => !current)}
+            className={`btn text-sm gap-1.5 ${showAdvanced ? 'btn-primary' : 'btn-outline'}`}
+          >
+            <FiFilter size={14} /> Nâng cao
+          </button>
+
+          <button type="button" onClick={() => refetch()} disabled={isFetching} className="btn btn-outline text-sm gap-1.5">
+            <FiRefreshCw size={14} className={isFetching ? 'animate-spin' : ''} /> Làm mới
+          </button>
+
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="flex items-center gap-1 text-sm text-red-500 hover:text-red-600 font-medium"
+            >
+              <FiX size={14} /> Xóa bộ lọc
+            </button>
+          )}
+        </div>
+
+        {showAdvanced && (
+          <div className="flex flex-wrap gap-4 items-end pt-3 border-t dark:border-gray-700">
+            <div className="flex flex-col gap-1 min-w-44">
+              <span className="text-xs font-medium text-gray-500">Cấp danh mục</span>
+              <select value={parentFilter} onChange={(e) => { setParentFilter(e.target.value); setPage(1) }} className="input text-sm">
+                {parentFilterOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between text-sm text-gray-500 pt-1">
+          <span>
+            {isFetching ? 'Đang tải...' : `${totalItems} danh mục`}
+            {hasFilters && <span className="ml-2 text-primary-600 font-medium">(đang lọc)</span>}
+          </span>
+          {totalPages > 1 && <span>Trang {page} / {totalPages}</span>}
+        </div>
       </div>
 
       <div className="card">
@@ -137,7 +265,7 @@ const Categories = () => {
             <tbody>
               {isLoading ? (
                 <tr><td colSpan={6} className="text-center py-8">Đang tải...</td></tr>
-              ) : data.length ? data.map((item) => (
+              ) : categories.length ? categories.map((item) => (
                 <tr key={item.id}>
                   <td>
                     <div className="font-medium">{item.name}</div>
@@ -169,11 +297,43 @@ const Categories = () => {
                   </td>
                 </tr>
               )) : (
-                <tr><td colSpan={6} className="text-center py-8 text-gray-500">Chưa có danh mục</td></tr>
+                <tr>
+                  <td colSpan={6} className="text-center py-8 text-gray-500">
+                    {hasFilters ? 'Không tìm thấy danh mục phù hợp với bộ lọc' : 'Chưa có danh mục'}
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
         </div>
+
+        {totalPages > 0 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t dark:border-gray-700">
+            <p className="text-sm text-gray-500">
+              Trang <span className="font-medium text-gray-800 dark:text-gray-100">{page}</span> / {totalPages}
+              &nbsp;·&nbsp;{totalItems} danh mục
+            </p>
+            <div className="flex items-center gap-1">
+              <button disabled={page === 1} onClick={() => setPage(1)} className="btn btn-outline btn-sm px-2" title="Trang đầu">«</button>
+              <button
+                disabled={page === 1}
+                onClick={() => setPage((current) => current - 1)}
+                className="btn btn-outline btn-sm flex items-center gap-1"
+              >
+                <FiChevronLeft size={14} /> Trước
+              </button>
+              <PaginationNumbers page={page} totalPages={totalPages} onPageChange={setPage} />
+              <button
+                disabled={page >= totalPages}
+                onClick={() => setPage((current) => current + 1)}
+                className="btn btn-outline btn-sm flex items-center gap-1"
+              >
+                Sau <FiChevronRight size={14} />
+              </button>
+              <button disabled={page >= totalPages} onClick={() => setPage(totalPages)} className="btn btn-outline btn-sm px-2" title="Trang cuối">»</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {isFormOpen && (

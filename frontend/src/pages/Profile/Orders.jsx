@@ -6,9 +6,10 @@ import { formatPrice } from '../../utils/formatPrice'
 
 // Đồng bộ với admin-panel/src/pages/Orders/index.jsx — statusLabels
 const statusLabels = {
-  pending:    { label: 'Chờ xử lý',    cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' },
-  paid:       { label: 'Đã thanh toán', cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
-  processing: { label: 'Đang xử lý',   cls: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400' },
+  pending:    { label: 'Chờ xác nhận', cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' },
+  confirmed:  { label: 'Đã xác nhận',  cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
+  paid:       { label: 'Đã xác nhận',  cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
+  processing: { label: 'Đang chuẩn bị hàng', cls: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400' },
   shipped:    { label: 'Đang giao',     cls: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' },
   delivered:  { label: 'Đã giao',      cls: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' },
   cancelled:  { label: 'Đã hủy',       cls: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' },
@@ -41,6 +42,16 @@ const paymentMethodText = {
   cod:          'COD (tiền mặt khi nhận)',
   bank_transfer:'Chuyển khoản ngân hàng',
   card:         'Thẻ tín dụng/ghi nợ',
+}
+
+const shippingProviderText = {
+  giao_hang_tiet_kiem: 'Giao hàng tiết kiệm',
+  ghn: 'GHN',
+  viettel_post: 'Viettel Post',
+  jt: 'J&T',
+  shop_delivery: 'Shop tự giao',
+  standard: 'Tiêu chuẩn',
+  express: 'Nhanh',
 }
 
 const OrderDetailModal = ({ orderId, onClose }) => {
@@ -88,6 +99,18 @@ const OrderDetailModal = ({ orderId, onClose }) => {
                 <div className="flex justify-between">
                   <span className="text-gray-500">Mã vận đơn</span>
                   <span className="font-mono font-medium">{order.tracking_code}</span>
+                </div>
+              )}
+              {(order.shipping_provider || order.shipping_method) && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Đơn vị vận chuyển</span>
+                  <span>{shippingProviderText[order.shipping_provider || order.shipping_method] || order.shipping_provider || order.shipping_method}</span>
+                </div>
+              )}
+              {order.shipped_at && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Ngày gửi hàng</span>
+                  <span>{new Date(order.shipped_at).toLocaleString('vi-VN')}</span>
                 </div>
               )}
             </div>
@@ -171,6 +194,15 @@ const ProfileOrders = () => {
     onError: (error) => toast.error(error.message || 'Không thể hủy đơn hàng'),
   })
 
+  const confirmReceivedMutation = useMutation({
+    mutationFn: orderService.confirmReceived,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-orders'] })
+      toast.success('Đã xác nhận nhận hàng')
+    },
+    onError: (error) => toast.error(error.message || 'Không thể xác nhận nhận hàng'),
+  })
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl p-6">
       <h2 className="text-xl font-bold mb-4">Đơn hàng của tôi</h2>
@@ -232,13 +264,22 @@ const ProfileOrders = () => {
                 >
                   Xem chi tiết
                 </button>
-                {['pending', 'paid'].includes(order.status) && (
+                {['pending', 'confirmed'].includes(order.status) && (
                   <button
                     onClick={() => cancelMutation.mutate(order.id)}
                     disabled={cancelMutation.isPending}
                     className="text-sm text-red-500 hover:text-red-600 disabled:opacity-50"
                   >
                     Hủy đơn
+                  </button>
+                )}
+                {order.status === 'shipped' && (
+                  <button
+                    onClick={() => confirmReceivedMutation.mutate(order.id)}
+                    disabled={confirmReceivedMutation.isPending}
+                    className="text-sm text-green-600 hover:text-green-700 disabled:opacity-50"
+                  >
+                    Đã nhận hàng
                   </button>
                 )}
               </div>

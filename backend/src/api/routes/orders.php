@@ -12,6 +12,8 @@ function handleOrders($method, $pathParts) {
         getOrder($user, $id);
     } elseif ($method === 'POST' && ($pathParts[2] ?? '') === 'cancel') {
         cancelOrder($user, $id);
+    } elseif ($method === 'POST' && ($pathParts[2] ?? '') === 'confirm-received') {
+        confirmReceived($user, $id);
     } else {
         jsonResponse(['success' => false, 'message' => 'Không tìm thấy thao tác'], 404);
     }
@@ -20,7 +22,11 @@ function handleOrders($method, $pathParts) {
 function createOrder($user) {
     $input = requestJson();
     $addressId = (int)($input['address_id'] ?? 0);
-    $shippingMethod = $input['shipping_method'] ?? 'standard';
+    $shippingMethod = $input['shipping_method'] ?? 'giao_hang_tiet_kiem';
+    $allowedShippingMethods = ['giao_hang_tiet_kiem', 'ghn', 'viettel_post', 'shop_delivery', 'standard', 'express'];
+    if (!in_array($shippingMethod, $allowedShippingMethods, true)) {
+        $shippingMethod = 'giao_hang_tiet_kiem';
+    }
     $paymentMethod = $input['payment_method'] ?? 'cod';
     $allowedPaymentMethods = ['cod', 'bank_transfer', 'card'];
     if (!in_array($paymentMethod, $allowedPaymentMethods, true)) {
@@ -95,7 +101,15 @@ function createOrder($user) {
     }
 
     $subtotal = array_reduce($items, fn($sum, $item) => $sum + ((float)$item['price'] * (int)$item['quantity']), 0);
-    $shippingCost = $shippingMethod === 'express' ? 50000 : 25000;
+    $shippingFees = [
+        'giao_hang_tiet_kiem' => 25000,
+        'ghn' => 30000,
+        'viettel_post' => 35000,
+        'shop_delivery' => 20000,
+        'standard' => 25000,
+        'express' => 50000,
+    ];
+    $shippingCost = $shippingFees[$shippingMethod] ?? 25000;
     $discount = 0;
     $coupon = null;
     if ($couponCode) {
@@ -108,7 +122,7 @@ function createOrder($user) {
         }
     }
 
-    $orderId = insertRow('orders', [
+    $orderData = [
         'order_number' => 'ORD-' . substr((string)time(), -8) . random_int(100, 999),
         'user_id' => $user['id'],
         'shipping_name' => $address['full_name'],
@@ -129,7 +143,11 @@ function createOrder($user) {
         'payment_method' => $paymentMethod,
         'shipping_method' => $shippingMethod,
         'customer_note' => $input['customer_note'] ?? null,
-    ]);
+    ];
+    if (tableHasColumn('orders', 'shipping_provider')) {
+        $orderData['shipping_provider'] = $shippingMethod;
+    }
+    $orderId = insertRow('orders', $orderData);
 
     foreach ($items as $item) {
         insertRow('order_items', [
@@ -188,7 +206,8 @@ function getOrder($user, $id) {
 }
 
 function trackOrder($user, $id) {
-    $order = queryOne("SELECT id, order_number, status, payment_status, tracking_code, shipped_at, delivered_at, created_at FROM orders WHERE id = ? AND user_id = ?", [$id, $user['id']]);
+    $shippingProviderSelect = tableHasColumn('orders', 'shipping_provider') ? ', shipping_provider' : '';
+    $order = queryOne("SELECT id, order_number, status, payment_status, shipping_method, tracking_code, shipped_at, delivered_at, created_at{$shippingProviderSelect} FROM orders WHERE id = ? AND user_id = ?", [$id, $user['id']]);
     if (!$order) jsonResponse(['success' => false, 'message' => 'Không tìm thấy đơn hàng'], 404);
     jsonResponse(['success' => true, 'data' => $order]);
 }
@@ -196,14 +215,37 @@ function trackOrder($user, $id) {
 function cancelOrder($user, $id) {
     $order = queryOne("SELECT * FROM orders WHERE id = ? AND user_id = ?", [$id, $user['id']]);
     if (!$order) jsonResponse(['success' => false, 'message' => 'Không tìm thấy đơn hàng'], 404);
-    if (!in_array($order['status'], ['pending', 'paid'], true)) {
+    if (!in_array($order['status'], ['pending', 'confirmed'], true)) {
         jsonResponse(['success' => false, 'message' => 'Không thể hủy đơn hàng này'], 400);
     }
     $items = queryAll("SELECT * FROM order_items WHERE order_id = ?", [$id]);
     foreach ($items as $item) {
         executeSql("UPDATE products SET stock = stock + ?, sales_count = CASE WHEN sales_count >= ? THEN sales_count - ? ELSE 0 END WHERE id = ?", [$item['quantity'], $item['quantity'], $item['quantity'], $item['product_id']]);
     }
-    updateRow('orders', $id, ['status' => 'cancelled', 'updated_at' => date('Y-m-d H:i:s')]);
+    $updateData = ['status' => 'cancelled', 'updated_at' => date('Y-m-d H:i:s')];
+    if (($order['payment_status'] ?? 'pending') === 'paid') {
+        $updateData['payment_status'] = 'refunded';
+    }
+    updateRow('orders', $id, $updateData);
     jsonResponse(['success' => true, 'message' => 'Đã hủy đơn hàng']);
+}
+
+function confirmReceived($user, $id) {
+    $order = queryOne("SELECT * FROM orders WHERE id = ? AND user_id = ?", [$id, $user['id']]);
+    if (!$order) jsonResponse(['success' => false, 'message' => 'Khong tim thay don hang'], 404);
+    if (($order['status'] ?? '') !== 'shipped') {
+        jsonResponse(['success' => false, 'message' => 'Chi co the xac nhan khi don dang giao'], 400);
+    }
+
+    $updateData = [
+        'status' => 'delivered',
+        'delivered_at' => date('Y-m-d H:i:s'),
+        'updated_at' => date('Y-m-d H:i:s'),
+    ];
+    if (($order['payment_method'] ?? 'cod') === 'cod') {
+        $updateData['payment_status'] = 'paid';
+    }
+    updateRow('orders', $id, $updateData);
+    jsonResponse(['success' => true, 'message' => 'Da xac nhan nhan hang']);
 }
 ?>

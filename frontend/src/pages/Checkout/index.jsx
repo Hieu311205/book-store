@@ -23,7 +23,7 @@ const Checkout = () => {
     [searchParams],
   )
   const [addressId, setAddressId] = useState('')
-  const [shippingMethod, setShippingMethod] = useState('standard')
+  const [shippingMethod, setShippingMethod] = useState('giao_hang_tiet_kiem')
   const [customerNote, setCustomerNote] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('cod')
   const [selectedCoupon, setSelectedCoupon] = useState(null)
@@ -64,7 +64,13 @@ const Checkout = () => {
     return maxDiscount > 0 ? Math.min(rawDiscount, maxDiscount) : rawDiscount
   }, [checkoutSummary.subtotal, selectedCoupon])
 
-  const shippingCost = shippingMethod === 'express' ? 50000 : 25000
+  const shippingFees = {
+    giao_hang_tiet_kiem: 25000,
+    ghn: 30000,
+    viettel_post: 35000,
+    shop_delivery: 20000,
+  }
+  const shippingCost = shippingFees[shippingMethod] || 25000
   const payableTotal = Math.max(0, checkoutSummary.total + shippingCost - couponDiscount)
 
   const { data: addresses } = useQuery({
@@ -154,8 +160,10 @@ const Checkout = () => {
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6">
           <h2 className="font-semibold mb-3">Vận chuyển</h2>
           <select className="input max-w-sm" value={shippingMethod} onChange={(event) => setShippingMethod(event.target.value)}>
-            <option value="standard">Tiêu chuẩn - 25.000 đ</option>
-            <option value="express">Nhanh - 50.000 đ</option>
+            <option value="giao_hang_tiet_kiem">Giao hàng tiết kiệm - 25.000 đ</option>
+            <option value="ghn">GHN - 30.000 đ</option>
+            <option value="viettel_post">Viettel Post - 35.000 đ</option>
+            <option value="shop_delivery">Shop tự giao - 20.000 đ</option>
           </select>
           <div className="mt-6">
             <h3 className="font-semibold mb-3">Phương thức thanh toán</h3>

@@ -6,4 +6,5 @@ export const orderService = {
   getOrderById: (id) => api.get(`/orders/${id}`),
   trackOrder: (id) => api.get(`/orders/${id}/track`),
   cancelOrder: (id) => api.post(`/orders/${id}/cancel`),
+  confirmReceived: (id) => api.post(`/orders/${id}/confirm-received`),
 }

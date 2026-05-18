@@ -117,21 +117,11 @@ CREATE TABLE IF NOT EXISTS `coupons` (
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `code` (`code`)
-) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Dumping data for table bookstore.coupons: ~11 rows (approximately)
+-- Dumping data for table bookstore.coupons: ~1 rows (approximately)
 INSERT INTO `coupons` (`id`, `code`, `type`, `value`, `min_purchase`, `max_discount`, `usage_limit`, `used_count`, `per_user_limit`, `start_date`, `end_date`, `is_active`, `created_at`) VALUES
-	(1, '1234', 'percentage', 20.00, 0, 50000, 1, 1, 1, NULL, NULL, 1, '2026-05-11 14:14:05'),
-	(2, 'WELCOME10', 'percentage', 10.00, 100000, 30000, 200, 0, 1, NOW(), DATE_ADD(NOW(), INTERVAL 90 DAY), 1, NOW()),
-	(3, 'BOOK15', 'percentage', 15.00, 200000, 50000, 150, 0, 1, NOW(), DATE_ADD(NOW(), INTERVAL 90 DAY), 1, NOW()),
-	(4, 'NEWBOOK20', 'percentage', 20.00, 300000, 70000, 100, 0, 1, NOW(), DATE_ADD(NOW(), INTERVAL 60 DAY), 1, NOW()),
-	(5, 'FREESHIP25', 'fixed', 25000.00, 150000, NULL, 300, 0, 1, NOW(), DATE_ADD(NOW(), INTERVAL 120 DAY), 1, NOW()),
-	(6, 'SAVE30K', 'fixed', 30000.00, 250000, NULL, 200, 0, 1, NOW(), DATE_ADD(NOW(), INTERVAL 90 DAY), 1, NOW()),
-	(7, 'SAVE50K', 'fixed', 50000.00, 400000, NULL, 120, 0, 1, NOW(), DATE_ADD(NOW(), INTERVAL 90 DAY), 1, NOW()),
-	(8, 'STUDENT12', 'percentage', 12.00, 120000, 40000, 180, 0, 1, NOW(), DATE_ADD(NOW(), INTERVAL 120 DAY), 1, NOW()),
-	(9, 'KIDBOOK10', 'percentage', 10.00, 100000, 35000, 160, 0, 1, NOW(), DATE_ADD(NOW(), INTERVAL 90 DAY), 1, NOW()),
-	(10, 'COMBO18', 'percentage', 18.00, 350000, 80000, 100, 0, 1, NOW(), DATE_ADD(NOW(), INTERVAL 75 DAY), 1, NOW()),
-	(11, 'VIP100K', 'fixed', 100000.00, 800000, NULL, 50, 0, 1, NOW(), DATE_ADD(NOW(), INTERVAL 60 DAY), 1, NOW());
+	(1, '1234', 'percentage', 20.00, 0, 50000, 1, 1, 1, NULL, NULL, 1, '2026-05-11 14:14:05');
 
 -- Dumping structure for table bookstore.coupon_usage
 CREATE TABLE IF NOT EXISTS `coupon_usage` (
@@ -171,10 +161,11 @@ CREATE TABLE IF NOT EXISTS `orders` (
   `total_amount` decimal(12,0) NOT NULL,
   `coupon_id` int DEFAULT NULL,
   `coupon_code` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `status` enum('pending','paid','processing','shipped','delivered','cancelled','refunded') COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
+  `status` enum('pending','confirmed','processing','shipped','delivered','cancelled','refunded') COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
   `payment_status` enum('pending','paid','failed','refunded') COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
   `payment_method` enum('cod','bank_transfer','card') COLLATE utf8mb4_unicode_ci DEFAULT 'cod',
   `shipping_method` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `shipping_provider` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `tracking_code` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `shipped_at` datetime DEFAULT NULL,
   `delivered_at` datetime DEFAULT NULL,
@@ -193,13 +184,13 @@ CREATE TABLE IF NOT EXISTS `orders` (
 
 -- Dumping data for table bookstore.orders: ~2 rows (approximately)
 INSERT INTO `orders` (`id`, `order_number`, `user_id`, `shipping_name`, `shipping_phone`, `shipping_province`, `shipping_city`, `shipping_postal_code`, `shipping_address`, `subtotal`, `shipping_cost`, `discount_amount`, `tax_amount`, `total_amount`, `coupon_id`, `coupon_code`, `status`, `payment_status`, `payment_method`, `shipping_method`, `tracking_code`, `shipped_at`, `delivered_at`, `customer_note`, `admin_note`, `created_at`, `updated_at`) VALUES
-	(1, 'ORD001', 2, NULL, NULL, NULL, NULL, NULL, NULL, 210000, 0, 0, 0, 210000, NULL, NULL, 'paid', 'paid', 'cod', NULL, NULL, NULL, NULL, NULL, NULL, '2026-04-29 21:33:01', '2026-05-11 02:25:50'),
-	(2, 'ORD-77879862115', 2, 'Nguyen An', '0123456789', 'Ha Noi', 'Tu Liem', '046', 'MTA', 68985, 50000, 0, 0, 118985, NULL, NULL, 'paid', 'paid', 'cod', 'express', '', '2026-05-11 07:15:59', '2026-05-11 08:20:48', '', NULL, '2026-05-04 14:31:02', '2026-05-11 08:21:11'),
-	(3, 'ORD-78472641597', 2, 'Nguyen An', '0123456789', 'Ha Noi', 'Tu Liem', '046', 'MTA', 90000, 25000, 0, 0, 115000, NULL, NULL, 'paid', 'paid', 'cod', 'standard', NULL, '2026-05-11 07:15:54', '2026-05-11 08:20:46', NULL, NULL, '2026-05-11 11:10:41', '2026-05-11 08:21:09'),
-	(4, 'ORD-78473160414', 2, 'Nguyen An', '0123456789', 'Ha Noi', 'Tu Liem', '046', 'MTA', 120000, 25000, 0, 0, 145000, NULL, NULL, 'paid', 'paid', 'cod', 'standard', NULL, NULL, '2026-05-11 07:15:52', '', NULL, '2026-05-11 11:19:20', '2026-05-11 08:21:07'),
-	(5, 'ORD-78483437136', 2, 'Nguyen An', '0123456789', 'Ha Noi', 'Tu Liem', '046', 'MTA', 110000, 25000, 0, 0, 135000, NULL, NULL, 'paid', 'paid', 'cod', 'standard', NULL, NULL, '2026-05-11 07:15:49', '', NULL, '2026-05-11 14:10:37', '2026-05-11 08:21:04'),
-	(6, 'ORD-78483725261', 2, 'Nguyen An', '0123456789', 'Ha Noi', 'Tu Liem', '046', 'MTA', 210000, 25000, 42000, 0, 193000, 1, '1234', 'paid', 'paid', 'cod', 'standard', NULL, NULL, NULL, '', NULL, '2026-05-11 14:15:25', '2026-05-11 08:20:08'),
-	(7, 'ORD-78484695406', 2, 'Nguyen An', '0123456789', 'Ha Noi', 'Tu Liem', '046', 'MTA', 120000, 25000, 0, 0, 145000, NULL, NULL, 'paid', 'paid', 'cod', 'standard', NULL, NULL, NULL, '', NULL, '2026-05-11 14:31:35', '2026-05-11 08:20:05');
+	(1, 'ORD001', 2, NULL, NULL, NULL, NULL, NULL, NULL, 210000, 0, 0, 0, 210000, NULL, NULL, 'delivered', 'paid', 'cod', NULL, NULL, NULL, NULL, NULL, NULL, '2026-04-29 21:33:01', '2026-05-11 02:25:50'),
+	(2, 'ORD-77879862115', 2, 'Nguyen An', '0123456789', 'Ha Noi', 'Tu Liem', '046', 'MTA', 68985, 50000, 0, 0, 118985, NULL, NULL, 'delivered', 'paid', 'cod', 'express', '', '2026-05-11 07:15:59', '2026-05-11 08:20:48', '', NULL, '2026-05-04 14:31:02', '2026-05-11 08:21:11'),
+	(3, 'ORD-78472641597', 2, 'Nguyen An', '0123456789', 'Ha Noi', 'Tu Liem', '046', 'MTA', 90000, 25000, 0, 0, 115000, NULL, NULL, 'delivered', 'paid', 'cod', 'standard', NULL, '2026-05-11 07:15:54', '2026-05-11 08:20:46', NULL, NULL, '2026-05-11 11:10:41', '2026-05-11 08:21:09'),
+	(4, 'ORD-78473160414', 2, 'Nguyen An', '0123456789', 'Ha Noi', 'Tu Liem', '046', 'MTA', 120000, 25000, 0, 0, 145000, NULL, NULL, 'delivered', 'paid', 'cod', 'standard', NULL, NULL, '2026-05-11 07:15:52', '', NULL, '2026-05-11 11:19:20', '2026-05-11 08:21:07'),
+	(5, 'ORD-78483437136', 2, 'Nguyen An', '0123456789', 'Ha Noi', 'Tu Liem', '046', 'MTA', 110000, 25000, 0, 0, 135000, NULL, NULL, 'delivered', 'paid', 'cod', 'standard', NULL, NULL, '2026-05-11 07:15:49', '', NULL, '2026-05-11 14:10:37', '2026-05-11 08:21:04'),
+	(6, 'ORD-78483725261', 2, 'Nguyen An', '0123456789', 'Ha Noi', 'Tu Liem', '046', 'MTA', 210000, 25000, 42000, 0, 193000, 1, '1234', 'delivered', 'paid', 'cod', 'standard', NULL, NULL, NULL, '', NULL, '2026-05-11 14:15:25', '2026-05-11 08:20:08'),
+	(7, 'ORD-78484695406', 2, 'Nguyen An', '0123456789', 'Ha Noi', 'Tu Liem', '046', 'MTA', 120000, 25000, 0, 0, 145000, NULL, NULL, 'delivered', 'paid', 'cod', 'standard', NULL, NULL, NULL, '', NULL, '2026-05-11 14:31:35', '2026-05-11 08:20:05');
 
 -- Dumping structure for table bookstore.order_items
 CREATE TABLE IF NOT EXISTS `order_items` (
@@ -498,21 +489,53 @@ CREATE TABLE IF NOT EXISTS `settings` (
   UNIQUE KEY `key_name` (`key_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Dumping data for table bookstore.settings: ~0 rows (approximately)
+CREATE TABLE coupons (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(50) UNIQUE NOT NULL,
+  type ENUM('percentage', 'fixed') NOT NULL,
+  value DECIMAL(12, 2) NOT NULL,
+  min_purchase DECIMAL(12, 0) DEFAULT 0,
+  max_discount DECIMAL(12, 0),
+  usage_limit INT,
+  used_count INT DEFAULT 0,
+  per_user_limit INT DEFAULT 1,
+  start_date DATETIME NULL,
+  end_date DATETIME NULL,
+  is_active TINYINT(1) DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Dumping structure for table bookstore.sliders
-CREATE TABLE IF NOT EXISTS `sliders` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `title` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `subtitle` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `image_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `link` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `button_text` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `sort_order` int DEFAULT '0',
-  `is_active` tinyint(1) DEFAULT '1',
-  `start_date` datetime DEFAULT NULL,
-  `end_date` datetime DEFAULT NULL,
-  PRIMARY KEY (`id`)
+CREATE TABLE orders (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  order_number VARCHAR(20) UNIQUE NOT NULL,
+  user_id INT NULL,
+  shipping_name VARCHAR(100),
+  shipping_phone VARCHAR(20),
+  shipping_province VARCHAR(50),
+  shipping_city VARCHAR(50),
+  shipping_postal_code VARCHAR(20),
+  shipping_address TEXT,
+  subtotal DECIMAL(12, 0) NOT NULL,
+  shipping_cost DECIMAL(12, 0) DEFAULT 0,
+  discount_amount DECIMAL(12, 0) DEFAULT 0,
+  tax_amount DECIMAL(12, 0) DEFAULT 0,
+  total_amount DECIMAL(12, 0) NOT NULL,
+  coupon_id INT NULL,
+  coupon_code VARCHAR(50),
+  status ENUM('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded') DEFAULT 'pending',
+  payment_status ENUM('pending', 'paid', 'failed', 'refunded') DEFAULT 'pending',
+  payment_method ENUM('cod', 'bank_transfer', 'card') DEFAULT 'cod',
+  shipping_method VARCHAR(50),
+  shipping_provider VARCHAR(50),
+  tracking_code VARCHAR(100),
+  shipped_at DATETIME NULL,
+  delivered_at DATETIME NULL,
+  customer_note TEXT,
+  admin_note TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_orders_coupon FOREIGN KEY (coupon_id) REFERENCES coupons(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Dumping data for table bookstore.sliders: ~0 rows (approximately)

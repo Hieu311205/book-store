@@ -17,7 +17,7 @@ function handleAdmin($method, $pathParts) {
         handleAdminUsers($method, $pathParts, $user);
     } elseif ($section === 'coupons') {
         requireSuperAdmin($user);
-        handleSimpleResource($method, $pathParts, 'coupons', ['code', 'type', 'value', 'min_purchase', 'max_discount', 'usage_limit', 'used_count', 'per_user_limit', 'start_date', 'end_date', 'is_active']);
+        handleAdminCoupons($method, $pathParts);
     } elseif ($section === 'sliders') {
         requireSuperAdmin($user);
         handleSimpleResource($method, $pathParts, 'sliders', ['title', 'subtitle', 'image_url', 'link', 'button_text', 'sort_order', 'is_active', 'start_date', 'end_date']);
@@ -334,14 +334,65 @@ function handleAdminCategories($method, $pathParts) {
     $allowed = ['name', 'name_en', 'parent_id', 'description', 'image_url', 'icon', 'sort_order', 'is_active'];
 
     if ($method === 'GET') {
-        jsonResponse(['success' => true, 'data' => queryAll(
-            "SELECT c.*,
-                    p.name AS parent_name,
-                    (SELECT COUNT(*) FROM products pr WHERE pr.category_id = c.id) AS product_count
+        $isPaginated = isset($_GET['page']) || isset($_GET['limit']);
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $limit = min(100, max(1, (int)($_GET['limit'] ?? 20)));
+        $offset = ($page - 1) * $limit;
+        $where = '1=1';
+        $params = [];
+
+        if (!empty($_GET['search'])) {
+            $like = '%' . $_GET['search'] . '%';
+            $where .= ' AND (c.name LIKE ? OR c.name_en LIKE ? OR c.description LIKE ?)';
+            $params[] = $like; $params[] = $like; $params[] = $like;
+        }
+        if (($_GET['status'] ?? '') === 'active') {
+            $where .= ' AND c.is_active = 1';
+        } elseif (($_GET['status'] ?? '') === 'inactive') {
+            $where .= ' AND c.is_active = 0';
+        }
+        if (($_GET['parent'] ?? '') === 'root') {
+            $where .= ' AND c.parent_id IS NULL';
+        } elseif (($_GET['parent'] ?? '') === 'child') {
+            $where .= ' AND c.parent_id IS NOT NULL';
+        }
+
+        $sortMap = [
+            'sort_order' => 'c.sort_order ASC, c.id ASC',
+            'newest' => 'c.created_at DESC',
+            'oldest' => 'c.created_at ASC',
+            'name_asc' => 'c.name ASC',
+            'products_desc' => 'product_count DESC, c.sort_order ASC',
+        ];
+        $orderBy = $sortMap[$_GET['sort'] ?? 'sort_order'] ?? 'c.sort_order ASC, c.id ASC';
+
+        $selectSql = "SELECT c.*,
+                             p.name AS parent_name,
+                             (SELECT COUNT(*) FROM products pr WHERE pr.category_id = c.id) AS product_count
+                      FROM categories c
+                      LEFT JOIN categories p ON c.parent_id = p.id
+                      WHERE {$where}
+                      ORDER BY {$orderBy}";
+
+        if (!$isPaginated) {
+            jsonResponse(['success' => true, 'data' => queryAll($selectSql, $params)]);
+        }
+
+        $count = (int)(queryOne(
+            "SELECT COUNT(*) AS count
              FROM categories c
              LEFT JOIN categories p ON c.parent_id = p.id
-             ORDER BY c.sort_order ASC, c.id ASC"
-        )]);
+             WHERE {$where}",
+            $params
+        )['count'] ?? 0);
+        $categories = queryAll($selectSql . " LIMIT ? OFFSET ?", array_merge($params, [$limit, $offset]));
+
+        jsonResponse(['success' => true, 'data' => ['categories' => $categories, 'pagination' => [
+            'page' => $page,
+            'limit' => $limit,
+            'totalItems' => $count,
+            'totalPages' => (int)ceil($count / $limit),
+        ]]]);
     }
 
     if ($method === 'POST') {
@@ -395,6 +446,19 @@ function handleAdminOrders($method, $pathParts) {
             $where .= ' AND o.status = ?';
             $params[] = $_GET['status'];
         }
+        if (!empty($_GET['payment_status'])) {
+            $where .= ' AND o.payment_status = ?';
+            $params[] = $_GET['payment_status'];
+        }
+        if (!empty($_GET['payment_method'])) {
+            $where .= ' AND o.payment_method = ?';
+            $params[] = $_GET['payment_method'];
+        }
+        if (!empty($_GET['search'])) {
+            $like = '%' . $_GET['search'] . '%';
+            $where .= ' AND (o.order_number LIKE ? OR u.first_name LIKE ? OR u.last_name LIKE ? OR o.shipping_name LIKE ? OR u.email LIKE ? OR o.shipping_phone LIKE ? OR o.tracking_code LIKE ?)';
+            $params[] = $like; $params[] = $like; $params[] = $like; $params[] = $like; $params[] = $like; $params[] = $like; $params[] = $like;
+        }
         if (!empty($_GET['customer_name'])) {
             $like = '%' . $_GET['customer_name'] . '%';
             $where .= ' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR o.shipping_name LIKE ? OR u.email LIKE ?)';
@@ -417,6 +481,14 @@ function handleAdminOrders($method, $pathParts) {
             $params[] = $_GET['date_to'];
         }
 
+        $sortMap = [
+            'newest' => 'o.created_at DESC',
+            'oldest' => 'o.created_at ASC',
+            'amount_desc' => 'o.total_amount DESC',
+            'amount_asc' => 'o.total_amount ASC',
+        ];
+        $orderBy = $sortMap[$_GET['sort'] ?? 'newest'] ?? 'o.created_at DESC';
+
         $count = (int)(queryOne(
             "SELECT COUNT(*) AS count FROM orders o LEFT JOIN users u ON o.user_id = u.id WHERE {$where}",
             $params
@@ -424,7 +496,7 @@ function handleAdminOrders($method, $pathParts) {
         $orders = queryAll(
             "SELECT o.*, u.first_name, u.last_name, u.email
              FROM orders o LEFT JOIN users u ON o.user_id = u.id
-             WHERE {$where} ORDER BY o.created_at DESC LIMIT ? OFFSET ?",
+             WHERE {$where} ORDER BY {$orderBy} LIMIT ? OFFSET ?",
             array_merge($params, [$limit, $offset])
         );
         jsonResponse(['success' => true, 'data' => ['orders' => $orders, 'pagination' => [
@@ -447,6 +519,10 @@ function handleAdminOrders($method, $pathParts) {
     if ($method === 'PUT' && $id && (($pathParts[3] ?? '') === 'status')) {
         $input = requestJson();
         $newStatus = $input['status'] ?? 'pending';
+        $allowedOrderStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'];
+        if (!in_array($newStatus, $allowedOrderStatuses, true)) {
+            jsonResponse(['success' => false, 'message' => 'Trang thai don hang khong hop le'], 400);
+        }
         $order = queryOne("SELECT payment_method, payment_status FROM orders WHERE id = ?", [$id]);
         if (!$order) {
             jsonResponse(['success' => false, 'message' => 'Không tìm thấy đơn hàng'], 404);
@@ -468,7 +544,7 @@ function handleAdminOrders($method, $pathParts) {
             }
         } else {
             // bank_transfer / card: admin xác nhận thanh toán khi chuyển sang trạng thái xử lý
-            if (in_array($newStatus, ['paid', 'processing', 'shipped', 'delivered'], true)) {
+            if (in_array($newStatus, ['confirmed', 'processing', 'shipped', 'delivered'], true) && ($order['payment_status'] ?? 'pending') !== 'refunded') {
                 $updateData['payment_status'] = 'paid';
             } elseif ($newStatus === 'refunded') {
                 $updateData['payment_status'] = 'refunded';
@@ -494,12 +570,34 @@ function handleAdminOrders($method, $pathParts) {
         if (!in_array($newPaymentStatus, $allowedPaymentStatuses, true)) {
             jsonResponse(['success' => false, 'message' => 'Trang thai thanh toan khong hop le'], 400);
         }
-        updateRow('orders', $id, ['payment_status' => $newPaymentStatus, 'updated_at' => date('Y-m-d H:i:s')]);
+        $order = queryOne("SELECT status FROM orders WHERE id = ?", [$id]);
+        if (!$order) {
+            jsonResponse(['success' => false, 'message' => 'Khong tim thay don hang'], 404);
+        }
+        $updateData = ['payment_status' => $newPaymentStatus, 'updated_at' => date('Y-m-d H:i:s')];
+        if ($newPaymentStatus === 'paid' && ($order['status'] ?? 'pending') === 'pending') {
+            $updateData['status'] = 'confirmed';
+        }
+        if ($newPaymentStatus === 'refunded') {
+            $updateData['status'] = 'refunded';
+        }
+        updateRow('orders', $id, $updateData);
         jsonResponse(['success' => true, 'message' => 'Da cap nhat trang thai thanh toan']);
     }
 
     if ($method === 'PUT' && $id && (($pathParts[3] ?? '') === 'tracking')) {
-        updateRow('orders', $id, ['tracking_code' => requestJson()['tracking_code'] ?? null, 'updated_at' => date('Y-m-d H:i:s')]);
+        $input = requestJson();
+        $updateData = [
+            'tracking_code' => $input['tracking_code'] ?? null,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        if (tableHasColumn('orders', 'shipping_provider')) {
+            $updateData['shipping_provider'] = $input['shipping_provider'] ?? null;
+        }
+        if (isset($input['shipping_fee'])) {
+            $updateData['shipping_cost'] = (float)$input['shipping_fee'];
+        }
+        updateRow('orders', $id, $updateData);
         jsonResponse(['success' => true, 'message' => 'Da cap nhat ma van don']);
     }
 
@@ -513,8 +611,47 @@ function handleAdminUsers($method, $pathParts, $currentUser) {
         $page = max(1, (int)($_GET['page'] ?? 1));
         $limit = min(100, max(1, (int)($_GET['limit'] ?? 20)));
         $offset = ($page - 1) * $limit;
-        $count = (int)(queryOne("SELECT COUNT(*) AS count FROM users")['count'] ?? 0);
-        $users = queryAll("SELECT id, ugid, email, first_name, last_name, phone, role, is_active, created_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?", [$limit, $offset]);
+        $where = '1=1';
+        $params = [];
+
+        if (!empty($_GET['search'])) {
+            $like = '%' . $_GET['search'] . '%';
+            $where .= ' AND (email LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR phone LIKE ?)';
+            $params[] = $like; $params[] = $like; $params[] = $like; $params[] = $like;
+        }
+        if (!empty($_GET['role'])) {
+            $where .= ' AND role = ?';
+            $params[] = $_GET['role'];
+        }
+        if (($_GET['status'] ?? '') === 'active') {
+            $where .= ' AND is_active = 1';
+        } elseif (($_GET['status'] ?? '') === 'blocked') {
+            $where .= ' AND is_active = 0';
+        }
+        if (!empty($_GET['date_from'])) {
+            $where .= ' AND DATE(created_at) >= ?';
+            $params[] = $_GET['date_from'];
+        }
+        if (!empty($_GET['date_to'])) {
+            $where .= ' AND DATE(created_at) <= ?';
+            $params[] = $_GET['date_to'];
+        }
+
+        $sortMap = [
+            'newest' => 'created_at DESC',
+            'oldest' => 'created_at ASC',
+            'name_asc' => 'first_name ASC, last_name ASC',
+            'email_asc' => 'email ASC',
+        ];
+        $orderBy = $sortMap[$_GET['sort'] ?? 'newest'] ?? 'created_at DESC';
+
+        $count = (int)(queryOne("SELECT COUNT(*) AS count FROM users WHERE {$where}", $params)['count'] ?? 0);
+        $users = queryAll(
+            "SELECT id, ugid, email, first_name, last_name, phone, role, is_active, created_at
+             FROM users WHERE {$where}
+             ORDER BY {$orderBy} LIMIT ? OFFSET ?",
+            array_merge($params, [$limit, $offset])
+        );
         jsonResponse(['success' => true, 'data' => ['users' => $users, 'pagination' => [
             'page' => $page,
             'limit' => $limit,
@@ -554,6 +691,75 @@ function handleAdminUsers($method, $pathParts, $currentUser) {
         }
         updateRow('users', $id, ['role' => $role]);
         jsonResponse(['success' => true, 'message' => 'Da cap nhat vai tro nguoi dung']);
+    }
+
+    jsonResponse(['success' => false, 'message' => 'Khong tim thay thao tac'], 404);
+}
+
+function handleAdminCoupons($method, $pathParts) {
+    $id = $pathParts[2] ?? null;
+    $allowed = ['code', 'type', 'value', 'min_purchase', 'max_discount', 'usage_limit', 'used_count', 'per_user_limit', 'start_date', 'end_date', 'is_active'];
+
+    if ($method === 'GET') {
+        $isPaginated = isset($_GET['page']) || isset($_GET['limit']);
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $limit = min(100, max(1, (int)($_GET['limit'] ?? 20)));
+        $offset = ($page - 1) * $limit;
+        $where = '1=1';
+        $params = [];
+
+        if (!empty($_GET['search'])) {
+            $like = '%' . $_GET['search'] . '%';
+            $where .= ' AND code LIKE ?';
+            $params[] = $like;
+        }
+        if (!empty($_GET['type'])) {
+            $where .= ' AND type = ?';
+            $params[] = $_GET['type'];
+        }
+        if (($_GET['status'] ?? '') === 'active') {
+            $where .= ' AND is_active = 1';
+        } elseif (($_GET['status'] ?? '') === 'inactive') {
+            $where .= ' AND is_active = 0';
+        }
+
+        $sortMap = [
+            'newest' => 'id DESC',
+            'oldest' => 'id ASC',
+            'code_asc' => 'code ASC',
+            'value_desc' => 'value DESC',
+            'used_desc' => 'used_count DESC',
+        ];
+        $orderBy = $sortMap[$_GET['sort'] ?? 'newest'] ?? 'id DESC';
+        $selectSql = "SELECT * FROM coupons WHERE {$where} ORDER BY {$orderBy}";
+
+        if (!$isPaginated) {
+            jsonResponse(['success' => true, 'data' => queryAll($selectSql, $params)]);
+        }
+
+        $count = (int)(queryOne("SELECT COUNT(*) AS count FROM coupons WHERE {$where}", $params)['count'] ?? 0);
+        $coupons = queryAll($selectSql . " LIMIT ? OFFSET ?", array_merge($params, [$limit, $offset]));
+        jsonResponse(['success' => true, 'data' => ['coupons' => $coupons, 'pagination' => [
+            'page' => $page,
+            'limit' => $limit,
+            'totalItems' => $count,
+            'totalPages' => (int)ceil($count / $limit),
+        ]]]);
+    }
+
+    if ($method === 'POST') {
+        $id = insertRow('coupons', filterInput(requestJson(), $allowed));
+        jsonResponse(['success' => true, 'data' => queryOne("SELECT * FROM coupons WHERE id = ?", [$id])], 201);
+    }
+
+    if ($method === 'PUT' && $id) {
+        updateRow('coupons', $id, filterInput(requestJson(), $allowed));
+        jsonResponse(['success' => true, 'data' => queryOne("SELECT * FROM coupons WHERE id = ?", [$id])]);
+    }
+
+    if ($method === 'DELETE' && $id) {
+        executeSql("DELETE FROM coupons WHERE id = ?", [$id]);
+        jsonResponse(['success' => true, 'message' => 'Da xoa']);
     }
 
     jsonResponse(['success' => false, 'message' => 'Khong tim thay thao tac'], 404);

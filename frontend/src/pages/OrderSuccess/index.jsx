@@ -8,6 +8,15 @@ const paymentMethodText = {
   card: 'Thẻ tín dụng / Thẻ ngân hàng',
 }
 
+
+const shippingProviderText = {
+  giao_hang_tiet_kiem: 'Giao hàng tiết kiệm',
+  ghn: 'GHN',
+  viettel_post: 'Viettel Post',
+  shop_delivery: 'Shop tự giao',
+  standard: 'Tiêu chuẩn',
+  express: 'Nhanh',
+}
 const OrderSuccess = () => {
   const location = useLocation()
   const navigate = useNavigate()
@@ -44,7 +53,7 @@ const OrderSuccess = () => {
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-gray-500">Vận chuyển</span>
-            <span>{order.shipping_method === 'express' ? 'Nhanh' : 'Tiêu chuẩn'}</span>
+            <span>{shippingProviderText[order.shipping_provider || order.shipping_method] || order.shipping_method}</span>
           </div>
           {Number(order.discount_amount) > 0 && (
             <div className="flex justify-between text-sm text-green-600">

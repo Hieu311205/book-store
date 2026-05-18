@@ -23,7 +23,7 @@ export const adminService = {
   updateProductStock: (id, stock) => api.put(`/admin/products/${id}/stock`, { stock }),
 
   // Categories
-  getCategories: () => api.get('/admin/categories'),
+  getCategories: (params) => api.get('/admin/categories', { params }),
   createCategory: (data) => api.post('/admin/categories', data),
   updateCategory: (id, data) => api.put(`/admin/categories/${id}`, data),
   deleteCategory: (id) => api.delete(`/admin/categories/${id}`),
@@ -48,7 +48,7 @@ export const adminService = {
   updateUserRole: (id, role) => api.put(`/admin/users/${id}/role`, { role }),
 
   // Coupons
-  getCoupons: () => api.get('/admin/coupons'),
+  getCoupons: (params) => api.get('/admin/coupons', { params }),
   createCoupon: (data) => api.post('/admin/coupons', data),
   updateCoupon: (id, data) => api.put(`/admin/coupons/${id}`, data),
   deleteCoupon: (id) => api.delete(`/admin/coupons/${id}`),
