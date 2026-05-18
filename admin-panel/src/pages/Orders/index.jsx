@@ -206,9 +206,14 @@ const Orders = () => {
     if (nextStatus === 'shipped' && (!order.tracking_code || !order.shipping_provider)) {
       openTrackingForm(order)
       toast.error('Nhập thông tin vận chuyển trước khi chuyển sang đang giao')
-      return
+      return false
+    }
+    if (nextStatus === 'delivered' && order.status !== 'shipped') {
+      toast.error('Đơn hàng phải đang giao trước khi chuyển sang đã giao')
+      return false
     }
     updateStatusMutation.mutate({ id: order.id, status: nextStatus })
+    return true
   }
 
   return (
@@ -531,8 +536,8 @@ const Orders = () => {
                     <select
                       value={selectedOrder.status}
                       onChange={(e) => {
-                        handleStatusChange(selectedOrder, e.target.value)
-                        if (e.target.value !== 'shipped' || (selectedOrder.tracking_code && selectedOrder.shipping_provider)) {
+                        const changed = handleStatusChange(selectedOrder, e.target.value)
+                        if (changed) {
                           setSelectedOrder({ ...selectedOrder, status: e.target.value })
                         }
                       }}

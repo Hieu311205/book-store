@@ -534,6 +534,9 @@ function handleAdminOrders($method, $pathParts) {
                 jsonResponse(['success' => false, 'message' => 'Vui lòng nhập thông tin vận chuyển trước khi chuyển sang đang giao'], 400);
             }
         }
+        if ($newStatus === 'delivered' && ($order['status'] ?? '') !== 'shipped') {
+            jsonResponse(['success' => false, 'message' => 'Don hang phai o trang thai dang giao truoc khi chuyen sang da giao'], 400);
+        }
         $updateData = [
             'status' => $newStatus,
             'admin_note' => $input['admin_note'] ?? null,
