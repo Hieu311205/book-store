@@ -14,6 +14,8 @@ function handleOrders($method, $pathParts) {
         cancelOrder($user, $id);
     } elseif ($method === 'POST' && ($pathParts[2] ?? '') === 'confirm-received') {
         confirmReceived($user, $id);
+    } elseif ($method === 'POST' && ($pathParts[2] ?? '') === 'return-request') {
+        requestReturnOrder($user, $id);
     } else {
         jsonResponse(['success' => false, 'message' => 'Không tìm thấy thao tác'], 404);
     }
@@ -210,7 +212,11 @@ function listOrders($user) {
         $params[] = $_GET['status'];
     }
     $count = (int)(queryOne("SELECT COUNT(*) AS count FROM orders WHERE {$where}", $params)['count'] ?? 0);
-    $orders = queryAll("SELECT * FROM orders WHERE {$where} ORDER BY created_at DESC LIMIT ? OFFSET ?", array_merge($params, [$limit, $offset]));
+    $returnSelect = tableExists('return_requests')
+        ? ", (SELECT rr.status FROM return_requests rr WHERE rr.order_id = orders.id ORDER BY rr.created_at DESC LIMIT 1) AS return_status,
+             (SELECT rr.type FROM return_requests rr WHERE rr.order_id = orders.id ORDER BY rr.created_at DESC LIMIT 1) AS return_type"
+        : ", NULL AS return_status, NULL AS return_type";
+    $orders = queryAll("SELECT orders.*{$returnSelect} FROM orders WHERE {$where} ORDER BY created_at DESC LIMIT ? OFFSET ?", array_merge($params, [$limit, $offset]));
     jsonResponse(['success' => true, 'data' => ['orders' => $orders, 'pagination' => ['page' => $page, 'limit' => $limit, 'totalItems' => $count, 'totalPages' => (int)ceil($count / $limit)]]]);
 }
 
@@ -218,6 +224,9 @@ function getOrder($user, $id) {
     $order = queryOne("SELECT * FROM orders WHERE id = ? AND user_id = ?", [$id, $user['id']]);
     if (!$order) jsonResponse(['success' => false, 'message' => 'Không tìm thấy đơn hàng'], 404);
     $order['items'] = queryAll("SELECT * FROM order_items WHERE order_id = ?", [$id]);
+    $order['return_request'] = tableExists('return_requests')
+        ? queryOne("SELECT * FROM return_requests WHERE order_id = ? ORDER BY created_at DESC LIMIT 1", [$id])
+        : null;
     jsonResponse(['success' => true, 'data' => $order]);
 }
 
@@ -263,5 +272,53 @@ function confirmReceived($user, $id) {
     }
     updateRow('orders', $id, $updateData);
     jsonResponse(['success' => true, 'message' => 'Da xac nhan nhan hang']);
+}
+
+function requestReturnOrder($user, $id) {
+    if (!tableExists('return_requests')) {
+        jsonResponse(['success' => false, 'message' => 'Chua tao bang return_requests. Vui long chay file migrate_order_workflow.sql'], 500);
+    }
+
+    $input = requestJson();
+    $type = $input['type'] ?? 'return';
+    if (!in_array($type, ['return', 'exchange'], true)) {
+        jsonResponse(['success' => false, 'message' => 'Loai yeu cau khong hop le'], 400);
+    }
+
+    $reason = trim((string)($input['reason'] ?? ''));
+    if ($reason === '') {
+        jsonResponse(['success' => false, 'message' => 'Vui long nhap ly do doi tra'], 400);
+    }
+
+    $order = queryOne("SELECT * FROM orders WHERE id = ? AND user_id = ?", [$id, $user['id']]);
+    if (!$order) {
+        jsonResponse(['success' => false, 'message' => 'Khong tim thay don hang'], 404);
+    }
+    if (($order['status'] ?? '') !== 'delivered') {
+        jsonResponse(['success' => false, 'message' => 'Chi co the yeu cau doi tra khi don da giao thanh cong'], 400);
+    }
+
+    $existing = queryOne(
+        "SELECT id FROM return_requests WHERE order_id = ? AND status IN ('pending', 'approved') ORDER BY created_at DESC LIMIT 1",
+        [$id]
+    );
+    if ($existing) {
+        jsonResponse(['success' => false, 'message' => 'Don hang da co yeu cau doi tra dang xu ly'], 400);
+    }
+
+    $requestId = insertRow('return_requests', [
+        'order_id' => $id,
+        'user_id' => $user['id'],
+        'type' => $type,
+        'reason' => $reason,
+        'note' => trim((string)($input['note'] ?? '')) ?: null,
+        'status' => 'pending',
+    ]);
+
+    jsonResponse([
+        'success' => true,
+        'message' => 'Da gui yeu cau doi tra',
+        'data' => queryOne("SELECT * FROM return_requests WHERE id = ?", [$requestId]),
+    ], 201);
 }
 ?>

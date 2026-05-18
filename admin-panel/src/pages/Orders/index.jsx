@@ -85,6 +85,18 @@ const paymentStatusLabels = {
   refunded: 'Đã hoàn tiền',
 }
 
+const returnTypeLabels = {
+  return: 'Trả hàng / hoàn tiền',
+  exchange: 'Đổi hàng',
+}
+
+const returnStatusLabels = {
+  pending: 'Đang chờ xử lý',
+  approved: 'Đã duyệt',
+  rejected: 'Đã từ chối',
+  completed: 'Đã hoàn tất',
+}
+
 const sortOptions = [
   { value: 'newest', label: 'Mới nhất' },
   { value: 'oldest', label: 'Cũ nhất' },
@@ -390,6 +402,11 @@ const Orders = () => {
                     <td>
                       <p>{getCustomerName(order)}</p>
                       <p className="text-xs text-gray-500">{order.email || order.shipping_phone}</p>
+                      {order.return_status && (
+                        <p className="text-xs text-orange-500 mt-1">
+                          Đổi trả: {returnStatusLabels[order.return_status] || order.return_status}
+                        </p>
+                      )}
                     </td>
                     <td className="font-medium">{formatPrice(order.total_amount)} đ</td>
                     <td>
@@ -646,6 +663,7 @@ const Orders = () => {
 }
 
 const OrderItems = ({ orderId }) => {
+  const queryClient = useQueryClient()
   const { data: order, isLoading } = useQuery({
     queryKey: ['admin-order-detail', orderId],
     queryFn: () => adminService.getOrderById(orderId),
@@ -653,10 +671,61 @@ const OrderItems = ({ orderId }) => {
     staleTime: 0,
   })
 
+  const updateReturnMutation = useMutation({
+    mutationFn: ({ id, data }) => adminService.updateReturnRequest(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-order-detail', orderId] })
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] })
+      toast.success('Đã cập nhật yêu cầu đổi trả')
+    },
+    onError: (error) => toast.error(error.message || 'Không thể cập nhật yêu cầu đổi trả'),
+  })
+
   if (isLoading) return <p className="text-sm text-gray-400">Đang tải...</p>
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
+      {order?.return_request && (
+        <div className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm dark:border-orange-900/40 dark:bg-orange-900/10">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-semibold text-orange-700 dark:text-orange-300">Yêu cầu đổi trả</p>
+              <p>Loại: {returnTypeLabels[order.return_request.type] || order.return_request.type}</p>
+              <p>Lý do: {order.return_request.reason}</p>
+              {order.return_request.note && <p>Ghi chú: {order.return_request.note}</p>}
+              <p>Trạng thái: {returnStatusLabels[order.return_request.status] || order.return_request.status}</p>
+            </div>
+            {order.return_request.status === 'pending' && (
+              <div className="flex flex-col gap-2">
+                <button
+                  className="btn btn-primary btn-sm"
+                  disabled={updateReturnMutation.isPending}
+                  onClick={() => updateReturnMutation.mutate({
+                    id: order.return_request.id,
+                    data: {
+                      status: 'approved',
+                      refund: order.return_request.type === 'return',
+                      admin_note: order.return_request.type === 'return' ? 'Đã duyệt hoàn tiền' : 'Đã duyệt đổi hàng',
+                    },
+                  })}
+                >
+                  {order.return_request.type === 'return' ? 'Duyệt hoàn tiền' : 'Duyệt đổi hàng'}
+                </button>
+                <button
+                  className="btn btn-outline btn-sm"
+                  disabled={updateReturnMutation.isPending}
+                  onClick={() => updateReturnMutation.mutate({
+                    id: order.return_request.id,
+                    data: { status: 'rejected', admin_note: 'Yêu cầu không được chấp nhận' },
+                  })}
+                >
+                  Từ chối
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {order?.items?.map((item) => (
         <div key={item.id} className="flex items-center gap-3 text-sm">
           {item.product_image && (

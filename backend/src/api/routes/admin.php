@@ -12,6 +12,8 @@ function handleAdmin($method, $pathParts) {
         handleAdminCategories($method, $pathParts);
     } elseif ($section === 'orders') {
         handleAdminOrders($method, $pathParts);
+    } elseif ($section === 'return-requests') {
+        handleAdminReturnRequests($method, $pathParts, $user);
     } elseif ($section === 'users') {
         requireSuperAdmin($user);
         handleAdminUsers($method, $pathParts, $user);
@@ -493,8 +495,12 @@ function handleAdminOrders($method, $pathParts) {
             "SELECT COUNT(*) AS count FROM orders o LEFT JOIN users u ON o.user_id = u.id WHERE {$where}",
             $params
         )['count'] ?? 0);
+        $returnSelect = tableExists('return_requests')
+            ? ", (SELECT rr.status FROM return_requests rr WHERE rr.order_id = o.id ORDER BY rr.created_at DESC LIMIT 1) AS return_status,
+                 (SELECT rr.type FROM return_requests rr WHERE rr.order_id = o.id ORDER BY rr.created_at DESC LIMIT 1) AS return_type"
+            : ", NULL AS return_status, NULL AS return_type";
         $orders = queryAll(
-            "SELECT o.*, u.first_name, u.last_name, u.email
+            "SELECT o.*, u.first_name, u.last_name, u.email{$returnSelect}
              FROM orders o LEFT JOIN users u ON o.user_id = u.id
              WHERE {$where} ORDER BY {$orderBy} LIMIT ? OFFSET ?",
             array_merge($params, [$limit, $offset])
@@ -513,6 +519,9 @@ function handleAdminOrders($method, $pathParts) {
             jsonResponse(['success' => false, 'message' => 'Khong tim thay don hang'], 404);
         }
         $order['items'] = queryAll("SELECT * FROM order_items WHERE order_id = ?", [$id]);
+        $order['return_request'] = tableExists('return_requests')
+            ? queryOne("SELECT rr.*, u.first_name, u.last_name, u.email FROM return_requests rr LEFT JOIN users u ON rr.user_id = u.id WHERE rr.order_id = ? ORDER BY rr.created_at DESC LIMIT 1", [$id])
+            : null;
         jsonResponse(['success' => true, 'data' => $order]);
     }
 
@@ -624,6 +633,73 @@ function handleAdminOrders($method, $pathParts) {
         }
         updateRow('orders', $id, $updateData);
         jsonResponse(['success' => true, 'message' => 'Da cap nhat ma van don']);
+    }
+
+    jsonResponse(['success' => false, 'message' => 'Khong tim thay thao tac'], 404);
+}
+
+function handleAdminReturnRequests($method, $pathParts, $currentUser) {
+    if (!tableExists('return_requests')) {
+        jsonResponse(['success' => false, 'message' => 'Chua tao bang return_requests. Vui long chay file migrate_order_workflow.sql'], 500);
+    }
+
+    $id = $pathParts[2] ?? null;
+
+    if ($method === 'GET' && !$id) {
+        $status = $_GET['status'] ?? '';
+        $where = '1=1';
+        $params = [];
+        if ($status !== '') {
+            $where .= ' AND rr.status = ?';
+            $params[] = $status;
+        }
+
+        $requests = queryAll(
+            "SELECT rr.*, o.order_number, o.total_amount, o.status AS order_status, o.payment_status,
+                    u.first_name, u.last_name, u.email
+             FROM return_requests rr
+             LEFT JOIN orders o ON rr.order_id = o.id
+             LEFT JOIN users u ON rr.user_id = u.id
+             WHERE {$where}
+             ORDER BY rr.created_at DESC
+             LIMIT 100",
+            $params
+        );
+        jsonResponse(['success' => true, 'data' => ['requests' => $requests]]);
+    }
+
+    if ($method === 'PUT' && $id) {
+        $input = requestJson();
+        $status = $input['status'] ?? 'pending';
+        if (!in_array($status, ['pending', 'approved', 'rejected', 'completed'], true)) {
+            jsonResponse(['success' => false, 'message' => 'Trang thai doi tra khong hop le'], 400);
+        }
+
+        $request = queryOne("SELECT * FROM return_requests WHERE id = ?", [$id]);
+        if (!$request) {
+            jsonResponse(['success' => false, 'message' => 'Khong tim thay yeu cau doi tra'], 404);
+        }
+        if ($status === 'approved' && !empty($input['refund']) && ($currentUser['role'] ?? '') !== 'super_admin') {
+            jsonResponse(['success' => false, 'message' => 'Chi super admin moi co quyen hoan tien'], 403);
+        }
+
+        $updateData = [
+            'status' => $status,
+            'admin_note' => $input['admin_note'] ?? null,
+            'processed_by' => $currentUser['id'],
+            'processed_at' => date('Y-m-d H:i:s'),
+        ];
+        updateRow('return_requests', $id, $updateData);
+
+        if ($status === 'approved' && !empty($input['refund'])) {
+            updateRow('orders', $request['order_id'], [
+                'status' => 'refunded',
+                'payment_status' => 'refunded',
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
+
+        jsonResponse(['success' => true, 'message' => 'Da cap nhat yeu cau doi tra']);
     }
 
     jsonResponse(['success' => false, 'message' => 'Khong tim thay thao tac'], 404);

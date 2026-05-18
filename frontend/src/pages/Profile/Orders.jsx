@@ -54,6 +54,13 @@ const shippingProviderText = {
   express: 'Nhanh',
 }
 
+const returnStatusText = {
+  pending: 'Đang chờ xử lý',
+  approved: 'Đã duyệt',
+  rejected: 'Đã từ chối',
+  completed: 'Đã hoàn tất',
+}
+
 const OrderDetailModal = ({ orderId, onClose }) => {
   const { data: order, isLoading } = useQuery({
     queryKey: ['order-detail', orderId],
@@ -177,6 +184,10 @@ const OrderDetailModal = ({ orderId, onClose }) => {
 const ProfileOrders = () => {
   const queryClient = useQueryClient()
   const [selectedOrderId, setSelectedOrderId] = useState(null)
+  const [returnOrder, setReturnOrder] = useState(null)
+  const [returnType, setReturnType] = useState('return')
+  const [returnReason, setReturnReason] = useState('')
+  const [returnNote, setReturnNote] = useState('')
 
   const { data, isLoading } = useQuery({
     queryKey: ['my-orders'],
@@ -201,6 +212,19 @@ const ProfileOrders = () => {
       toast.success('Đã xác nhận nhận hàng')
     },
     onError: (error) => toast.error(error.message || 'Không thể xác nhận nhận hàng'),
+  })
+
+  const returnMutation = useMutation({
+    mutationFn: ({ id, data }) => orderService.requestReturn(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-orders'] })
+      toast.success('Đã gửi yêu cầu đổi trả')
+      setReturnOrder(null)
+      setReturnType('return')
+      setReturnReason('')
+      setReturnNote('')
+    },
+    onError: (error) => toast.error(error.message || 'Không thể gửi yêu cầu đổi trả'),
   })
 
   return (
@@ -282,6 +306,19 @@ const ProfileOrders = () => {
                     Đã nhận hàng
                   </button>
                 )}
+                {order.status === 'delivered' && !['pending', 'approved'].includes(order.return_status || '') && (
+                  <button
+                    onClick={() => setReturnOrder(order)}
+                    className="text-sm text-orange-600 hover:text-orange-700"
+                  >
+                    Yêu cầu đổi trả
+                  </button>
+                )}
+                {order.return_status && (
+                  <span className="text-sm text-gray-500">
+                    Đổi trả: {returnStatusText[order.return_status] || order.return_status}
+                  </span>
+                )}
               </div>
             </div>
           ))}
@@ -298,6 +335,53 @@ const ProfileOrders = () => {
           orderId={selectedOrderId}
           onClose={() => setSelectedOrderId(null)}
         />
+      )}
+
+      {returnOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-lg">Yêu cầu đổi trả</h3>
+              <button onClick={() => setReturnOrder(null)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+            </div>
+            <p className="text-sm text-gray-500">Đơn {returnOrder.order_number}</p>
+            <select className="input w-full" value={returnType} onChange={(e) => setReturnType(e.target.value)}>
+              <option value="return">Trả hàng / hoàn tiền</option>
+              <option value="exchange">Đổi hàng</option>
+            </select>
+            <input
+              className="input w-full"
+              value={returnReason}
+              onChange={(e) => setReturnReason(e.target.value)}
+              placeholder="Lý do đổi trả"
+            />
+            <textarea
+              className="input w-full min-h-28"
+              value={returnNote}
+              onChange={(e) => setReturnNote(e.target.value)}
+              placeholder="Mô tả thêm tình trạng sản phẩm"
+            />
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setReturnOrder(null)} className="btn btn-outline">Hủy</button>
+              <button
+                disabled={returnMutation.isPending}
+                onClick={() => {
+                  if (!returnReason.trim()) {
+                    toast.error('Nhập lý do đổi trả')
+                    return
+                  }
+                  returnMutation.mutate({
+                    id: returnOrder.id,
+                    data: { type: returnType, reason: returnReason, note: returnNote },
+                  })
+                }}
+                className="btn btn-primary"
+              >
+                Gửi yêu cầu
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -611,6 +611,29 @@ INSERT INTO `wishlist` (`id`, `user_id`, `product_id`, `created_at`) VALUES
 	(4, 2, 37, '2026-05-04 14:27:57'),
 	(5, 2, 42, '2026-05-11 08:55:12');
 
+-- Dumping structure for table bookstore.return_requests
+CREATE TABLE IF NOT EXISTS `return_requests` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `order_id` int NOT NULL,
+  `user_id` int NOT NULL,
+  `type` enum('return','exchange') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'return',
+  `reason` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `note` text COLLATE utf8mb4_unicode_ci,
+  `status` enum('pending','approved','rejected','completed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `admin_note` text COLLATE utf8mb4_unicode_ci,
+  `processed_by` int DEFAULT NULL,
+  `processed_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_return_requests_order` (`order_id`),
+  KEY `idx_return_requests_user` (`user_id`),
+  KEY `idx_return_requests_status` (`status`),
+  CONSTRAINT `fk_return_requests_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_return_requests_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_return_requests_processed_by` FOREIGN KEY (`processed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 /*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;
 /*!40014 SET FOREIGN_KEY_CHECKS=IFNULL(@OLD_FOREIGN_KEY_CHECKS, 1) */;

@@ -125,6 +125,18 @@ function tableHasColumn($table, $column) {
     return $cache[$key];
 }
 
+function tableExists($table) {
+    static $cache = [];
+    if (!array_key_exists($table, $cache)) {
+        $cache[$table] = (bool)queryOne(
+            "SELECT 1 FROM information_schema.TABLES
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
+            [$table]
+        );
+    }
+    return $cache[$table];
+}
+
 function filterInput($input, $allowed) {
     return array_filter(
         array_intersect_key($input, array_flip($allowed)),
