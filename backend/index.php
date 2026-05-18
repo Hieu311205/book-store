@@ -2,6 +2,24 @@
 require_once __DIR__ . '/helpers.php';
 $config = include __DIR__ . '/config.php';
 
+// Suppress PHP error output — log only, never echo to response
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+
+// Global exception handler — catch uncaught exceptions and return JSON
+set_exception_handler(function (Throwable $e) {
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
+    }
+    echo json_encode([
+        'success' => false,
+        'message' => 'Lỗi máy chủ nội bộ',
+        'debug'   => $e->getMessage(),
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+});
+
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 $allowedOrigins = $config['cors']['origin'];
 if ($origin && in_array($origin, $allowedOrigins, true)) {
@@ -36,7 +54,7 @@ $_SESSION['requests'][] = $now;
 
 $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $method = $_SERVER['REQUEST_METHOD'];
-
+ 
 if (strpos($requestUri, '/api/v1') === 0) {
     $path = substr($requestUri, 8);
     $pathParts = explode('/', trim($path, '/'));

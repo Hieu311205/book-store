@@ -38,8 +38,14 @@ api.interceptors.response.use(
       localStorage.removeItem('user')
       window.location.href = '/login'
     }
+    const data = error.response?.data || {}
+    // In development: append debug info to message so devs can see the root cause
+    const message = data.debug
+      ? `${data.message || 'Lỗi máy chủ'}: ${data.debug}`
+      : data.message || error.message
     return Promise.reject({
-      ...(error.response?.data || {}),
+      ...data,
+      message,
       status: error.response?.status,
       originalError: error,
     })

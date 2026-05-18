@@ -123,7 +123,7 @@ function createOrder($user) {
     }
 
     $orderData = [
-        'order_number' => 'ORD-' . substr((string)time(), -8) . random_int(100, 999),
+        'order_number' => 'ORD-' . date('ymd') . strtoupper(substr(uniqid(), -5)),
         'user_id' => $user['id'],
         'shipping_name' => $address['full_name'],
         'shipping_phone' => $address['phone'],
@@ -147,39 +147,55 @@ function createOrder($user) {
     if (tableHasColumn('orders', 'shipping_provider')) {
         $orderData['shipping_provider'] = $shippingMethod;
     }
-    $orderId = insertRow('orders', $orderData);
 
-    foreach ($items as $item) {
-        insertRow('order_items', [
-            'order_id' => $orderId,
-            'product_id' => $item['product_id'],
-            'product_title' => $item['title'],
-            'product_image' => $item['image_url'],
-            'price' => $item['price'],
-            'quantity' => $item['quantity'],
-            'total' => (float)$item['price'] * (int)$item['quantity'],
-        ]);
-        executeSql("UPDATE products SET stock = stock - ?, sales_count = COALESCE(sales_count, 0) + ? WHERE id = ?", [$item['quantity'], $item['quantity'], $item['product_id']]);
-    }
-    if ($shouldClearCart) {
-        $sessionId = $_SERVER['HTTP_X_SESSION_ID'] ?? null;
-        if ($selectedCartProductIds) {
-            $placeholders = implode(',', array_fill(0, count($selectedCartProductIds), '?'));
-            executeSql("DELETE FROM cart_items WHERE user_id = ? AND product_id IN ({$placeholders})", array_merge([$user['id']], $selectedCartProductIds));
-            if ($sessionId) {
-                executeSql("DELETE FROM cart_items WHERE session_id = ? AND product_id IN ({$placeholders})", array_merge([$sessionId], $selectedCartProductIds));
-            }
-        } else {
-            executeSql("DELETE FROM cart_items WHERE user_id = ?", [$user['id']]);
-            if ($sessionId) {
-                executeSql("DELETE FROM cart_items WHERE session_id = ?", [$sessionId]);
+    global $pdo;
+    $pdo->beginTransaction();
+    try {
+        $orderId = insertRow('orders', $orderData);
+
+        foreach ($items as $item) {
+            insertRow('order_items', [
+                'order_id'      => $orderId,
+                'product_id'    => $item['product_id'],
+                'product_title' => $item['title'],
+                'product_image' => $item['image_url'],
+                'price'         => $item['price'],
+                'quantity'      => $item['quantity'],
+                'total'         => (float)$item['price'] * (int)$item['quantity'],
+            ]);
+            executeSql(
+                "UPDATE products SET stock = stock - ?, sales_count = COALESCE(sales_count, 0) + ? WHERE id = ?",
+                [$item['quantity'], $item['quantity'], $item['product_id']]
+            );
+        }
+
+        if ($shouldClearCart) {
+            $sessionId = $_SERVER['HTTP_X_SESSION_ID'] ?? null;
+            if ($selectedCartProductIds) {
+                $placeholders = implode(',', array_fill(0, count($selectedCartProductIds), '?'));
+                executeSql("DELETE FROM cart_items WHERE user_id = ? AND product_id IN ({$placeholders})", array_merge([$user['id']], $selectedCartProductIds));
+                if ($sessionId) {
+                    executeSql("DELETE FROM cart_items WHERE session_id = ? AND product_id IN ({$placeholders})", array_merge([$sessionId], $selectedCartProductIds));
+                }
+            } else {
+                executeSql("DELETE FROM cart_items WHERE user_id = ?", [$user['id']]);
+                if ($sessionId) {
+                    executeSql("DELETE FROM cart_items WHERE session_id = ?", [$sessionId]);
+                }
             }
         }
+
+        if ($coupon) {
+            executeSql("UPDATE coupons SET used_count = COALESCE(used_count, 0) + 1 WHERE id = ?", [$coupon['id']]);
+            insertRow('coupon_usage', ['coupon_id' => $coupon['id'], 'user_id' => $user['id'], 'order_id' => $orderId]);
+        }
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        jsonResponse(['success' => false, 'message' => 'Không thể tạo đơn hàng: ' . $e->getMessage()], 500);
     }
-    if ($coupon) {
-        executeSql("UPDATE coupons SET used_count = COALESCE(used_count, 0) + 1 WHERE id = ?", [$coupon['id']]);
-        insertRow('coupon_usage', ['coupon_id' => $coupon['id'], 'user_id' => $user['id'], 'order_id' => $orderId]);
-    }
+
     jsonResponse(['success' => true, 'message' => 'Đã tạo đơn hàng', 'data' => queryOne("SELECT * FROM orders WHERE id = ?", [$orderId])], 201);
 }
 
@@ -215,8 +231,8 @@ function trackOrder($user, $id) {
 function cancelOrder($user, $id) {
     $order = queryOne("SELECT * FROM orders WHERE id = ? AND user_id = ?", [$id, $user['id']]);
     if (!$order) jsonResponse(['success' => false, 'message' => 'Không tìm thấy đơn hàng'], 404);
-    if (!in_array($order['status'], ['pending', 'confirmed'], true)) {
-        jsonResponse(['success' => false, 'message' => 'Không thể hủy đơn hàng này'], 400);
+    if (!in_array($order['status'], ['pending', 'confirmed', 'paid'], true)) {
+        jsonResponse(['success' => false, 'message' => 'Không thể hủy đơn hàng ở trạng thái này'], 400);
     }
     $items = queryAll("SELECT * FROM order_items WHERE order_id = ?", [$id]);
     foreach ($items as $item) {

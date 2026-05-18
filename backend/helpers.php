@@ -116,7 +116,11 @@ function tableHasColumn($table, $column) {
     static $cache = [];
     $key = "{$table}.{$column}";
     if (!array_key_exists($key, $cache)) {
-        $cache[$key] = (bool)queryOne("SHOW COLUMNS FROM {$table} LIKE ?", [$column]);
+        $cache[$key] = (bool)queryOne(
+            "SELECT 1 FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+            [$table, $column]
+        );
     }
     return $cache[$key];
 }

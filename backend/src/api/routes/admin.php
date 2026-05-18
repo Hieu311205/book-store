@@ -519,7 +519,8 @@ function handleAdminOrders($method, $pathParts) {
     if ($method === 'PUT' && $id && (($pathParts[3] ?? '') === 'status')) {
         $input = requestJson();
         $newStatus = $input['status'] ?? 'pending';
-        $allowedOrderStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'];
+        // 'paid' kept for backward-compat with DBs that have it; 'confirmed' is the live DB value
+        $allowedOrderStatuses = ['pending', 'confirmed', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'];
         if (!in_array($newStatus, $allowedOrderStatuses, true)) {
             jsonResponse(['success' => false, 'message' => 'Trang thai don hang khong hop le'], 400);
         }
@@ -544,7 +545,7 @@ function handleAdminOrders($method, $pathParts) {
             }
         } else {
             // bank_transfer / card: admin xác nhận thanh toán khi chuyển sang trạng thái xử lý
-            if (in_array($newStatus, ['confirmed', 'processing', 'shipped', 'delivered'], true) && ($order['payment_status'] ?? 'pending') !== 'refunded') {
+            if (in_array($newStatus, ['confirmed', 'paid', 'processing', 'shipped', 'delivered'], true) && ($order['payment_status'] ?? 'pending') !== 'refunded') {
                 $updateData['payment_status'] = 'paid';
             } elseif ($newStatus === 'refunded') {
                 $updateData['payment_status'] = 'refunded';
