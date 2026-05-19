@@ -43,6 +43,7 @@ const paymentMethodLabels = {
   cod: 'COD',
   bank_transfer: 'Chuyển khoản',
   card: 'Thẻ',
+  wallet: 'Ví điện tử',
 }
 
 const paymentMethodOptions = [
@@ -50,6 +51,7 @@ const paymentMethodOptions = [
   { value: 'cod', label: 'COD' },
   { value: 'bank_transfer', label: 'Chuyển khoản' },
   { value: 'card', label: 'Thẻ' },
+  { value: 'wallet', label: 'Ví điện tử' },
 ]
 
 const shippingProviderOptions = [
@@ -92,10 +94,29 @@ const returnTypeLabels = {
 
 const returnStatusLabels = {
   pending: 'Đang chờ xử lý',
-  approved: 'Đã duyệt',
+  approved: 'Đã duyệt - chờ hoàn tất',
   rejected: 'Đã từ chối',
   completed: 'Đã hoàn tất',
 }
+
+const orderStatusFlow = {
+  pending: ['confirmed', 'cancelled'],
+  confirmed: ['processing', 'cancelled'],
+  paid: ['processing', 'cancelled'],
+  processing: ['shipped', 'cancelled'],
+  shipped: ['delivered'],
+  delivered: ['refunded'],
+  cancelled: [],
+  refunded: [],
+}
+
+const getOrderStatusOptions = (currentStatus) => {
+  const nextStatuses = orderStatusFlow[currentStatus] || []
+  const values = [currentStatus, ...nextStatuses]
+  return statusOptions.filter((option) => values.includes(option.value))
+}
+
+const isFinalOrderStatus = (status) => !((orderStatusFlow[status] || []).length)
 
 const sortOptions = [
   { value: 'newest', label: 'Mới nhất' },
@@ -208,6 +229,10 @@ const Orders = () => {
   const totalItems = data?.pagination?.totalItems ?? 0
 
   const openTrackingForm = (order) => {
+    if (!['processing', 'shipped'].includes(order.status)) {
+      toast.error('Đơn hàng phải đang chuẩn bị hàng trước khi nhập vận chuyển')
+      return
+    }
     setTrackingOrder(order)
     setTrackingCode(order.tracking_code || '')
     setShippingProvider(order.shipping_provider || order.shipping_method || 'giao_hang_tiet_kiem')
@@ -215,6 +240,11 @@ const Orders = () => {
   }
 
   const handleStatusChange = (order, nextStatus) => {
+    const allowedStatuses = orderStatusFlow[order.status] || []
+    if (nextStatus !== order.status && !allowedStatuses.includes(nextStatus)) {
+      toast.error('Không thể chuyển trạng thái ngược hoặc bỏ qua quy trình')
+      return false
+    }
     if (nextStatus === 'shipped' && (!order.tracking_code || !order.shipping_provider)) {
       openTrackingForm(order)
       toast.error('Nhập thông tin vận chuyển trước khi chuyển sang đang giao')
@@ -402,11 +432,6 @@ const Orders = () => {
                     <td>
                       <p>{getCustomerName(order)}</p>
                       <p className="text-xs text-gray-500">{order.email || order.shipping_phone}</p>
-                      {order.return_status && (
-                        <p className="text-xs text-orange-500 mt-1">
-                          Đổi trả: {returnStatusLabels[order.return_status] || order.return_status}
-                        </p>
-                      )}
                     </td>
                     <td className="font-medium">{formatPrice(order.total_amount)} đ</td>
                     <td>
@@ -414,11 +439,22 @@ const Orders = () => {
                         value={order.status}
                         onChange={(e) => handleStatusChange(order, e.target.value)}
                         className={`text-xs border rounded px-2 py-1 font-medium cursor-pointer ${statusLabels[order.status]?.cls || ''}`}
+                        disabled={isFinalOrderStatus(order.status)}
                       >
-                        {statusOptions.slice(1).map((opt) => (
+                        {getOrderStatusOptions(order.status).map((opt) => (
                           <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))}
                       </select>
+                      {order.return_status && (
+                        <div className="mt-1">
+                          <span className="inline-block text-xs font-medium px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
+                            Đổi trả: {returnStatusLabels[order.return_status] || order.return_status}
+                          </span>
+                          {order.return_type && (
+                            <p className="text-xs text-gray-500 mt-1">{returnTypeLabels[order.return_type] || order.return_type}</p>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <select
@@ -559,8 +595,9 @@ const Orders = () => {
                         }
                       }}
                       className={`text-xs border rounded px-2 py-1 font-medium cursor-pointer ${statusLabels[selectedOrder.status]?.cls || ''}`}
+                      disabled={isFinalOrderStatus(selectedOrder.status)}
                     >
-                      {statusOptions.slice(1).map((opt) => (
+                      {getOrderStatusOptions(selectedOrder.status).map((opt) => (
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
                       ))}
                     </select>
@@ -704,12 +741,40 @@ const OrderItems = ({ orderId }) => {
                     id: order.return_request.id,
                     data: {
                       status: 'approved',
-                      refund: order.return_request.type === 'return',
-                      admin_note: order.return_request.type === 'return' ? 'Đã duyệt hoàn tiền' : 'Đã duyệt đổi hàng',
+                      admin_note: order.return_request.type === 'return' ? 'Đã duyệt yêu cầu trả hàng' : 'Đã duyệt đổi hàng',
                     },
                   })}
                 >
-                  {order.return_request.type === 'return' ? 'Duyệt hoàn tiền' : 'Duyệt đổi hàng'}
+                  {order.return_request.type === 'return' ? 'Duyệt trả hàng' : 'Duyệt đổi hàng'}
+                </button>
+                <button
+                  className="btn btn-outline btn-sm"
+                  disabled={updateReturnMutation.isPending}
+                  onClick={() => updateReturnMutation.mutate({
+                    id: order.return_request.id,
+                    data: { status: 'rejected', admin_note: 'Yêu cầu không được chấp nhận' },
+                  })}
+                >
+                  Từ chối
+                </button>
+              </div>
+            )}
+            {order.return_request.status === 'approved' && (
+              <div className="flex flex-col gap-2">
+                <button
+                  className="btn btn-primary btn-sm"
+                  disabled={updateReturnMutation.isPending}
+                  onClick={() => updateReturnMutation.mutate({
+                    id: order.return_request.id,
+                    data: {
+                      status: 'completed',
+                      admin_note: order.return_request.type === 'return'
+                        ? 'Đã nhận hàng trả và hoàn tiền'
+                        : 'Đã hoàn tất đổi hàng',
+                    },
+                  })}
+                >
+                  {order.return_request.type === 'return' ? 'Hoàn tất hoàn tiền' : 'Hoàn tất đổi hàng'}
                 </button>
                 <button
                   className="btn btn-outline btn-sm"

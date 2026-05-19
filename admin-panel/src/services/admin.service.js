@@ -42,6 +42,10 @@ export const adminService = {
   addTrackingCode: (id, data) => api.put(`/admin/orders/${id}/tracking`, data),
   updateReturnRequest: (id, data) => api.put(`/admin/return-requests/${id}`, data),
 
+  // Wallets
+  getWalletTransactions: (params) => api.get('/admin/wallets', { params }),
+  updateWalletTransaction: (id, data) => api.put(`/admin/wallets/transactions/${id}`, data),
+
   // Users
   getUsers: (params) => api.get('/admin/users', { params }),
   getUserById: (id) => api.get(`/admin/users/${id}`),

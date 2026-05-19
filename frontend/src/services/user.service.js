@@ -12,4 +12,11 @@ export const userService = {
   getWishlist: () => api.get('/users/wishlist'),
   addToWishlist: (productId) => api.post(`/users/wishlist/add/${productId}`),
   removeFromWishlist: (productId) => api.delete(`/users/wishlist/remove/${productId}`),
+
+  // Wallet
+  getWallet: () => api.get('/wallet'),
+  linkBankAccount: (data) => api.post('/wallet/bank-accounts', data),
+  deleteBankAccount: (id) => api.delete(`/wallet/bank-accounts/${id}`),
+  depositWallet: (data) => api.post('/wallet/deposit', data),
+  withdrawWallet: (data) => api.post('/wallet/withdraw', data),
 }

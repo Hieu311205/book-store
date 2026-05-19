@@ -137,6 +137,93 @@ function tableExists($table) {
     return $cache[$table];
 }
 
+function getOrCreateWallet($userId) {
+    if (!tableExists('wallets')) {
+        return null;
+    }
+    $wallet = queryOne("SELECT * FROM wallets WHERE user_id = ?", [$userId]);
+    if ($wallet) {
+        return $wallet;
+    }
+    $walletId = insertRow('wallets', [
+        'user_id' => $userId,
+        'balance' => 0,
+    ]);
+    return queryOne("SELECT * FROM wallets WHERE id = ?", [$walletId]);
+}
+
+function addWalletTransaction($userId, $amount, $type, $description, $referenceType = null, $referenceId = null, $status = 'completed', $bankData = []) {
+    if (!tableExists('wallets') || !tableExists('wallet_transactions')) {
+        return null;
+    }
+    $wallet = getOrCreateWallet($userId);
+    if (!$wallet) {
+        return null;
+    }
+    return insertRow('wallet_transactions', [
+        'wallet_id' => $wallet['id'],
+        'user_id' => $userId,
+        'type' => $type,
+        'amount' => $amount,
+        'status' => $status,
+        'description' => $description,
+        'reference_type' => $referenceType,
+        'reference_id' => $referenceId,
+        'bank_name' => $bankData['bank_name'] ?? null,
+        'bank_account_number' => $bankData['bank_account_number'] ?? null,
+        'bank_account_name' => $bankData['bank_account_name'] ?? null,
+    ]);
+}
+
+function creditWallet($userId, $amount, $description, $referenceType = null, $referenceId = null, $bankData = []) {
+    if ($amount <= 0 || !tableExists('wallets') || !tableExists('wallet_transactions')) {
+        return false;
+    }
+    $wallet = getOrCreateWallet($userId);
+    executeSql("UPDATE wallets SET balance = balance + ?, updated_at = NOW() WHERE id = ?", [$amount, $wallet['id']]);
+    addWalletTransaction($userId, $amount, 'credit', $description, $referenceType, $referenceId, 'completed', $bankData);
+    return true;
+}
+
+function debitWallet($userId, $amount, $description, $referenceType = null, $referenceId = null, $status = 'completed', $bankData = []) {
+    if ($amount <= 0 || !tableExists('wallets') || !tableExists('wallet_transactions')) {
+        return false;
+    }
+    $wallet = getOrCreateWallet($userId);
+    if ((float)$wallet['balance'] < $amount) {
+        return false;
+    }
+    executeSql("UPDATE wallets SET balance = balance - ?, updated_at = NOW() WHERE id = ?", [$amount, $wallet['id']]);
+    addWalletTransaction($userId, $amount, 'debit', $description, $referenceType, $referenceId, $status, $bankData);
+    return true;
+}
+
+function getDefaultBankAccount($userId) {
+    if (!tableExists('user_bank_accounts')) {
+        return null;
+    }
+    return queryOne(
+        "SELECT * FROM user_bank_accounts
+         WHERE user_id = ? AND is_active = 1
+         ORDER BY is_default DESC, id DESC
+         LIMIT 1",
+        [$userId]
+    );
+}
+
+function getUserBankAccount($userId, $bankAccountId = null) {
+    if (!tableExists('user_bank_accounts')) {
+        return null;
+    }
+    if ($bankAccountId) {
+        return queryOne(
+            "SELECT * FROM user_bank_accounts WHERE id = ? AND user_id = ? AND is_active = 1",
+            [$bankAccountId, $userId]
+        );
+    }
+    return getDefaultBankAccount($userId);
+}
+
 function filterInput($input, $allowed) {
     return array_filter(
         array_intersect_key($input, array_flip($allowed)),

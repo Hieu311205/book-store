@@ -6,6 +6,7 @@ const paymentMethodText = {
   cod: 'Thanh toán khi nhận hàng (COD)',
   bank_transfer: 'Chuyển khoản ngân hàng',
   card: 'Thẻ tín dụng / Thẻ ngân hàng',
+  wallet: 'Ví điện tử Book Store',
 }
 
 
@@ -82,6 +83,15 @@ const OrderSuccess = () => {
             <p className="font-semibold text-blue-800 dark:text-blue-400 mb-1">Thanh toán thẻ</p>
             <p className="text-blue-700 dark:text-blue-300">
               Bộ phận hỗ trợ sẽ liên hệ với bạn để hướng dẫn thanh toán qua thẻ cho đơn <strong>{order.order_number}</strong>.
+            </p>
+          </div>
+        )}
+
+        {order.payment_method === 'wallet' && (
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-4 text-sm text-left mb-6">
+            <p className="font-semibold text-green-800 dark:text-green-400 mb-1">Đã thanh toán bằng ví</p>
+            <p className="text-green-700 dark:text-green-300">
+              Số tiền <strong>{formatPrice(order.total_amount)} đ</strong> đã được trừ từ ví Book Store cho đơn <strong>{order.order_number}</strong>.
             </p>
           </div>
         )}

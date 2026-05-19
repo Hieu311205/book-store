@@ -89,6 +89,10 @@ if (strpos($requestUri, '/api/v1') === 0) {
             require_once __DIR__ . '/src/api/routes/orders.php';
             handleOrders($method, $pathParts);
             break;
+        case 'wallet':
+            require_once __DIR__ . '/src/api/routes/wallet.php';
+            handleWallet($method, $pathParts);
+            break;
         case 'users':
             require_once __DIR__ . '/src/api/routes/users.php';
             handleUsers($method, $pathParts);

@@ -163,7 +163,7 @@ CREATE TABLE IF NOT EXISTS `orders` (
   `coupon_code` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `status` enum('pending','confirmed','processing','shipped','delivered','cancelled','refunded') COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
   `payment_status` enum('pending','paid','failed','refunded') COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
-  `payment_method` enum('cod','bank_transfer','card') COLLATE utf8mb4_unicode_ci DEFAULT 'cod',
+  `payment_method` enum('cod','bank_transfer','card','wallet') COLLATE utf8mb4_unicode_ci DEFAULT 'cod',
   `shipping_method` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `shipping_provider` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `tracking_code` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -524,7 +524,7 @@ CREATE TABLE orders (
   coupon_code VARCHAR(50),
   status ENUM('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded') DEFAULT 'pending',
   payment_status ENUM('pending', 'paid', 'failed', 'refunded') DEFAULT 'pending',
-  payment_method ENUM('cod', 'bank_transfer', 'card') DEFAULT 'cod',
+  payment_method ENUM('cod', 'bank_transfer', 'card', 'wallet') DEFAULT 'cod',
   shipping_method VARCHAR(50),
   shipping_provider VARCHAR(50),
   tracking_code VARCHAR(100),
@@ -632,6 +632,54 @@ CREATE TABLE IF NOT EXISTS `return_requests` (
   CONSTRAINT `fk_return_requests_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_return_requests_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_return_requests_processed_by` FOREIGN KEY (`processed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `wallets` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `balance` decimal(12,0) NOT NULL DEFAULT 0,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_wallet_user` (`user_id`),
+  CONSTRAINT `fk_wallet_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `user_bank_accounts` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `bank_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `bank_account_number` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `bank_account_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `is_default` tinyint(1) NOT NULL DEFAULT 1,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_user_bank_accounts_user` (`user_id`),
+  CONSTRAINT `fk_user_bank_accounts_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `wallet_transactions` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `wallet_id` int NOT NULL,
+  `user_id` int NOT NULL,
+  `type` enum('credit','debit') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `amount` decimal(12,0) NOT NULL,
+  `status` enum('pending','completed','rejected') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'completed',
+  `description` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `reference_type` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `reference_id` int DEFAULT NULL,
+  `bank_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `bank_account_number` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `bank_account_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_wallet_transactions_wallet` (`wallet_id`),
+  KEY `idx_wallet_transactions_user` (`user_id`),
+  KEY `idx_wallet_transactions_reference` (`reference_type`,`reference_id`),
+  CONSTRAINT `fk_wallet_transactions_wallet` FOREIGN KEY (`wallet_id`) REFERENCES `wallets` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_wallet_transactions_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 /*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;

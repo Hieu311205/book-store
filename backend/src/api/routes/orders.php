@@ -30,9 +30,16 @@ function createOrder($user) {
         $shippingMethod = 'giao_hang_tiet_kiem';
     }
     $paymentMethod = $input['payment_method'] ?? 'cod';
-    $allowedPaymentMethods = ['cod', 'bank_transfer', 'card'];
+    $allowedPaymentMethods = ['cod', 'bank_transfer', 'card', 'wallet'];
     if (!in_array($paymentMethod, $allowedPaymentMethods, true)) {
         $paymentMethod = 'cod';
+    }
+    if ($paymentMethod === 'wallet' && (!tableExists('wallets') || !tableExists('wallet_transactions'))) {
+        jsonResponse(['success' => false, 'message' => 'Chua tao bang vi dien tu. Vui long chay migrate_order_workflow.sql'], 500);
+    }
+    $bankAccountId = (int)($input['bank_account_id'] ?? 0);
+    if (in_array($paymentMethod, ['bank_transfer', 'card'], true) && !getUserBankAccount($user['id'], $bankAccountId)) {
+        jsonResponse(['success' => false, 'message' => 'Vui long lien ket tai khoan ngan hang truoc khi dung phuong thuc thanh toan nay'], 400);
     }
     $couponCode = $input['coupon_code'] ?? null;
     $address = queryOne("SELECT * FROM user_addresses WHERE id = ? AND user_id = ?", [$addressId, $user['id']]);
@@ -141,7 +148,7 @@ function createOrder($user) {
         'coupon_id' => $coupon['id'] ?? null,
         'coupon_code' => $coupon['code'] ?? null,
         'status' => 'pending',
-        'payment_status' => 'pending',
+        'payment_status' => $paymentMethod === 'wallet' ? 'paid' : 'pending',
         'payment_method' => $paymentMethod,
         'shipping_method' => $shippingMethod,
         'customer_note' => $input['customer_note'] ?? null,
@@ -154,6 +161,11 @@ function createOrder($user) {
     $pdo->beginTransaction();
     try {
         $orderId = insertRow('orders', $orderData);
+        if ($paymentMethod === 'wallet') {
+            if (!debitWallet($user['id'], $orderData['total_amount'], 'Thanh toan don hang ' . $orderData['order_number'], 'order', $orderId)) {
+                throw new Exception('So du vi khong du de thanh toan don hang');
+            }
+        }
 
         foreach ($items as $item) {
             insertRow('order_items', [
@@ -250,6 +262,7 @@ function cancelOrder($user, $id) {
     $updateData = ['status' => 'cancelled', 'updated_at' => date('Y-m-d H:i:s')];
     if (($order['payment_status'] ?? 'pending') === 'paid') {
         $updateData['payment_status'] = 'refunded';
+        creditWallet($user['id'], (float)$order['total_amount'], 'Hoan tien huy don ' . $order['order_number'], 'order_cancel', $id);
     }
     updateRow('orders', $id, $updateData);
     jsonResponse(['success' => true, 'message' => 'Đã hủy đơn hàng']);
@@ -299,7 +312,7 @@ function requestReturnOrder($user, $id) {
     }
 
     $existing = queryOne(
-        "SELECT id FROM return_requests WHERE order_id = ? AND status IN ('pending', 'approved') ORDER BY created_at DESC LIMIT 1",
+        "SELECT id FROM return_requests WHERE order_id = ? AND status IN ('pending', 'approved', 'completed') ORDER BY created_at DESC LIMIT 1",
         [$id]
     );
     if ($existing) {

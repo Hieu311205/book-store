@@ -14,6 +14,8 @@ function handleAdmin($method, $pathParts) {
         handleAdminOrders($method, $pathParts);
     } elseif ($section === 'return-requests') {
         handleAdminReturnRequests($method, $pathParts, $user);
+    } elseif ($section === 'wallets') {
+        handleAdminWallets($method, $pathParts, $user);
     } elseif ($section === 'users') {
         requireSuperAdmin($user);
         handleAdminUsers($method, $pathParts, $user);
@@ -88,25 +90,73 @@ function handleAdminDashboard($method, $pathParts) {
 
     if ($action === 'notifications') {
         $pendingOrders = (int)(queryOne("SELECT COUNT(*) AS count FROM orders WHERE status = 'pending'")['count'] ?? 0);
+        $shippedOrders = (int)(queryOne("SELECT COUNT(*) AS count FROM orders WHERE status = 'shipped'")['count'] ?? 0);
         $lowStockProducts = (int)(queryOne("SELECT COUNT(*) AS count FROM products WHERE stock < 10")['count'] ?? 0);
-        $unreadMessages = (int)(queryOne("SELECT COUNT(*) AS count FROM contact_messages WHERE is_read = 0")['count'] ?? 0);
+        $unreadMessages = tableExists('contact_messages')
+            ? (int)(queryOne("SELECT COUNT(*) AS count FROM contact_messages WHERE is_read = 0")['count'] ?? 0)
+            : 0;
+        $pendingReturns = tableExists('return_requests')
+            ? (int)(queryOne("SELECT COUNT(*) AS count FROM return_requests WHERE status = 'pending'")['count'] ?? 0)
+            : 0;
+        $approvedReturns = tableExists('return_requests')
+            ? (int)(queryOne("SELECT COUNT(*) AS count FROM return_requests WHERE status = 'approved'")['count'] ?? 0)
+            : 0;
+        $pendingWithdrawals = tableExists('wallet_transactions')
+            ? (int)(queryOne("SELECT COUNT(*) AS count FROM wallet_transactions WHERE type = 'debit' AND status = 'pending' AND reference_type = 'wallet_withdraw'")['count'] ?? 0)
+            : 0;
 
         $items = [];
         if ($pendingOrders > 0) {
             $items[] = [
                 'id' => 'pending-orders',
                 'type' => 'orders',
-                'title' => 'Don hang cho xu ly',
-                'message' => "{$pendingOrders} don hang dang cho xu ly",
+                'title' => 'Đơn hàng chờ xác nhận',
+                'message' => "{$pendingOrders} đơn hàng mới đang chờ xử lý",
                 'to' => '/orders',
+            ];
+        }
+        if ($shippedOrders > 0) {
+            $items[] = [
+                'id' => 'shipped-orders',
+                'type' => 'orders',
+                'title' => 'Đơn đang giao',
+                'message' => "{$shippedOrders} đơn hàng đang giao cần theo dõi",
+                'to' => '/orders',
+            ];
+        }
+        if ($pendingReturns > 0) {
+            $items[] = [
+                'id' => 'pending-returns',
+                'type' => 'returns',
+                'title' => 'Yêu cầu đổi trả mới',
+                'message' => "{$pendingReturns} yêu cầu đổi trả đang chờ duyệt",
+                'to' => '/orders',
+            ];
+        }
+        if ($approvedReturns > 0) {
+            $items[] = [
+                'id' => 'approved-returns',
+                'type' => 'returns',
+                'title' => 'Đổi trả chờ hoàn tất',
+                'message' => "{$approvedReturns} yêu cầu đổi trả đã duyệt cần hoàn tất",
+                'to' => '/orders',
+            ];
+        }
+        if ($pendingWithdrawals > 0) {
+            $items[] = [
+                'id' => 'pending-wallet-withdrawals',
+                'type' => 'wallets',
+                'title' => 'Yêu cầu rút ví',
+                'message' => "{$pendingWithdrawals} yêu cầu rút tiền đang chờ xử lý",
+                'to' => '/wallets',
             ];
         }
         if ($lowStockProducts > 0) {
             $items[] = [
                 'id' => 'low-stock',
                 'type' => 'products',
-                'title' => 'Sach sap het hang',
-                'message' => "{$lowStockProducts} sach con duoi 10 cuon",
+                'title' => 'Sách sắp hết hàng',
+                'message' => "{$lowStockProducts} sách còn dưới 10 cuốn",
                 'to' => '/products?status=low_stock',
             ];
         }
@@ -114,14 +164,14 @@ function handleAdminDashboard($method, $pathParts) {
             $items[] = [
                 'id' => 'unread-messages',
                 'type' => 'messages',
-                'title' => 'Tin nhan moi',
-                'message' => "{$unreadMessages} tin nhan lien he chua doc",
+                'title' => 'Tin nhắn mới',
+                'message' => "{$unreadMessages} tin nhắn liên hệ chưa đọc",
                 'to' => '/contact-messages',
             ];
         }
 
         jsonResponse(['success' => true, 'data' => [
-            'count' => $pendingOrders + $lowStockProducts + $unreadMessages,
+            'count' => $pendingOrders + $shippedOrders + $pendingReturns + $approvedReturns + $pendingWithdrawals + $lowStockProducts + $unreadMessages,
             'items' => $items,
         ]]);
     }
@@ -452,6 +502,14 @@ function handleAdminOrders($method, $pathParts) {
             $where .= ' AND o.payment_status = ?';
             $params[] = $_GET['payment_status'];
         }
+        if (!empty($_GET['return_status'])) {
+            if (tableExists('return_requests')) {
+                $where .= ' AND EXISTS (SELECT 1 FROM return_requests rr WHERE rr.order_id = o.id AND rr.status = ?)';
+                $params[] = $_GET['return_status'];
+            } else {
+                $where .= ' AND 1=0';
+            }
+        }
         if (!empty($_GET['payment_method'])) {
             $where .= ' AND o.payment_method = ?';
             $params[] = $_GET['payment_method'];
@@ -537,6 +595,20 @@ function handleAdminOrders($method, $pathParts) {
         if (!$order) {
             jsonResponse(['success' => false, 'message' => 'Không tìm thấy đơn hàng'], 404);
         }
+        $currentStatus = $order['status'] ?? 'pending';
+        $allowedTransitions = [
+            'pending' => ['confirmed', 'cancelled'],
+            'confirmed' => ['processing', 'cancelled'],
+            'paid' => ['processing', 'cancelled'],
+            'processing' => ['shipped', 'cancelled'],
+            'shipped' => ['delivered'],
+            'delivered' => ['refunded'],
+            'cancelled' => [],
+            'refunded' => [],
+        ];
+        if ($newStatus !== $currentStatus && !in_array($newStatus, $allowedTransitions[$currentStatus] ?? [], true)) {
+            jsonResponse(['success' => false, 'message' => 'Khong the chuyen trang thai nguoc hoac bo qua quy trinh'], 400);
+        }
         if ($newStatus === 'shipped') {
             $hasShippingProvider = !tableHasColumn('orders', 'shipping_provider') || !empty($order['shipping_provider']);
             if (empty($order['tracking_code']) || !$hasShippingProvider) {
@@ -579,6 +651,9 @@ function handleAdminOrders($method, $pathParts) {
             $updateData['delivered_at'] = date('Y-m-d H:i:s');
         }
         updateRow('orders', $id, $updateData);
+        if (in_array($newStatus, ['cancelled', 'refunded'], true) && ($order['payment_status'] ?? 'pending') === 'paid') {
+            creditWallet($order['user_id'], (float)$order['total_amount'], 'Hoan tien don ' . $order['order_number'], 'order_refund', $id);
+        }
         jsonResponse(['success' => true, 'message' => 'Đã cập nhật trạng thái đơn hàng']);
     }
 
@@ -589,7 +664,7 @@ function handleAdminOrders($method, $pathParts) {
         if (!in_array($newPaymentStatus, $allowedPaymentStatuses, true)) {
             jsonResponse(['success' => false, 'message' => 'Trang thai thanh toan khong hop le'], 400);
         }
-        $order = queryOne("SELECT status FROM orders WHERE id = ?", [$id]);
+        $order = queryOne("SELECT * FROM orders WHERE id = ?", [$id]);
         if (!$order) {
             jsonResponse(['success' => false, 'message' => 'Khong tim thay don hang'], 404);
         }
@@ -601,17 +676,23 @@ function handleAdminOrders($method, $pathParts) {
             $updateData['status'] = 'refunded';
         }
         updateRow('orders', $id, $updateData);
+        if ($newPaymentStatus === 'refunded' && ($order['payment_status'] ?? 'pending') === 'paid') {
+            creditWallet($order['user_id'], (float)$order['total_amount'], 'Hoan tien don ' . $order['order_number'], 'payment_refund', $id);
+        }
         jsonResponse(['success' => true, 'message' => 'Da cap nhat trang thai thanh toan']);
     }
 
     if ($method === 'PUT' && $id && (($pathParts[3] ?? '') === 'tracking')) {
         $input = requestJson();
-        $order = queryOne("SELECT status FROM orders WHERE id = ?", [$id]);
+        $order = queryOne("SELECT * FROM orders WHERE id = ?", [$id]);
         if (!$order) {
             jsonResponse(['success' => false, 'message' => 'Khong tim thay don hang'], 404);
         }
         if (in_array($order['status'] ?? '', ['delivered', 'cancelled', 'refunded'], true)) {
             jsonResponse(['success' => false, 'message' => 'Khong the cap nhat van chuyen cho don hang da ket thuc'], 400);
+        }
+        if (!in_array($order['status'] ?? '', ['processing', 'shipped'], true)) {
+            jsonResponse(['success' => false, 'message' => 'Don hang phai o trang thai dang chuan bi hang truoc khi chuyen sang dang giao'], 400);
         }
         if (empty(trim((string)($input['tracking_code'] ?? '')))) {
             jsonResponse(['success' => false, 'message' => 'Vui lòng nhập mã vận đơn'], 400);
@@ -679,8 +760,15 @@ function handleAdminReturnRequests($method, $pathParts, $currentUser) {
         if (!$request) {
             jsonResponse(['success' => false, 'message' => 'Khong tim thay yeu cau doi tra'], 404);
         }
-        if ($status === 'approved' && !empty($input['refund']) && ($currentUser['role'] ?? '') !== 'super_admin') {
-            jsonResponse(['success' => false, 'message' => 'Chi super admin moi co quyen hoan tien'], 403);
+        $currentStatus = $request['status'] ?? 'pending';
+        $allowedTransitions = [
+            'pending' => ['approved', 'rejected'],
+            'approved' => ['completed', 'rejected'],
+            'rejected' => [],
+            'completed' => [],
+        ];
+        if ($status !== $currentStatus && !in_array($status, $allowedTransitions[$currentStatus] ?? [], true)) {
+            jsonResponse(['success' => false, 'message' => 'Khong the chuyen trang thai doi tra theo thu tu nay'], 400);
         }
 
         $updateData = [
@@ -691,15 +779,165 @@ function handleAdminReturnRequests($method, $pathParts, $currentUser) {
         ];
         updateRow('return_requests', $id, $updateData);
 
-        if ($status === 'approved' && !empty($input['refund'])) {
-            updateRow('orders', $request['order_id'], [
-                'status' => 'refunded',
-                'payment_status' => 'refunded',
-                'updated_at' => date('Y-m-d H:i:s'),
-            ]);
+        if ($status === 'completed' && $currentStatus !== 'completed') {
+            if (($request['type'] ?? 'return') === 'return') {
+                $items = queryAll("SELECT product_id, quantity FROM order_items WHERE order_id = ?", [$request['order_id']]);
+                foreach ($items as $item) {
+                    if (!empty($item['product_id'])) {
+                        executeSql(
+                            "UPDATE products SET stock = stock + ?, sales_count = CASE WHEN sales_count >= ? THEN sales_count - ? ELSE 0 END WHERE id = ?",
+                            [$item['quantity'], $item['quantity'], $item['quantity'], $item['product_id']]
+                        );
+                    }
+                }
+                $order = queryOne("SELECT * FROM orders WHERE id = ?", [$request['order_id']]);
+                updateRow('orders', $request['order_id'], [
+                    'status' => 'refunded',
+                    'payment_status' => 'refunded',
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]);
+                if ($order && ($order['payment_status'] ?? 'pending') === 'paid') {
+                    creditWallet($order['user_id'], (float)$order['total_amount'], 'Hoan tien tra hang ' . $order['order_number'], 'return_request', $id);
+                }
+            }
         }
 
         jsonResponse(['success' => true, 'message' => 'Da cap nhat yeu cau doi tra']);
+    }
+
+    jsonResponse(['success' => false, 'message' => 'Khong tim thay thao tac'], 404);
+}
+
+function handleAdminWallets($method, $pathParts, $currentUser) {
+    if (!tableExists('wallets') || !tableExists('wallet_transactions') || !tableExists('user_bank_accounts')) {
+        jsonResponse(['success' => false, 'message' => 'Chua tao bang vi dien tu. Vui long chay migrate_order_workflow.sql'], 500);
+    }
+
+    $resource = $pathParts[2] ?? '';
+    $id = $pathParts[3] ?? null;
+
+    if ($method === 'GET' && $resource === '') {
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $limit = min(100, max(1, (int)($_GET['limit'] ?? 20)));
+        $offset = ($page - 1) * $limit;
+        $search = trim((string)($_GET['search'] ?? ''));
+        $type = $_GET['type'] ?? '';
+        $status = $_GET['status'] ?? '';
+        $sort = $_GET['sort'] ?? 'newest';
+
+        $where = '1=1';
+        $params = [];
+        if ($search !== '') {
+            $where .= " AND (
+                u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ?
+                OR wt.description LIKE ? OR wt.bank_name LIKE ? OR wt.bank_account_number LIKE ?
+            )";
+            $term = "%{$search}%";
+            array_push($params, $term, $term, $term, $term, $term, $term);
+        }
+        if (in_array($type, ['credit', 'debit'], true)) {
+            $where .= ' AND wt.type = ?';
+            $params[] = $type;
+        }
+        if (in_array($status, ['pending', 'completed', 'rejected'], true)) {
+            $where .= ' AND wt.status = ?';
+            $params[] = $status;
+        }
+
+        $orderBy = match ($sort) {
+            'oldest' => 'wt.created_at ASC',
+            'amount_desc' => 'wt.amount DESC',
+            'amount_asc' => 'wt.amount ASC',
+            default => 'wt.created_at DESC',
+        };
+
+        $count = (int)(queryOne(
+            "SELECT COUNT(*) AS count
+             FROM wallet_transactions wt
+             LEFT JOIN users u ON wt.user_id = u.id
+             WHERE {$where}",
+            $params
+        )['count'] ?? 0);
+
+        $transactions = queryAll(
+            "SELECT wt.*, w.balance,
+                    u.first_name, u.last_name, u.email,
+                    uba.bank_name AS linked_bank_name,
+                    uba.bank_account_number AS linked_bank_account_number,
+                    uba.bank_account_name AS linked_bank_account_name
+             FROM wallet_transactions wt
+             LEFT JOIN wallets w ON wt.wallet_id = w.id
+             LEFT JOIN users u ON wt.user_id = u.id
+             LEFT JOIN user_bank_accounts uba
+               ON uba.user_id = wt.user_id AND uba.is_active = 1 AND uba.is_default = 1
+             WHERE {$where}
+             ORDER BY {$orderBy}
+             LIMIT {$limit} OFFSET {$offset}",
+            $params
+        );
+
+        $stats = [
+            'totalBalance' => (float)(queryOne("SELECT SUM(balance) AS total FROM wallets")['total'] ?? 0),
+            'pendingWithdrawals' => (int)(queryOne("SELECT COUNT(*) AS count FROM wallet_transactions WHERE type = 'debit' AND status = 'pending' AND reference_type = 'wallet_withdraw'")['count'] ?? 0),
+            'pendingWithdrawAmount' => (float)(queryOne("SELECT SUM(amount) AS total FROM wallet_transactions WHERE type = 'debit' AND status = 'pending' AND reference_type = 'wallet_withdraw'")['total'] ?? 0),
+            'linkedBanks' => tableExists('user_bank_accounts')
+                ? (int)(queryOne("SELECT COUNT(*) AS count FROM user_bank_accounts WHERE is_active = 1")['count'] ?? 0)
+                : 0,
+        ];
+
+        jsonResponse(['success' => true, 'data' => [
+            'transactions' => $transactions,
+            'stats' => $stats,
+            'pagination' => [
+                'page' => $page,
+                'limit' => $limit,
+                'totalItems' => $count,
+                'totalPages' => (int)ceil($count / $limit),
+            ],
+        ]]);
+    }
+
+    if ($method === 'PUT' && $resource === 'transactions' && $id) {
+        $input = requestJson();
+        $newStatus = $input['status'] ?? '';
+        if (!in_array($newStatus, ['completed', 'rejected'], true)) {
+            jsonResponse(['success' => false, 'message' => 'Trang thai giao dich khong hop le'], 400);
+        }
+
+        $transaction = queryOne("SELECT * FROM wallet_transactions WHERE id = ?", [$id]);
+        if (!$transaction) {
+            jsonResponse(['success' => false, 'message' => 'Khong tim thay giao dich vi'], 404);
+        }
+        if (($transaction['status'] ?? '') !== 'pending') {
+            jsonResponse(['success' => false, 'message' => 'Chi xu ly duoc giao dich dang cho'], 400);
+        }
+        if (($transaction['type'] ?? '') !== 'debit' || ($transaction['reference_type'] ?? '') !== 'wallet_withdraw') {
+            jsonResponse(['success' => false, 'message' => 'Chi xu ly duoc yeu cau rut tien'], 400);
+        }
+
+        updateRow('wallet_transactions', $id, [
+            'status' => $newStatus,
+            'description' => $newStatus === 'completed'
+                ? trim((string)($input['admin_note'] ?? 'Yeu cau rut tien da duoc xu ly'))
+                : trim((string)($input['admin_note'] ?? 'Yeu cau rut tien bi tu choi')),
+        ]);
+
+        if ($newStatus === 'rejected') {
+            creditWallet(
+                $transaction['user_id'],
+                (float)$transaction['amount'],
+                'Hoan lai tien rut bi tu choi',
+                'wallet_withdraw_rejected',
+                $id,
+                [
+                    'bank_name' => $transaction['bank_name'],
+                    'bank_account_number' => $transaction['bank_account_number'],
+                    'bank_account_name' => $transaction['bank_account_name'],
+                ]
+            );
+        }
+
+        jsonResponse(['success' => true, 'message' => 'Da cap nhat giao dich vi']);
     }
 
     jsonResponse(['success' => false, 'message' => 'Khong tim thay thao tac'], 404);

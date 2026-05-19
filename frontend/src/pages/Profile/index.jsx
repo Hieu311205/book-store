@@ -1,9 +1,11 @@
 import { Outlet, NavLink, Navigate } from 'react-router-dom'
-import { FiUser, FiShoppingBag, FiHeart, FiMapPin, FiSettings, FiLogOut } from 'react-icons/fi'
+import { FiUser, FiShoppingBag, FiHeart, FiMapPin, FiSettings, FiLogOut, FiCreditCard } from 'react-icons/fi'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../context/AuthContext'
 import { orderService } from '../../services/order.service'
 import { userService } from '../../services/user.service'
+
+const money = (value) => new Intl.NumberFormat('vi-VN').format(value || 0)
 
 const Profile = () => {
   const { user, isAuthenticated, logout } = useAuth()
@@ -15,6 +17,7 @@ const Profile = () => {
   const menuItems = [
     { to: '/profile', icon: FiUser, label: 'Tổng quan', end: true },
     { to: '/profile/orders', icon: FiShoppingBag, label: 'Đơn hàng' },
+    { to: '/profile/wallet', icon: FiCreditCard, label: 'Ví điện tử' },
     { to: '/profile/wishlist', icon: FiHeart, label: 'Yêu thích' },
     { to: '/profile/addresses', icon: FiMapPin, label: 'Địa chỉ' },
     { to: '/profile/settings', icon: FiSettings, label: 'Cài đặt' },
@@ -87,6 +90,11 @@ export const ProfileDashboard = () => {
     queryFn: userService.getAddresses,
     select: (res) => res.data?.length || 0,
   })
+  const { data: walletBalance = 0 } = useQuery({
+    queryKey: ['profile-wallet-balance'],
+    queryFn: userService.getWallet,
+    select: (res) => Number(res.data?.wallet?.balance || 0),
+  })
 
   return (
     <div className="space-y-6">
@@ -97,7 +105,7 @@ export const ProfileDashboard = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 text-center">
           <div className="text-3xl font-bold text-primary-600">{ordersCount}</div>
           <div className="text-gray-500 mt-1">Đơn hàng</div>
@@ -109,6 +117,10 @@ export const ProfileDashboard = () => {
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 text-center">
           <div className="text-3xl font-bold text-primary-600">{addressCount}</div>
           <div className="text-gray-500 mt-1">Địa chỉ</div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 text-center">
+          <div className="text-2xl font-bold text-primary-600">{money(walletBalance)} đ</div>
+          <div className="text-gray-500 mt-1">Ví điện tử</div>
         </div>
       </div>
     </div>
