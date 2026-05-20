@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FiChevronLeft, FiChevronRight, FiPlus, FiEdit2, FiTrash2, FiSearch, FiX, FiFilter, FiRefreshCw } from 'react-icons/fi'
+import { FiChevronLeft, FiChevronRight, FiPlus, FiEdit2, FiTrash2, FiSearch, FiX, FiFilter, FiRefreshCw, FiUpload } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 import { adminService } from '../../services/admin.service'
 import PaginationNumbers from '../../components/common/PaginationNumbers'
@@ -71,6 +71,7 @@ const Products = () => {
   const [isFormOpen,     setIsFormOpen]     = useState(false)
   const [editingProduct, setEditingProduct] = useState(null)
   const [form,           setForm]           = useState(emptyForm)
+  const coverInputRef = useRef(null)
 
   const hasFilters = !!(category || author || status || priceMin || priceMax || isFeatured || isBestseller)
 
@@ -141,6 +142,19 @@ const Products = () => {
   })
 
   // ── Form helpers ─────────────────────────────────────────────
+  const uploadCoverMutation = useMutation({
+    mutationFn: adminService.uploadProductCover,
+    onSuccess: (res) => {
+      const imageUrl = res.data?.image_url
+      if (imageUrl) {
+        setForm((current) => ({ ...current, image_url: imageUrl }))
+      }
+      if (editingProduct) invalidate()
+      toast.success('Đã lưu ảnh bìa')
+    },
+    onError: (e) => toast.error(e.message || 'Không thể tải ảnh bìa'),
+  })
+
   const closeForm = () => { setIsFormOpen(false); setEditingProduct(null); setForm(emptyForm) }
 
   const openCreate = () => { setEditingProduct(null); setForm(emptyForm); setIsFormOpen(true) }
@@ -183,7 +197,30 @@ const Products = () => {
     else createMutation.mutate(payload)
   }
 
-  const isSaving    = createMutation.isPending || updateMutation.isPending
+  const openCoverPicker = () => {
+    if (!form.category_id) {
+      toast.error('Vui lòng chọn danh mục trước khi chọn ảnh bìa')
+      return
+    }
+    coverInputRef.current?.click()
+  }
+
+  const handleCoverFileChange = (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    const data = new FormData()
+    data.append('cover', file)
+    data.append('category_id', form.category_id)
+    if (editingProduct?.id) {
+      data.append('product_id', editingProduct.id)
+    }
+
+    uploadCoverMutation.mutate(data)
+  }
+
+  const isSaving    = createMutation.isPending || updateMutation.isPending || uploadCoverMutation.isPending
   const totalPages  = data?.pagination?.totalPages || 1
   const totalItems  = data?.pagination?.totalItems ?? 0
 
@@ -538,8 +575,35 @@ const Products = () => {
                 <div className="space-y-4">
                   <label className="space-y-1">
                     <span className="text-sm font-medium">URL ảnh bìa</span>
-                    <input className="input" placeholder="https://..." value={form.image_url}
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      <button
+                        type="button"
+                        onClick={openCoverPicker}
+                        disabled={uploadCoverMutation.isPending}
+                        className="btn btn-outline"
+                      >
+                        <FiUpload size={16} />
+                        {uploadCoverMutation.isPending ? 'Đang lưu ảnh...' : 'Chọn ảnh bìa'}
+                      </button>
+                      <input
+                        ref={coverInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={handleCoverFileChange}
+                      />
+                    </div>
+                    <input className="input" placeholder="/images/covers/danh-muc/anh-bia.jpg" value={form.image_url}
                       onChange={(e) => setForm({ ...form, image_url: e.target.value })} />
+                    {form.image_url && (
+                      <div className="flex items-start gap-3 rounded-lg border dark:border-gray-700 p-3 mt-2">
+                        <img src={form.image_url} alt="Ảnh bìa" className="h-28 w-20 object-cover rounded bg-gray-100" />
+                        <div className="text-xs text-gray-500 break-all">
+                          <p className="font-medium text-gray-700 dark:text-gray-200 mb-1">Đường dẫn đã lưu</p>
+                          <p>{form.image_url}</p>
+                        </div>
+                      </div>
+                    )}
                   </label>
                   <label className="space-y-1">
                     <span className="text-sm font-medium">Mô tả ngắn</span>

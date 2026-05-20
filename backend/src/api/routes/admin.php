@@ -200,6 +200,10 @@ function handleContactMessages($method, $pathParts) {
 }
 
 function handleAdminProducts($method, $pathParts) {
+    if ($method === 'POST' && (($pathParts[2] ?? '') === 'cover')) {
+        handleProductCoverUpload();
+    }
+
     if ($method === 'GET' && !isset($pathParts[2])) {
         $page = max(1, (int)($_GET['page'] ?? 1));
         $limit = min(100, max(1, (int)($_GET['limit'] ?? 20)));
@@ -382,6 +386,83 @@ function savePrimaryProductImage($productId, $imageUrl, $title = null) {
     ]);
 }
 
+function handleProductCoverUpload() {
+    $categoryId = (int)($_POST['category_id'] ?? 0);
+    $productId = (int)($_POST['product_id'] ?? 0);
+
+    if ($categoryId <= 0) {
+        jsonResponse(['success' => false, 'message' => 'Vui lòng chọn danh mục trước khi tải ảnh bìa'], 400);
+    }
+
+    if (empty($_FILES['cover']) || !is_uploaded_file($_FILES['cover']['tmp_name'])) {
+        jsonResponse(['success' => false, 'message' => 'Vui lòng chọn file ảnh bìa'], 400);
+    }
+
+    $category = queryOne("SELECT id, name, name_en FROM categories WHERE id = ?", [$categoryId]);
+    if (!$category) {
+        jsonResponse(['success' => false, 'message' => 'Không tìm thấy danh mục'], 404);
+    }
+
+    $file = $_FILES['cover'];
+    $maxSize = 5 * 1024 * 1024;
+    if (($file['size'] ?? 0) > $maxSize) {
+        jsonResponse(['success' => false, 'message' => 'Ảnh bìa không được vượt quá 5MB'], 400);
+    }
+
+    $extension = strtolower(pathinfo($file['name'] ?? '', PATHINFO_EXTENSION));
+    $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+    if (!in_array($extension, $allowedExtensions, true)) {
+        jsonResponse(['success' => false, 'message' => 'Chỉ hỗ trợ ảnh JPG, PNG hoặc WEBP'], 400);
+    }
+
+    $imageInfo = @getimagesize($file['tmp_name']);
+    if (!$imageInfo || !str_starts_with((string)$imageInfo['mime'], 'image/')) {
+        jsonResponse(['success' => false, 'message' => 'File tải lên không phải ảnh hợp lệ'], 400);
+    }
+
+    $categorySlug = slugifyText($category['name_en'] ?: $category['name'] ?: 'category');
+    $folderUrl = createCategoryCoverFolders($categorySlug);
+    $baseName = slugifyText(pathinfo($file['name'], PATHINFO_FILENAME));
+    if ($baseName === '') {
+        $baseName = 'cover';
+    }
+    $fileName = $baseName . '-' . date('YmdHis') . '.' . $extension;
+    $relativePath = trim($folderUrl, '/') . '/' . $fileName;
+
+    $root = dirname(__DIR__, 4);
+    $targets = [
+        $root . DIRECTORY_SEPARATOR . 'admin-panel' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath),
+        $root . DIRECTORY_SEPARATOR . 'frontend' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath),
+    ];
+
+    $adminTarget = $targets[0];
+    if (!move_uploaded_file($file['tmp_name'], $adminTarget)) {
+        jsonResponse(['success' => false, 'message' => 'Không thể lưu ảnh bìa'], 500);
+    }
+
+    if (!@copy($adminTarget, $targets[1])) {
+        @unlink($adminTarget);
+        jsonResponse(['success' => false, 'message' => 'Không thể đồng bộ ảnh sang frontend'], 500);
+    }
+
+    $imageUrl = '/' . str_replace('\\', '/', $relativePath);
+    if ($productId > 0) {
+        $product = queryOne("SELECT id, title FROM products WHERE id = ?", [$productId]);
+        if ($product) {
+            savePrimaryProductImage($productId, $imageUrl, $product['title']);
+        }
+    }
+
+    jsonResponse([
+        'success' => true,
+        'message' => 'Đã tải ảnh bìa',
+        'data' => [
+            'image_url' => $imageUrl,
+            'folder' => $folderUrl,
+        ],
+    ]);
+}
+
 function handleAdminCategories($method, $pathParts) {
     $allowed = ['name', 'name_en', 'parent_id', 'description', 'image_url', 'icon', 'sort_order', 'is_active'];
 
@@ -450,9 +531,12 @@ function handleAdminCategories($method, $pathParts) {
     if ($method === 'POST') {
         $input = requestJson();
         $data = cleanCategoryData(filterInput($input, $allowed));
-        $data['slug'] = slugifyText($input['name_en'] ?? $input['name'] ?? 'category') . '-' . substr((string)time(), -4);
+        $baseSlug = slugifyText($input['name_en'] ?? $input['name'] ?? 'category');
+        $data['slug'] = $baseSlug . '-' . substr((string)time(), -4);
         $id = insertRow('categories', $data);
-        jsonResponse(['success' => true, 'message' => 'Da them danh muc', 'data' => queryOne("SELECT * FROM categories WHERE id = ?", [$id])], 201);
+        $category = queryOne("SELECT * FROM categories WHERE id = ?", [$id]);
+        $category['cover_folder'] = createCategoryCoverFolders($baseSlug);
+        jsonResponse(['success' => true, 'message' => 'Da them danh muc', 'data' => $category], 201);
     }
 
     $id = $pathParts[2] ?? null;
@@ -482,6 +566,35 @@ function cleanCategoryData($data) {
     }
 
     return $data;
+}
+
+function createCategoryCoverFolders($slug) {
+    $folderName = preg_replace('/[^a-z0-9-]/', '', strtolower((string)$slug));
+    $folderName = trim($folderName, '-');
+    if ($folderName === '') {
+        $folderName = 'category';
+    }
+
+    $root = dirname(__DIR__, 4);
+    $relativePath = 'images/covers/' . $folderName;
+    $targets = [
+        $root . DIRECTORY_SEPARATOR . 'frontend' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . $relativePath,
+        $root . DIRECTORY_SEPARATOR . 'admin-panel' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . $relativePath,
+    ];
+
+    foreach ($targets as $target) {
+        if (!is_dir($target)) {
+            @mkdir($target, 0775, true);
+        }
+        if (is_dir($target)) {
+            $keepFile = $target . DIRECTORY_SEPARATOR . '.gitkeep';
+            if (!file_exists($keepFile)) {
+                @file_put_contents($keepFile, '');
+            }
+        }
+    }
+
+    return '/' . str_replace('\\', '/', $relativePath) . '/';
 }
 
 function handleAdminOrders($method, $pathParts) {
