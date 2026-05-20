@@ -10,6 +10,9 @@ function handleAuth($method, $pathParts) {
             } elseif ($action === 'login') {
                 require_once __DIR__ . '/../controllers/auth/auth.controller.php';
                 login();
+            } elseif ($action === 'google') {
+                require_once __DIR__ . '/../controllers/auth/auth.controller.php';
+                googleLogin();
             } elseif ($action === 'logout') {
                 require_once __DIR__ . '/../controllers/auth/auth.controller.php';
                 logout();
@@ -37,6 +40,9 @@ function handleAuth($method, $pathParts) {
             if ($action === 'me') {
                 require_once __DIR__ . '/../controllers/auth/auth.controller.php';
                 updateMe();
+            } elseif ($action === 'password') {
+                require_once __DIR__ . '/../controllers/auth/auth.controller.php';
+                changePassword();
             } else {
                 http_response_code(404);
                 echo json_encode(['success' => false, 'message' => 'Không tìm thấy thao tác']);

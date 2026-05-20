@@ -27,6 +27,8 @@ const statusOptions = [
   { value: '', label: 'Tất cả trạng thái' },
   { value: 'active', label: 'Bật' },
   { value: 'inactive', label: 'Tắt' },
+  { value: 'exhausted', label: 'Hết lượt' },
+  { value: 'expired', label: 'Hết hạn' },
 ]
 
 const sortOptions = [
@@ -36,6 +38,22 @@ const sortOptions = [
   { value: 'value_desc', label: 'Giá trị cao nhất' },
   { value: 'used_desc', label: 'Dùng nhiều nhất' },
 ]
+
+const getCouponStatus = (item) => {
+  if (item.effective_status === 'exhausted') {
+    return { label: 'Hết lượt', cls: 'badge-danger', toggleable: false }
+  }
+  if (item.effective_status === 'expired') {
+    return { label: 'Hết hạn', cls: 'badge-danger', toggleable: false }
+  }
+  if (item.effective_status === 'scheduled') {
+    return { label: 'Chưa tới hạn', cls: 'badge-warning', toggleable: true }
+  }
+  if (Number(item.is_active)) {
+    return { label: 'Bật', cls: 'badge-success', toggleable: true }
+  }
+  return { label: 'Tắt', cls: 'badge-danger', toggleable: true }
+}
 
 const Coupons = () => {
   const queryClient = useQueryClient()
@@ -85,10 +103,31 @@ const Coupons = () => {
     onError: (error) => toast.error(error.message || 'Không thể tạo mã'),
   })
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => adminService.updateCoupon(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-coupons'] })
+      toast.success('Cập nhật mã giảm giá thành công')
+    },
+    onError: (error) => toast.error(error.message || 'Không thể cập nhật mã'),
+  })
+
   const deleteMutation = useMutation({
     mutationFn: adminService.deleteCoupon,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-coupons'] }),
   })
+
+  const toggleCouponStatus = (item) => {
+    const statusInfo = getCouponStatus(item)
+    if (!statusInfo.toggleable) {
+      toast.error('Mã đã hết lượt hoặc hết hạn. Hãy tăng giới hạn hoặc chỉnh hạn dùng trước khi bật lại.')
+      return
+    }
+    updateMutation.mutate({
+      id: item.id,
+      data: { is_active: Number(item.is_active) ? 0 : 1 },
+    })
+  }
 
   const submit = (event) => {
     event.preventDefault()
@@ -206,7 +245,9 @@ const Coupons = () => {
             <tbody>
               {isLoading ? (
                 <tr><td colSpan={7} className="text-center py-8">Đang tải...</td></tr>
-              ) : coupons.length ? coupons.map((item) => (
+              ) : coupons.length ? coupons.map((item) => {
+                const statusInfo = getCouponStatus(item)
+                return (
                 <tr key={item.id}>
                   <td className="font-medium">{item.code}</td>
                   <td>{item.type === 'percentage' ? 'Phần trăm' : 'Số tiền'}</td>
@@ -214,9 +255,15 @@ const Coupons = () => {
                   <td>{Number(item.min_purchase || 0).toLocaleString('vi-VN')}</td>
                   <td>{item.used_count || 0}/{item.usage_limit || '-'}</td>
                   <td>
-                    <span className={`badge ${Number(item.is_active) ? 'badge-success' : 'badge-danger'}`}>
-                      {Number(item.is_active) ? 'Bật' : 'Tắt'}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => toggleCouponStatus(item)}
+                      disabled={updateMutation.isPending}
+                      className={`badge cursor-pointer ${statusInfo.cls}`}
+                      title={Number(item.is_active) ? 'Tắt mã giảm giá' : 'Bật mã giảm giá'}
+                    >
+                      {statusInfo.label}
+                    </button>
                   </td>
                   <td>
                     <button onClick={() => deleteMutation.mutate(item.id)} disabled={deleteMutation.isPending} className="text-red-500 disabled:opacity-50">
@@ -224,7 +271,8 @@ const Coupons = () => {
                     </button>
                   </td>
                 </tr>
-              )) : (
+                )
+              }) : (
                 <tr>
                   <td colSpan={7} className="text-center py-8 text-gray-500">
                     {hasFilters ? 'Không tìm thấy mã phù hợp với bộ lọc' : 'Chưa có mã'}

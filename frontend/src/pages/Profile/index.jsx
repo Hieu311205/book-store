@@ -1,4 +1,4 @@
-import { Outlet, NavLink, Navigate } from 'react-router-dom'
+import { Outlet, NavLink, Navigate, useLocation } from 'react-router-dom'
 import { FiUser, FiShoppingBag, FiHeart, FiMapPin, FiSettings, FiLogOut, FiCreditCard } from 'react-icons/fi'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../context/AuthContext'
@@ -8,10 +8,19 @@ import { userService } from '../../services/user.service'
 const money = (value) => new Intl.NumberFormat('vi-VN').format(value || 0)
 
 const Profile = () => {
-  const { user, isAuthenticated, logout } = useAuth()
+  const location = useLocation()
+  const { user, isAuthenticated, loading, logout } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-8 text-center text-gray-500">
+        Đang tải tài khoản...
+      </div>
+    )
+  }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
+    return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />
   }
 
   const menuItems = [

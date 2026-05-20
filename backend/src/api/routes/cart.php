@@ -166,11 +166,12 @@ function cartApplyCoupon() {
     $input = requestJson();
     $code = $input['code'] ?? '';
     $coupon = queryOne(
-        "SELECT id, code, type, value, min_purchase, max_discount
+        "SELECT id, code, type, value, min_purchase, max_discount, usage_limit, used_count
          FROM coupons
          WHERE code = ? AND is_active = 1
            AND (start_date IS NULL OR start_date <= NOW())
-           AND (end_date IS NULL OR end_date >= NOW())",
+           AND (end_date IS NULL OR end_date >= NOW())
+           AND (usage_limit IS NULL OR used_count < usage_limit)",
         [$code]
     );
     if (!$coupon) {

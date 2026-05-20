@@ -1,16 +1,17 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import { FiMail, FiLock, FiEye, FiEyeOff } from 'react-icons/fi'
 import { useAuth } from '../../context/AuthContext'
+import GoogleLoginButton from '../../components/auth/GoogleLoginButton'
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { login } = useAuth()
+  const { login, loginWithGoogle } = useAuth()
   const redirect = searchParams.get('redirect') || '/'
 
   const {
@@ -34,13 +35,27 @@ const Login = () => {
     }
   }
 
+  const handleGoogleLogin = useCallback(async (credential) => {
+    setIsLoading(true)
+    try {
+      const response = await loginWithGoogle(credential)
+      if (response.success) {
+        toast.success('Đăng nhập Google thành công')
+        navigate(redirect)
+      }
+    } catch (error) {
+      toast.error(error.message || 'Đăng nhập Google thất bại')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [loginWithGoogle, navigate, redirect])
+
   return (
     <div className="min-h-[60vh] flex items-center justify-center">
       <div className="w-full max-w-md">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold mb-2">Đăng nhập tài khoản</h1>
-            <p className="text-gray-500">Nhập tài khoản đã tạo trong database</p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -99,6 +114,14 @@ const Login = () => {
               {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
             </button>
           </form>
+
+          <div className="my-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+            <span className="text-sm text-gray-500">hoặc</span>
+            <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+          </div>
+
+          <GoogleLoginButton onSuccess={handleGoogleLogin} disabled={isLoading} text="signin_with" />
 
           <p className="text-center mt-6 text-gray-500">
             Chưa có tài khoản?{' '}

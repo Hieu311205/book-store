@@ -152,4 +152,180 @@ function updateMe() {
     $updated = queryOne("SELECT id, ugid, email, first_name, last_name, phone, role, avatar_url FROM users WHERE id = ?", [$user['id']]);
     jsonResponse(['success' => true, 'message' => 'Đã cập nhật hồ sơ', 'data' => ['user' => $updated]]);
 }
+function changePassword() {
+    $user = requireUser();
+    $input = requestJson();
+    $currentPassword = $input['current_password'] ?? '';
+    $newPassword = $input['new_password'] ?? '';
+    $confirmPassword = $input['confirm_password'] ?? '';
+
+    if (!$newPassword || !$confirmPassword) {
+        jsonResponse(['success' => false, 'message' => 'Vui lòng nhập mật khẩu mới'], 400);
+    }
+
+    if ($newPassword !== $confirmPassword) {
+        jsonResponse(['success' => false, 'message' => 'Mật khẩu xác nhận không khớp'], 400);
+    }
+
+    if (strlen($newPassword) < 6) {
+        jsonResponse(['success' => false, 'message' => 'Mật khẩu mới phải có ít nhất 6 ký tự'], 400);
+    }
+
+    $fullUser = queryOne("SELECT * FROM users WHERE id = ?", [$user['id']]);
+    if (!$fullUser) {
+        jsonResponse(['success' => false, 'message' => 'Không tìm thấy tài khoản'], 404);
+    }
+
+    $hasPassword = !empty($fullUser['password_hash']);
+    if ($hasPassword && (!$currentPassword || !verifyPassword($currentPassword, $fullUser))) {
+        jsonResponse(['success' => false, 'message' => 'Mật khẩu hiện cũ không đúng'], 400);
+    }
+
+    if ($hasPassword && verifyPassword($newPassword, $fullUser)) {
+        jsonResponse(['success' => false, 'message' => 'Mật khẩu mới không được trùng mật khẩu hiện cũ'], 400);
+    }
+
+    updateRow('users', $user['id'], [
+        'password_hash' => password_hash($newPassword, PASSWORD_DEFAULT),
+    ]);
+
+    jsonResponse(['success' => true, 'message' => 'Đã đổi mật khẩu']);
+}
+
+function googleLogin() {
+    $input = requestJson();
+    $credential = $input['credential'] ?? '';
+
+    if (!$credential) {
+        jsonResponse(['success' => false, 'message' => 'Thiếu thông tin đăng nhập Google'], 400);
+    }
+
+    $googleUser = verifyGoogleCredential($credential);
+    if (!$googleUser) {
+        jsonResponse(['success' => false, 'message' => 'Không thể xác thực tài khoản Google'], 401);
+    }
+
+    $email = strtolower(trim($googleUser['email'] ?? ''));
+    $googleId = $googleUser['sub'] ?? '';
+    if (!$email || !$googleId) {
+        jsonResponse(['success' => false, 'message' => 'Tài khoản Google không có email hợp lệ'], 400);
+    }
+
+    $user = queryOne("SELECT * FROM users WHERE google_id = ? OR email = ? LIMIT 1", [$googleId, $email]);
+
+    if ($user && !(int)$user['is_active']) {
+        jsonResponse(['success' => false, 'message' => 'Tài khoản đã bị khóa'], 403);
+    }
+
+    if ($user) {
+        $updateData = [
+            'google_id' => $googleId,
+            'email_verified' => 1,
+        ];
+        if (empty($user['avatar_url']) && !empty($googleUser['picture'])) {
+            $updateData['avatar_url'] = $googleUser['picture'];
+        }
+        updateRow('users', $user['id'], $updateData);
+        $userId = (int)$user['id'];
+    } else {
+        $nameParts = splitGoogleName($googleUser['name'] ?? '');
+        $userId = insertRow('users', [
+            'ugid' => uniqid('google-', true),
+            'email' => $email,
+            'password_hash' => null,
+            'first_name' => $googleUser['given_name'] ?? $nameParts['first_name'],
+            'last_name' => $googleUser['family_name'] ?? $nameParts['last_name'],
+            'avatar_url' => $googleUser['picture'] ?? null,
+            'role' => 'customer',
+            'is_active' => 1,
+            'email_verified' => 1,
+            'google_id' => $googleId,
+        ]);
+    }
+
+    mergeSessionCartIntoUser($userId);
+
+    $userData = queryOne("SELECT id, ugid, email, first_name, last_name, phone, role, avatar_url FROM users WHERE id = ?", [$userId]);
+    $token = generateToken($userId);
+
+    jsonResponse(['success' => true, 'message' => 'Đăng nhập Google thành công', 'data' => ['user' => $userData, 'token' => $token]]);
+}
+
+function verifyGoogleCredential($credential) {
+    $url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' . urlencode($credential);
+    $body = null;
+
+    if (function_exists('curl_init')) {
+        $curl = curl_init($url);
+        curl_setopt_array($curl, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 8,
+            CURLOPT_SSL_VERIFYPEER => true,
+        ]);
+        $body = curl_exec($curl);
+        $status = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
+        if ($status !== 200) {
+            return null;
+        }
+    } else {
+        $body = @file_get_contents($url);
+    }
+
+    $payload = $body ? json_decode($body, true) : null;
+    if (!$payload || empty($payload['sub']) || empty($payload['email'])) {
+        return null;
+    }
+
+    $configuredClientId = getenv('GOOGLE_CLIENT_ID') ?: getenv('VITE_GOOGLE_CLIENT_ID') ?: '';
+    if ($configuredClientId && ($payload['aud'] ?? '') !== $configuredClientId) {
+        return null;
+    }
+
+    if (($payload['email_verified'] ?? 'false') !== 'true' && ($payload['email_verified'] ?? false) !== true) {
+        return null;
+    }
+
+    return $payload;
+}
+
+function splitGoogleName($name) {
+    $name = trim($name);
+    if (!$name) {
+        return ['first_name' => 'Google', 'last_name' => 'User'];
+    }
+    $parts = preg_split('/\s+/', $name);
+    $firstName = array_shift($parts) ?: 'Google';
+    return [
+        'first_name' => $firstName,
+        'last_name' => $parts ? implode(' ', $parts) : '',
+    ];
+}
+
+function mergeSessionCartIntoUser($userId) {
+    $sessionId = $_SERVER['HTTP_X_SESSION_ID'] ?? null;
+    if (!$sessionId) {
+        return;
+    }
+
+    $sessionItems = queryAll("SELECT * FROM cart_items WHERE session_id = ?", [$sessionId]);
+    foreach ($sessionItems as $item) {
+        $existing = queryOne(
+            "SELECT * FROM cart_items WHERE user_id = ? AND product_id = ?",
+            [$userId, $item['product_id']]
+        );
+        if ($existing) {
+            executeSql(
+                "UPDATE cart_items SET quantity = quantity + ? WHERE id = ?",
+                [$item['quantity'], $existing['id']]
+            );
+            executeSql("DELETE FROM cart_items WHERE id = ?", [$item['id']]);
+        } else {
+            executeSql(
+                "UPDATE cart_items SET user_id = ?, session_id = NULL WHERE id = ?",
+                [$userId, $item['id']]
+            );
+        }
+    }
+}
 ?>

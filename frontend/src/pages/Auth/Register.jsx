@@ -1,15 +1,16 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import { FiUser, FiMail, FiLock, FiEye, FiEyeOff, FiPhone } from 'react-icons/fi'
 import { useAuth } from '../../context/AuthContext'
+import GoogleLoginButton from '../../components/auth/GoogleLoginButton'
 
 const Register = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
-  const { register: registerUser } = useAuth()
+  const { register: registerUser, loginWithGoogle } = useAuth()
 
   const {
     register,
@@ -31,6 +32,21 @@ const Register = () => {
       setIsLoading(false)
     }
   }
+
+  const handleGoogleLogin = useCallback(async (credential) => {
+    setIsLoading(true)
+    try {
+      const response = await loginWithGoogle(credential)
+      if (response.success) {
+        toast.success('Đăng nhập Google thành công')
+        navigate('/')
+      }
+    } catch (error) {
+      toast.error(error.message || 'Đăng nhập Google thất bại')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [loginWithGoogle, navigate])
 
   return (
     <div className="min-h-[60vh] flex items-center justify-center py-8">
@@ -170,6 +186,14 @@ const Register = () => {
               {isLoading ? 'Đang đăng ký...' : 'Đăng ký'}
             </button>
           </form>
+
+          <div className="my-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+            <span className="text-sm text-gray-500">hoặc</span>
+            <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700" />
+          </div>
+
+          <GoogleLoginButton onSuccess={handleGoogleLogin} disabled={isLoading} text="signup_with" />
 
           <p className="text-center mt-6 text-gray-500">
             Đã có tài khoản?{' '}

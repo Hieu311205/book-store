@@ -200,7 +200,16 @@ function createOrder($user) {
         }
 
         if ($coupon) {
-            executeSql("UPDATE coupons SET used_count = COALESCE(used_count, 0) + 1 WHERE id = ?", [$coupon['id']]);
+            executeSql(
+                "UPDATE coupons
+                 SET used_count = COALESCE(used_count, 0) + 1,
+                     is_active = CASE
+                         WHEN usage_limit IS NOT NULL AND COALESCE(used_count, 0) + 1 >= usage_limit THEN 0
+                         ELSE is_active
+                     END
+                 WHERE id = ?",
+                [$coupon['id']]
+            );
             insertRow('coupon_usage', ['coupon_id' => $coupon['id'], 'user_id' => $user['id'], 'order_id' => $orderId]);
         }
 

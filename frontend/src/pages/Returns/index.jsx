@@ -48,7 +48,7 @@ const Returns = () => {
         <p className="text-sm font-semibold text-primary-600 mb-2">Hỗ trợ sau mua hàng</p>
         <h1 className="text-3xl font-bold mb-3">Đổi trả và hoàn tiền</h1>
         <p className="text-gray-600 dark:text-gray-300 max-w-3xl">
-          Chọn đơn hàng đã giao thành công bên dưới để gửi yêu cầu đổi trả. Yêu cầu sẽ được chuyển sang admin xử lý.
+          Chọn đơn hàng đã giao thành công bên dưới để gửi yêu cầu đổi trả. Yêu cầu sẽ được chuyển sang shop xử lý.
         </p>
       </section>
 
@@ -106,13 +106,13 @@ const Returns = () => {
         <div className="store-card p-5">
           <h2 className="font-bold text-lg mb-2">2. Gửi yêu cầu</h2>
           <p className="text-sm text-gray-600 dark:text-gray-300">
-            Chọn đơn, nhập loại yêu cầu và lý do để admin có thông tin xử lý.
+            Chọn đơn, nhập loại yêu cầu và lý do để shop có thông tin xử lý.
           </p>
         </div>
         <div className="store-card p-5">
-          <h2 className="font-bold text-lg mb-2">3. Admin xử lý</h2>
+          <h2 className="font-bold text-lg mb-2">3. Shop xử lý</h2>
           <p className="text-sm text-gray-600 dark:text-gray-300">
-            Admin duyệt yêu cầu, sau đó hoàn tất đổi hàng hoặc hoàn tiền khi shop đã xử lý xong.
+            Shop duyệt yêu cầu, sau đó hoàn tất đổi hàng hoặc hoàn tiền khi shop đã xử lý xong.
           </p>
         </div>
       </section>
