@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { orderService } from '../../services/order.service'
 import { formatPrice } from '../../utils/formatPrice'
+import Pagination from '../../components/common/Pagination'
 
 const statusLabels = {
   pending: { label: 'Chờ xác nhận', cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' },
@@ -20,6 +21,7 @@ const paymentStatusLabels = {
   pending: { label: 'Chờ thanh toán', cls: 'text-yellow-600' },
   paid: { label: 'Đã thanh toán', cls: 'text-green-600 font-semibold' },
   failed: { label: 'Thất bại', cls: 'text-red-600' },
+  cancelled: { label: 'Đã hủy', cls: 'text-red-600' },
   refunded: { label: 'Đã hoàn tiền', cls: 'text-gray-500' },
 }
 
@@ -35,6 +37,11 @@ const returnStatusText = {
   approved: 'Đã duyệt - chờ hoàn tất',
   rejected: 'Đã từ chối',
   completed: 'Đã hoàn tất',
+}
+
+const getDaysSince = (date) => {
+  if (!date) return 0
+  return Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / (1000 * 60 * 60 * 24)))
 }
 
 const StatusBadge = ({ status }) => {
@@ -80,6 +87,13 @@ const OrderDetailModal = ({ orderId, onClose }) => {
               <Link to={`/shipping?order_id=${order.id}`} className="btn btn-outline btn-sm w-full justify-center">
                 Theo dõi đơn hàng
               </Link>
+            )}
+
+            {order.status === 'cancelled' && order.admin_note && (
+              <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
+                <p className="font-semibold">Đơn hàng bị hủy từ shop</p>
+                <p>{order.admin_note}</p>
+              </div>
             )}
 
             <div className="border-t dark:border-gray-700 pt-4">
@@ -128,13 +142,48 @@ const ProfileOrders = () => {
   const [returnType, setReturnType] = useState('return')
   const [returnReason, setReturnReason] = useState('')
   const [returnNote, setReturnNote] = useState('')
+  const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
+  const [month, setMonth] = useState('')
+  const [status, setStatus] = useState('')
+  const [paymentStatus, setPaymentStatus] = useState('')
+
+  const orderParams = {
+    page,
+    limit: 5,
+    search: search || undefined,
+    month: month || undefined,
+    status: status || undefined,
+    payment_status: paymentStatus || undefined,
+  }
 
   const { data, isLoading } = useQuery({
-    queryKey: ['my-orders'],
-    queryFn: () => orderService.getOrders({ page: 1, limit: 50 }),
+    queryKey: ['my-orders', orderParams],
+    queryFn: () => orderService.getOrders(orderParams),
     select: (res) => res.data,
     staleTime: 0,
   })
+
+  const { data: shippedData } = useQuery({
+    queryKey: ['my-orders', 'receipt-reminders'],
+    queryFn: () => orderService.getOrders({ page: 1, limit: 100, status: 'shipped' }),
+    select: (res) => res.data,
+    staleTime: 0,
+  })
+
+  const shippedReminders = shippedData?.orders || []
+  const urgentReceiptReminders = shippedReminders.filter((order) => getDaysSince(order.shipped_at || order.updated_at) >= 2)
+
+  useEffect(() => {
+    if (urgentReceiptReminders.length) {
+      toast('Bạn có đơn đang giao cần xác nhận đã nhận hàng', { id: 'receipt-reminder' })
+    }
+  }, [urgentReceiptReminders.length])
+
+  const updateFilter = (setter, value) => {
+    setter(value)
+    setPage(1)
+  }
 
   const cancelMutation = useMutation({
     mutationFn: orderService.cancelOrder,
@@ -169,7 +218,70 @@ const ProfileOrders = () => {
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl p-6">
-      <h2 className="text-xl font-bold mb-4">Đơn hàng của tôi</h2>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+        <div>
+          <h2 className="text-xl font-bold">Đơn hàng của tôi</h2>
+          <p className="text-sm text-gray-500">{data?.pagination?.totalItems ?? 0} đơn hàng</p>
+        </div>
+        <button
+          type="button"
+          className="btn btn-outline btn-sm"
+          onClick={() => {
+            setSearch('')
+            setMonth('')
+            setStatus('')
+            setPaymentStatus('')
+            setPage(1)
+          }}
+        >
+          Làm mới lọc
+        </button>
+      </div>
+
+      {shippedReminders.length > 0 && (
+        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
+          <p className="font-semibold">Bạn có {shippedReminders.length} đơn đang giao.</p>
+          <p className="mt-1">
+            Nếu đã nhận được hàng, hãy bấm “Đã nhận hàng” để hoàn tất đơn. Sau thời hạn quy định, hệ thống có thể tự xác nhận nếu không có khiếu nại.
+          </p>
+          <Link to={`/shipping${shippedReminders[0]?.id ? `?order_id=${shippedReminders[0].id}` : ''}`} className="mt-3 inline-flex text-primary-600 hover:underline">
+            Theo dõi và xác nhận đơn hàng
+          </Link>
+        </div>
+      )}
+
+      <div className="grid md:grid-cols-4 gap-3 mb-5">
+        <input
+          className="input w-full"
+          value={search}
+          onChange={(e) => updateFilter(setSearch, e.target.value)}
+          placeholder="Tìm mã đơn, mã vận đơn..."
+        />
+        <input
+          className="input w-full"
+          type="month"
+          value={month}
+          onChange={(e) => updateFilter(setMonth, e.target.value)}
+        />
+        <select className="input w-full" value={status} onChange={(e) => updateFilter(setStatus, e.target.value)}>
+          <option value="">Tất cả trạng thái</option>
+          <option value="pending">Chờ xác nhận</option>
+          <option value="confirmed">Đã xác nhận</option>
+          <option value="processing">Đang chuẩn bị hàng</option>
+          <option value="shipped">Đang giao</option>
+          <option value="delivered">Đã giao</option>
+          <option value="cancelled">Đã hủy</option>
+          <option value="refunded">Đã hoàn tiền</option>
+        </select>
+        <select className="input w-full" value={paymentStatus} onChange={(e) => updateFilter(setPaymentStatus, e.target.value)}>
+          <option value="">Tất cả thanh toán</option>
+          <option value="pending">Chờ thanh toán</option>
+          <option value="paid">Đã thanh toán</option>
+          <option value="failed">Thất bại</option>
+          <option value="cancelled">Đã hủy</option>
+          <option value="refunded">Đã hoàn tiền</option>
+        </select>
+      </div>
 
       {isLoading ? (
         <p className="text-gray-500">Đang tải...</p>
@@ -212,12 +324,25 @@ const ProfileOrders = () => {
                 )}
                 {order.return_status && <span className="text-sm text-gray-500">Đổi trả: {returnStatusText[order.return_status] || order.return_status}</span>}
               </div>
+              {order.status === 'cancelled' && order.admin_note && (
+                <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
+                  <p className="font-semibold">Đơn hàng bị hủy từ shop</p>
+                  <p>{order.admin_note}</p>
+                </div>
+              )}
             </div>
           ))}
+          {data?.pagination && (
+            <Pagination
+              currentPage={data.pagination.page}
+              totalPages={data.pagination.totalPages}
+              onPageChange={setPage}
+            />
+          )}
         </div>
       ) : (
         <div className="text-center py-10 text-gray-500">
-          <p className="mb-3">Bạn chưa có đơn hàng nào.</p>
+          <p className="mb-3">{search || month || status || paymentStatus ? 'Không có đơn hàng phù hợp.' : 'Bạn chưa có đơn hàng nào.'}</p>
           <a href="/products" className="btn btn-primary btn-sm">Mua sắm ngay</a>
         </div>
       )}

@@ -56,16 +56,20 @@ const Wallets = () => {
   const [type, setType] = useState('')
   const [status, setStatus] = useState('')
   const [sort, setSort] = useState('newest')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [page, setPage] = useState(1)
 
-  const hasFilters = Boolean(search || type || status)
+  const hasFilters = Boolean(search || type || status || dateFrom || dateTo)
   const queryParams = {
     page,
     limit: LIMIT,
     search: search || undefined,
     type: type || undefined,
     status: status || undefined,
+    date_from: dateFrom || undefined,
+    date_to: dateTo || undefined,
     sort,
   }
 
@@ -94,7 +98,53 @@ const Wallets = () => {
     setSearch('')
     setType('')
     setStatus('')
+    setDateFrom('')
+    setDateTo('')
     setSort('newest')
+    setPage(1)
+  }
+
+  const isDateRangeTooLong = () => {
+    if (!dateFrom || !dateTo) return false
+    const from = new Date(`${dateFrom}T00:00:00`)
+    const to = new Date(`${dateTo}T00:00:00`)
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return false
+    const maxTo = new Date(from)
+    maxTo.setMonth(maxTo.getMonth() + 1)
+    return to > maxTo
+  }
+
+  const updateDateFrom = (value) => {
+    setDateFrom(value)
+    setPage(1)
+    if (value && dateTo) {
+      const from = new Date(`${value}T00:00:00`)
+      const to = new Date(`${dateTo}T00:00:00`)
+      const maxTo = new Date(from)
+      maxTo.setMonth(maxTo.getMonth() + 1)
+      if (to > maxTo) {
+        setDateTo('')
+        toast.error('Khoảng lọc không được quá 1 tháng')
+      }
+    }
+  }
+
+  const updateDateTo = (value) => {
+    if (dateFrom && value) {
+      const from = new Date(`${dateFrom}T00:00:00`)
+      const to = new Date(`${value}T00:00:00`)
+      const maxTo = new Date(from)
+      maxTo.setMonth(maxTo.getMonth() + 1)
+      if (to > maxTo) {
+        toast.error('Khoảng lọc không được quá 1 tháng')
+        return
+      }
+      if (to < from) {
+        toast.error('Ngày kết thúc không được nhỏ hơn ngày bắt đầu')
+        return
+      }
+    }
+    setDateTo(value)
     setPage(1)
   }
 
@@ -187,6 +237,25 @@ const Wallets = () => {
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
+            </div>
+            <div className="flex flex-col gap-1 min-w-40">
+              <span className="text-xs font-medium text-gray-500">Từ ngày</span>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(event) => updateDateFrom(event.target.value)}
+                className="input text-sm"
+              />
+            </div>
+            <div className="flex flex-col gap-1 min-w-40">
+              <span className="text-xs font-medium text-gray-500">Đến ngày</span>
+              <input
+                type="date"
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={(event) => updateDateTo(event.target.value)}
+                className="input text-sm"
+              />
             </div>
           </div>
         )}

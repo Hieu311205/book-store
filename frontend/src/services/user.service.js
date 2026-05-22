@@ -14,7 +14,7 @@ export const userService = {
   removeFromWishlist: (productId) => api.delete(`/users/wishlist/remove/${productId}`),
 
   // Wallet
-  getWallet: () => api.get('/wallet'),
+  getWallet: (params) => api.get('/wallet', { params }),
   linkBankAccount: (data) => api.post('/wallet/bank-accounts', data),
   deleteBankAccount: (id) => api.delete(`/wallet/bank-accounts/${id}`),
   depositWallet: (data) => api.post('/wallet/deposit', data),

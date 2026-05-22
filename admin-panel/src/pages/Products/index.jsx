@@ -58,6 +58,7 @@ const Products = () => {
   const [search,       setSearch]       = useState('')
   const [category,     setCategory]     = useState('')
   const [author,       setAuthor]       = useState('')
+  const [publisher,    setPublisher]    = useState('')
   const [status,       setStatus]       = useState('')
   const [sort,         setSort]         = useState('newest')
   const [priceMin,     setPriceMin]     = useState('')
@@ -73,13 +74,14 @@ const Products = () => {
   const [form,           setForm]           = useState(emptyForm)
   const coverInputRef = useRef(null)
 
-  const hasFilters = !!(category || author || status || priceMin || priceMax || isFeatured || isBestseller)
+  const hasFilters = !!(category || author || publisher || status || priceMin || priceMax || isFeatured || isBestseller)
 
   const queryParams = {
     page, limit: 20,
     search:        search || undefined,
     category:      category || undefined,
     author:        author || undefined,
+    publisher:     publisher || undefined,
     status:        status || undefined,
     sort,
     price_min:     priceMin || undefined,
@@ -89,7 +91,7 @@ const Products = () => {
   }
 
   const resetFilters = () => {
-    setSearch(''); setCategory(''); setAuthor(''); setStatus('')
+    setSearch(''); setCategory(''); setAuthor(''); setPublisher(''); setStatus('')
     setSort('newest'); setPriceMin(''); setPriceMax('')
     setIsFeatured(false); setIsBestseller(false); setPage(1)
   }
@@ -300,6 +302,16 @@ const Products = () => {
               </select>
             </div>
 
+            <div className="flex flex-col gap-1 min-w-40">
+              <span className="text-xs font-medium text-gray-500">Nhà xuất bản</span>
+              <select value={publisher}
+                onChange={(e) => { setPublisher(e.target.value); setPage(1) }}
+                className="input text-sm">
+                <option value="">Tất cả NXB</option>
+                {publishers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+
             <div className="flex flex-col gap-1">
               <span className="text-xs font-medium text-gray-500">Giá từ (đ)</span>
               <input type="number" min="0" value={priceMin}
@@ -351,6 +363,8 @@ const Products = () => {
                 <th className="w-12">Ảnh</th>
                 <th>Tên sách</th>
                 <th>Danh mục</th>
+                <th>Tác giả</th>
+                <th>Nhà xuất bản</th>
                 <th className="text-right">Giá bán</th>
                 <th className="text-center">Tồn kho</th>
                 <th className="text-center">Nhãn</th>
@@ -360,13 +374,13 @@ const Products = () => {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center">
+                  <td colSpan={9} className="py-12 text-center">
                     <div className="w-6 h-6 border-2 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto" />
                   </td>
                 </tr>
               ) : !data?.products?.length ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-gray-400">
+                  <td colSpan={9} className="py-12 text-center text-gray-400">
                     {hasFilters ? 'Không tìm thấy sách phù hợp với bộ lọc' : 'Chưa có sách nào'}
                   </td>
                 </tr>
@@ -380,10 +394,11 @@ const Products = () => {
                   </td>
                   <td>
                     <p className="font-medium text-sm leading-snug">{p.title}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{p.author_name || '—'}</p>
                     {p.isbn && <p className="text-xs text-gray-400">ISBN: {p.isbn}</p>}
                   </td>
                   <td className="text-sm text-gray-500">{p.category_name || '—'}</td>
+                  <td className="text-sm text-gray-500">{p.author_name || '—'}</td>
+                  <td className="text-sm text-gray-500">{p.publisher_name || '—'}</td>
                   <td className="text-right">
                     <p className="font-semibold text-sm whitespace-nowrap">{formatPrice(p.price)} đ</p>
                     {Number(p.compare_price) > Number(p.price) && (

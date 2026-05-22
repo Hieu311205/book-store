@@ -224,6 +224,10 @@ function handleAdminProducts($method, $pathParts) {
             $where[] = 'p.author_id = ?';
             $params[] = (int)$_GET['author'];
         }
+        if (!empty($_GET['publisher'])) {
+            $where[] = 'p.publisher_id = ?';
+            $params[] = (int)$_GET['publisher'];
+        }
         if (!empty($_GET['price_min'])) {
             $where[] = 'p.price >= ?';
             $params[] = (float)$_GET['price_min'];
@@ -709,13 +713,16 @@ function handleAdminOrders($method, $pathParts) {
             jsonResponse(['success' => false, 'message' => 'Không tìm thấy đơn hàng'], 404);
         }
         $currentStatus = $order['status'] ?? 'pending';
+        $estimatedDeliveryDays = 4;
+        $adminDaysAfterEstimate = 5;
+        $adminDeliveryResolutionDays = $estimatedDeliveryDays + $adminDaysAfterEstimate;
         $allowedTransitions = [
             'pending' => ['confirmed', 'cancelled'],
             'confirmed' => ['processing', 'cancelled'],
             'paid' => ['processing', 'cancelled'],
             'processing' => ['shipped', 'cancelled'],
-            'shipped' => ['delivered'],
-            'delivered' => ['refunded'],
+            'shipped' => ['delivered', 'cancelled'],
+            'delivered' => [],
             'cancelled' => [],
             'refunded' => [],
         ];
@@ -728,32 +735,54 @@ function handleAdminOrders($method, $pathParts) {
                 jsonResponse(['success' => false, 'message' => 'Vui lòng nhập thông tin vận chuyển trước khi chuyển sang đang giao'], 400);
             }
         }
-        if ($newStatus === 'delivered' && ($order['status'] ?? '') !== 'shipped') {
-            jsonResponse(['success' => false, 'message' => 'Don hang phai o trang thai dang giao truoc khi chuyen sang da giao'], 400);
+        if (in_array($newStatus, ['delivered', 'cancelled'], true) && $currentStatus === 'shipped') {
+            if ($currentStatus !== 'shipped') {
+                jsonResponse(['success' => false, 'message' => 'Don hang phai dang giao truoc khi xac nhan da giao'], 400);
+            }
+            if (empty($order['shipped_at'])) {
+                jsonResponse(['success' => false, 'message' => 'Don hang chua co thoi gian bat dau giao'], 400);
+            }
+            if (strtotime($order['shipped_at']) > strtotime("-{$adminDeliveryResolutionDays} days")) {
+                jsonResponse(['success' => false, 'message' => "Chi duoc xu ly sau {$adminDaysAfterEstimate} ngay ke tu ngay nhan du kien"], 400);
+            }
+            if (tableExists('return_requests')) {
+                $activeReturn = queryOne(
+                    "SELECT id FROM return_requests WHERE order_id = ? AND status IN ('pending', 'approved') ORDER BY created_at DESC LIMIT 1",
+                    [$id]
+                );
+                if ($activeReturn) {
+                    jsonResponse(['success' => false, 'message' => 'Don dang co yeu cau doi tra/khieu nai, chua the xac nhan da giao'], 400);
+                }
+            }
+        }
+        if ($newStatus === 'refunded') {
+            jsonResponse(['success' => false, 'message' => 'Hoan tien duoc xu ly tu dong qua huy don hoac yeu cau tra hang'], 400);
+        }
+        $adminNote = trim((string)($input['admin_note'] ?? ''));
+        if ($newStatus === 'cancelled' && $adminNote === '') {
+            jsonResponse(['success' => false, 'message' => 'Vui long nhap ly do huy don tu shop'], 400);
         }
         $updateData = [
             'status' => $newStatus,
-            'admin_note' => $input['admin_note'] ?? null,
+            'admin_note' => $adminNote !== '' ? $adminNote : null,
             'updated_at' => date('Y-m-d H:i:s'),
         ];
 
-        // COD: tiền mặt khi nhận — chỉ xác nhận thanh toán khi giao thành công
-        if (($order['payment_method'] ?? 'cod') === 'cod') {
-            if ($newStatus === 'delivered') {
+        $isLateDeliveryCancellation = $newStatus === 'cancelled' && $currentStatus === 'shipped';
+        if ($newStatus === 'cancelled') {
+            if ($isLateDeliveryCancellation && ($order['payment_status'] ?? 'pending') === 'paid') {
                 $updateData['payment_status'] = 'paid';
-            } elseif ($newStatus === 'refunded') {
+            } elseif (($order['payment_status'] ?? 'pending') === 'paid') {
                 $updateData['payment_status'] = 'refunded';
-            } elseif ($newStatus === 'cancelled' && $order['payment_status'] === 'paid') {
-                $updateData['payment_status'] = 'refunded';
+            } else {
+                $updateData['payment_status'] = 'cancelled';
             }
+        } elseif (($order['payment_method'] ?? 'cod') === 'cod') {
+            // COD: tiền mặt khi nhận — thanh toán được cập nhật khi người dùng/admin xác nhận đã giao.
         } else {
             // bank_transfer / card: admin xác nhận thanh toán khi chuyển sang trạng thái xử lý
-            if (in_array($newStatus, ['confirmed', 'paid', 'processing', 'shipped', 'delivered'], true) && ($order['payment_status'] ?? 'pending') !== 'refunded') {
+            if (in_array($newStatus, ['confirmed', 'paid', 'processing', 'shipped'], true) && ($order['payment_status'] ?? 'pending') !== 'refunded') {
                 $updateData['payment_status'] = 'paid';
-            } elseif ($newStatus === 'refunded') {
-                $updateData['payment_status'] = 'refunded';
-            } elseif ($newStatus === 'cancelled' && $order['payment_status'] === 'paid') {
-                $updateData['payment_status'] = 'refunded';
             }
         }
 
@@ -762,37 +791,19 @@ function handleAdminOrders($method, $pathParts) {
         }
         if ($newStatus === 'delivered') {
             $updateData['delivered_at'] = date('Y-m-d H:i:s');
+            if (($order['payment_method'] ?? 'cod') === 'cod') {
+                $updateData['payment_status'] = 'paid';
+            }
         }
         updateRow('orders', $id, $updateData);
-        if (in_array($newStatus, ['cancelled', 'refunded'], true) && ($order['payment_status'] ?? 'pending') === 'paid') {
+        if ($newStatus === 'cancelled' && !$isLateDeliveryCancellation && ($order['payment_status'] ?? 'pending') === 'paid') {
             creditWallet($order['user_id'], (float)$order['total_amount'], 'Hoan tien don ' . $order['order_number'], 'order_refund', $id);
         }
         jsonResponse(['success' => true, 'message' => 'Đã cập nhật trạng thái đơn hàng']);
     }
 
     if ($method === 'PUT' && $id && (($pathParts[3] ?? '') === 'payment-status')) {
-        $input = requestJson();
-        $newPaymentStatus = $input['payment_status'] ?? 'pending';
-        $allowedPaymentStatuses = ['pending', 'paid', 'failed', 'refunded'];
-        if (!in_array($newPaymentStatus, $allowedPaymentStatuses, true)) {
-            jsonResponse(['success' => false, 'message' => 'Trang thai thanh toan khong hop le'], 400);
-        }
-        $order = queryOne("SELECT * FROM orders WHERE id = ?", [$id]);
-        if (!$order) {
-            jsonResponse(['success' => false, 'message' => 'Khong tim thay don hang'], 404);
-        }
-        $updateData = ['payment_status' => $newPaymentStatus, 'updated_at' => date('Y-m-d H:i:s')];
-        if ($newPaymentStatus === 'paid' && ($order['status'] ?? 'pending') === 'pending') {
-            $updateData['status'] = 'confirmed';
-        }
-        if ($newPaymentStatus === 'refunded') {
-            $updateData['status'] = 'refunded';
-        }
-        updateRow('orders', $id, $updateData);
-        if ($newPaymentStatus === 'refunded' && ($order['payment_status'] ?? 'pending') === 'paid') {
-            creditWallet($order['user_id'], (float)$order['total_amount'], 'Hoan tien don ' . $order['order_number'], 'payment_refund', $id);
-        }
-        jsonResponse(['success' => true, 'message' => 'Da cap nhat trang thai thanh toan']);
+        jsonResponse(['success' => false, 'message' => 'Trang thai thanh toan duoc cap nhat tu dong theo quy trinh don hang'], 400);
     }
 
     if ($method === 'PUT' && $id && (($pathParts[3] ?? '') === 'tracking')) {
@@ -894,6 +905,10 @@ function handleAdminReturnRequests($method, $pathParts, $currentUser) {
 
         if ($status === 'completed' && $currentStatus !== 'completed') {
             if (($request['type'] ?? 'return') === 'return') {
+                $order = queryOne("SELECT * FROM orders WHERE id = ?", [$request['order_id']]);
+                if (!$order || ($order['payment_status'] ?? 'pending') !== 'paid') {
+                    jsonResponse(['success' => false, 'message' => 'Don chua thanh toan thi khong the hoan tien'], 400);
+                }
                 $items = queryAll("SELECT product_id, quantity FROM order_items WHERE order_id = ?", [$request['order_id']]);
                 foreach ($items as $item) {
                     if (!empty($item['product_id'])) {
@@ -903,15 +918,12 @@ function handleAdminReturnRequests($method, $pathParts, $currentUser) {
                         );
                     }
                 }
-                $order = queryOne("SELECT * FROM orders WHERE id = ?", [$request['order_id']]);
                 updateRow('orders', $request['order_id'], [
                     'status' => 'refunded',
                     'payment_status' => 'refunded',
                     'updated_at' => date('Y-m-d H:i:s'),
                 ]);
-                if ($order && ($order['payment_status'] ?? 'pending') === 'paid') {
-                    creditWallet($order['user_id'], (float)$order['total_amount'], 'Hoan tien tra hang ' . $order['order_number'], 'return_request', $id);
-                }
+                creditWallet($order['user_id'], (float)$order['total_amount'], 'Hoan tien tra hang ' . $order['order_number'], 'return_request', $id);
             }
         }
 
@@ -937,6 +949,8 @@ function handleAdminWallets($method, $pathParts, $currentUser) {
         $type = $_GET['type'] ?? '';
         $status = $_GET['status'] ?? '';
         $sort = $_GET['sort'] ?? 'newest';
+        $dateFrom = trim((string)($_GET['date_from'] ?? ''));
+        $dateTo = trim((string)($_GET['date_to'] ?? ''));
 
         $where = '1=1';
         $params = [];
@@ -955,6 +969,28 @@ function handleAdminWallets($method, $pathParts, $currentUser) {
         if (in_array($status, ['pending', 'completed', 'rejected'], true)) {
             $where .= ' AND wt.status = ?';
             $params[] = $status;
+        }
+        if (($dateFrom !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom))
+            || ($dateTo !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo))) {
+            jsonResponse(['success' => false, 'message' => 'Khoang thoi gian loc khong hop le'], 400);
+        }
+        if ($dateFrom !== '' && $dateTo !== '') {
+            $fromTs = strtotime($dateFrom);
+            $toTs = strtotime($dateTo);
+            if ($fromTs > $toTs) {
+                jsonResponse(['success' => false, 'message' => 'Ngay bat dau khong duoc lon hon ngay ket thuc'], 400);
+            }
+            if ($toTs > strtotime('+1 month', $fromTs)) {
+                jsonResponse(['success' => false, 'message' => 'Chi duoc loc toi da trong khoang 1 thang'], 400);
+            }
+        }
+        if ($dateFrom !== '') {
+            $where .= ' AND DATE(wt.created_at) >= ?';
+            $params[] = $dateFrom;
+        }
+        if ($dateTo !== '') {
+            $where .= ' AND DATE(wt.created_at) <= ?';
+            $params[] = $dateTo;
         }
 
         $orderBy = match ($sort) {

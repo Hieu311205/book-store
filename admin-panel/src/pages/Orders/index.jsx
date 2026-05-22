@@ -14,7 +14,7 @@ export const statusOptions = [
   { value: 'processing', label: 'Đang chuẩn bị hàng' },
   { value: 'shipped', label: 'Đang giao' },
   { value: 'delivered', label: 'Đã giao' },
-  { value: 'cancelled', label: 'Đã hủy' },
+  { value: 'cancelled', label: 'Hủy đơn' },
   { value: 'refunded', label: 'Đã hoàn tiền' },
 ]
 
@@ -25,7 +25,7 @@ export const statusLabels = {
   processing: { label: 'Đang chuẩn bị hàng', cls: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400' },
   shipped: { label: 'Đang giao', cls: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' },
   delivered: { label: 'Đã giao', cls: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' },
-  cancelled: { label: 'Đã hủy', cls: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' },
+  cancelled: { label: 'Hủy đơn', cls: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' },
   refunded: { label: 'Đã hoàn tiền', cls: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
 }
 
@@ -77,6 +77,7 @@ const paymentStatusOptions = [
   { value: 'pending', label: 'Chờ thanh toán' },
   { value: 'paid', label: 'Đã thanh toán' },
   { value: 'failed', label: 'Thất bại' },
+  { value: 'cancelled', label: 'Đã hủy' },
   { value: 'refunded', label: 'Đã hoàn tiền' },
 ]
 
@@ -84,7 +85,16 @@ const paymentStatusLabels = {
   pending: 'Chờ thanh toán',
   paid: 'Đã thanh toán',
   failed: 'Thất bại',
+  cancelled: 'Đã hủy',
   refunded: 'Đã hoàn tiền',
+}
+
+const paymentStatusClass = {
+  pending: 'text-yellow-500',
+  paid: 'text-green-500',
+  failed: 'text-red-500',
+  cancelled: 'text-red-500',
+  refunded: 'text-gray-400',
 }
 
 const returnTypeLabels = {
@@ -99,18 +109,35 @@ const returnStatusLabels = {
   completed: 'Đã hoàn tất',
 }
 
+const ESTIMATED_DELIVERY_DAYS = 4
+const ADMIN_AFTER_ESTIMATE_DAYS = 5
+const ADMIN_DELIVERY_RESOLUTION_DAYS = ESTIMATED_DELIVERY_DAYS + ADMIN_AFTER_ESTIMATE_DAYS
+
+const getDaysSince = (date) => {
+  if (!date) return 0
+  return Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / (1000 * 60 * 60 * 24)))
+}
+
+const getEstimatedDeliveryDate = (date) => {
+  if (!date) return null
+  const estimated = new Date(date)
+  estimated.setDate(estimated.getDate() + ESTIMATED_DELIVERY_DAYS)
+  return estimated
+}
+
 const orderStatusFlow = {
   pending: ['confirmed', 'cancelled'],
   confirmed: ['processing', 'cancelled'],
   paid: ['processing', 'cancelled'],
   processing: ['shipped', 'cancelled'],
-  shipped: ['delivered'],
-  delivered: ['refunded'],
+  shipped: ['delivered', 'cancelled'],
+  delivered: [],
   cancelled: [],
   refunded: [],
 }
 
-const getOrderStatusOptions = (currentStatus) => {
+const getOrderStatusOptions = (orderOrStatus) => {
+  const currentStatus = typeof orderOrStatus === 'string' ? orderOrStatus : orderOrStatus?.status
   const nextStatuses = orderStatusFlow[currentStatus] || []
   const values = [currentStatus, ...nextStatuses]
   return statusOptions.filter((option) => values.includes(option.value))
@@ -147,6 +174,8 @@ const Orders = () => {
   const [trackingCode, setTrackingCode] = useState('')
   const [shippingProvider, setShippingProvider] = useState('giao_hang_tiet_kiem')
   const [shippingFee, setShippingFee] = useState('')
+  const [cancelOrder, setCancelOrder] = useState(null)
+  const [cancelReason, setCancelReason] = useState('')
 
   const hasFilters = !!(search || status || paymentStatus || paymentMethod || minAmount || maxAmount || dateFrom || dateTo)
   const queryParams = {
@@ -190,19 +219,12 @@ const Orders = () => {
   }
 
   const updateStatusMutation = useMutation({
-    mutationFn: ({ id, status }) => adminService.updateOrderStatus(id, { status }),
+    mutationFn: ({ id, status, admin_note }) => adminService.updateOrderStatus(id, { status, admin_note }),
     onSuccess: () => {
       invalidateAll()
+      setCancelOrder(null)
+      setCancelReason('')
       toast.success('Đã cập nhật trạng thái')
-    },
-    onError: (error) => toast.error(error.message || 'Có lỗi xảy ra'),
-  })
-
-  const updatePaymentStatusMutation = useMutation({
-    mutationFn: ({ id, payment_status }) => adminService.updatePaymentStatus(id, { payment_status }),
-    onSuccess: () => {
-      invalidateAll()
-      toast.success('Đã cập nhật thanh toán')
     },
     onError: (error) => toast.error(error.message || 'Có lỗi xảy ra'),
   })
@@ -245,17 +267,60 @@ const Orders = () => {
       toast.error('Không thể chuyển trạng thái ngược hoặc bỏ qua quy trình')
       return false
     }
+    if (nextStatus === 'cancelled') {
+      if (order.status === 'shipped') {
+        const daysSinceShipped = getDaysSince(order.shipped_at)
+        if (['pending', 'approved'].includes(order.return_status || '')) {
+          toast.error('Đơn đang có yêu cầu đổi trả/khiếu nại, chưa thể hủy do khách chưa nhận')
+          return false
+        }
+        if (daysSinceShipped < ADMIN_DELIVERY_RESOLUTION_DAYS) {
+          toast.error(`Chỉ được hủy đơn đang giao sau ${ADMIN_AFTER_ESTIMATE_DAYS} ngày kể từ ngày nhận dự kiến`)
+          return false
+        }
+      }
+      setCancelOrder(order)
+      setCancelReason('')
+      return false
+    }
     if (nextStatus === 'shipped' && (!order.tracking_code || !order.shipping_provider)) {
       openTrackingForm(order)
       toast.error('Nhập thông tin vận chuyển trước khi chuyển sang đang giao')
       return false
     }
-    if (nextStatus === 'delivered' && order.status !== 'shipped') {
-      toast.error('Đơn hàng phải đang giao trước khi chuyển sang đã giao')
+    if (nextStatus === 'delivered') {
+      const daysSinceShipped = getDaysSince(order.shipped_at)
+      if (['pending', 'approved'].includes(order.return_status || '')) {
+        toast.error('Đơn đang có yêu cầu đổi trả/khiếu nại, chưa thể xác nhận đã giao')
+        return false
+      }
+      if (daysSinceShipped < ADMIN_DELIVERY_RESOLUTION_DAYS) {
+        toast.error(`Chỉ được xác nhận đã giao sau ${ADMIN_AFTER_ESTIMATE_DAYS} ngày kể từ ngày nhận dự kiến`)
+        return false
+      }
+      if (!window.confirm('Khách chưa bấm đã nhận. Xác nhận đơn đã giao sau thời hạn quy định?')) {
+        return false
+      }
+    }
+    if (nextStatus === 'refunded') {
+      toast.error('Hoàn tiền được xử lý tự động qua hủy đơn hoặc yêu cầu trả hàng')
       return false
     }
     updateStatusMutation.mutate({ id: order.id, status: nextStatus })
     return true
+  }
+
+  const submitCancelOrder = () => {
+    if (!cancelOrder) return
+    if (!cancelReason.trim()) {
+      toast.error('Nhập lý do hủy đơn từ shop')
+      return
+    }
+    updateStatusMutation.mutate({
+      id: cancelOrder.id,
+      status: 'cancelled',
+      admin_note: `Shop hủy đơn: ${cancelReason.trim()}`,
+    })
   }
 
   return (
@@ -441,10 +506,15 @@ const Orders = () => {
                         className={`text-xs border rounded px-2 py-1 font-medium cursor-pointer ${statusLabels[order.status]?.cls || ''}`}
                         disabled={isFinalOrderStatus(order.status)}
                       >
-                        {getOrderStatusOptions(order.status).map((opt) => (
+                        {getOrderStatusOptions(order).map((opt) => (
                           <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))}
                       </select>
+                      {order.status === 'shipped' && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Dự kiến nhận: {getEstimatedDeliveryDate(order.shipped_at)?.toLocaleDateString('vi-VN') || 'Đang cập nhật'}
+                        </p>
+                      )}
                       {order.return_status && (
                         <div className="mt-1">
                           <span className="inline-block text-xs font-medium px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
@@ -457,15 +527,9 @@ const Orders = () => {
                       )}
                     </td>
                     <td>
-                      <select
-                        value={order.payment_status}
-                        onChange={(e) => updatePaymentStatusMutation.mutate({ id: order.id, payment_status: e.target.value })}
-                        className="text-xs border rounded px-2 py-1 font-medium cursor-pointer bg-transparent"
-                      >
-                        {paymentStatusOptions.slice(1).map((opt) => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
+                      <span className={`text-xs font-semibold ${paymentStatusClass[order.payment_status] || 'text-gray-500'}`}>
+                        {paymentStatusLabels[order.payment_status] || order.payment_status || '—'}
+                      </span>
                       <p className="text-xs text-gray-500">{paymentMethodLabels[order.payment_method] || order.payment_method || '—'}</p>
                     </td>
                     <td className="text-gray-500 text-sm">
@@ -597,7 +661,7 @@ const Orders = () => {
                       className={`text-xs border rounded px-2 py-1 font-medium cursor-pointer ${statusLabels[selectedOrder.status]?.cls || ''}`}
                       disabled={isFinalOrderStatus(selectedOrder.status)}
                     >
-                      {getOrderStatusOptions(selectedOrder.status).map((opt) => (
+                      {getOrderStatusOptions(selectedOrder).map((opt) => (
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
                       ))}
                     </select>
@@ -690,6 +754,42 @@ const Orders = () => {
                 className="btn btn-primary"
               >
                 Lưu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cancelOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-lg">Hủy đơn {cancelOrder.order_number}</h3>
+              <button onClick={() => setCancelOrder(null)} className="text-gray-500 hover:text-gray-700 p-1">
+                <FiX size={20} />
+              </button>
+            </div>
+            <p className="text-sm text-gray-500 mb-3">
+              Lý do này sẽ hiển thị cho người dùng và ghi nhận là đơn bị hủy từ shop.
+              {cancelOrder.status === 'shipped' && ' Nếu đơn đã thanh toán, hệ thống sẽ không hoàn tiền vì xử lý theo trường hợp khách không nhận hàng sau hạn.'}
+            </p>
+            <textarea
+              className="input w-full min-h-28 mb-4"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Nhập lý do hủy đơn từ shop..."
+            />
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={() => setCancelOrder(null)} className="btn btn-outline">
+                Đóng
+              </button>
+              <button
+                type="button"
+                onClick={submitCancelOrder}
+                disabled={updateStatusMutation.isPending}
+                className="btn btn-danger"
+              >
+                Xác nhận hủy đơn
               </button>
             </div>
           </div>

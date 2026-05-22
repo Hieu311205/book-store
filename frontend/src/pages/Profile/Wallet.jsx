@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { userService } from '../../services/user.service'
 import { formatPrice } from '../../utils/formatPrice'
+import Pagination from '../../components/common/Pagination'
 
 const Wallet = () => {
   const queryClient = useQueryClient()
@@ -13,10 +14,25 @@ const Wallet = () => {
   const [bankAccountName, setBankAccountName] = useState('')
   const [selectedBankId, setSelectedBankId] = useState('')
   const [showBankForm, setShowBankForm] = useState(false)
+  const [transactionPage, setTransactionPage] = useState(1)
+  const [transactionSearch, setTransactionSearch] = useState('')
+  //lọc
+  const [transactionMonth, setTransactionMonth] = useState('')
+  const [transactionType, setTransactionType] = useState('')
+  const [transactionStatus, setTransactionStatus] = useState('')
+  //lọc
+  const transactionParams = {
+    page: transactionPage,
+    limit: 5,
+    search: transactionSearch || undefined,
+    month: transactionMonth || undefined,
+    type: transactionType || undefined,
+    status: transactionStatus || undefined,
+  }
 
   const { data, isLoading } = useQuery({
-    queryKey: ['wallet'],
-    queryFn: userService.getWallet,
+    queryKey: ['wallet', transactionParams],
+    queryFn: () => userService.getWallet(transactionParams),
     select: (res) => res.data,
   })
 
@@ -24,6 +40,7 @@ const Wallet = () => {
   const bankAccounts = data?.bank_accounts || []
   const selectedBank = bankAccounts.find((item) => String(item.id) === String(selectedBankId)) || bankAccounts[0]
   const transactions = data?.transactions || []
+  const transactionPagination = data?.pagination
   const hasLinkedBank = bankAccounts.length > 0
 
   useEffect(() => {
@@ -33,6 +50,11 @@ const Wallet = () => {
   }, [bankAccounts, selectedBankId])
 
   const refreshWallet = () => queryClient.invalidateQueries({ queryKey: ['wallet'] })
+
+  const updateTransactionFilter = (setter, value) => {
+    setter(value)
+    setTransactionPage(1)
+  }
 
   const linkBankMutation = useMutation({
     mutationFn: userService.linkBankAccount,
@@ -93,16 +115,12 @@ const Wallet = () => {
         <div className="text-4xl font-bold text-primary-600">
           {isLoading ? '...' : `${formatPrice(wallet?.balance || 0)} đ`}
         </div>
-        <p className="text-sm text-gray-500 mt-2">
-          Tiền hoàn từ hủy đơn hoặc trả hàng sẽ được cộng vào ví này.
-        </p>
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="font-bold text-lg">Ngân hàng liên kết</h2>
-            <p className="text-sm text-gray-500">Có thể thêm nhiều tài khoản và chọn tài khoản dùng cho từng giao dịch.</p>
+            <h1 className="font-bold text-lg">Ngân hàng liên kết</h1>
           </div>
           <button type="button" className="btn btn-outline" onClick={openBankForm}>
             Thêm ngân hàng
@@ -221,7 +239,81 @@ const Wallet = () => {
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6">
-        <h2 className="font-bold text-lg mb-4">Lịch sử ví</h2>
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+          <div>
+            <h2 className="font-bold text-lg">Lịch sử giao dịch</h2>
+            <p className="text-sm text-gray-500">
+              {transactionPagination?.totalItems ?? transactions.length} giao dịch
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={() => {
+              setTransactionSearch('')
+              // setTransactionDateFrom('')
+              // setTransactionDateTo('')
+              setTransactionMonth('')
+              setTransactionType('')
+              setTransactionStatus('')
+              setTransactionPage(1)
+            }}
+          >
+            Làm mới lọc
+          </button>
+        </div>
+       {/* lọc */}
+        <div className="grid md:grid-cols-4 gap-3 mb-5">
+          <input
+            className="input w-full"
+            value={transactionSearch}
+            onChange={(e) => updateTransactionFilter(setTransactionSearch, e.target.value)}
+            placeholder="Tìm mô tả, ngân hàng..."
+          />
+          {/* lọc
+          <input
+  className="input w-full"
+  type="date"
+  value={transactionDateFrom}
+  onChange={(e) => updateTransactionFilter(setTransactionDateFrom, e.target.value)}
+  placeholder="Từ ngày"
+/>
+
+<input
+  className="input w-full"
+  type="date"
+  value={transactionDateTo}
+  min={transactionDateFrom || undefined}
+  onChange={(e) => updateTransactionFilter(setTransactionDateTo, e.target.value)}
+  placeholder="Đến ngày"
+/> */}
+          <input
+            className="input w-full"
+            type="month"
+            value={transactionMonth}
+            onChange={(e) => updateTransactionFilter(setTransactionMonth, e.target.value)}
+          />
+          <select
+            className="input w-full"
+            value={transactionType}
+            onChange={(e) => updateTransactionFilter(setTransactionType, e.target.value)}
+          >
+            <option value="">Tất cả loại</option>
+            <option value="credit">Tiền vào</option>
+            <option value="debit">Tiền ra</option>
+          </select>
+          <select
+            className="input w-full"
+            value={transactionStatus}
+            onChange={(e) => updateTransactionFilter(setTransactionStatus, e.target.value)}
+          >
+            <option value="">Tất cả trạng thái</option>
+            <option value="pending">Đang chờ</option>
+            <option value="completed">Hoàn tất</option>
+            <option value="rejected">Từ chối</option>
+          </select>
+        </div>
+
         {transactions.length ? (
           <div className="space-y-3">
             {transactions.map((tx) => (
@@ -238,9 +330,16 @@ const Wallet = () => {
                 </p>
               </div>
             ))}
+            {transactionPagination && (
+              <Pagination
+                currentPage={transactionPagination.page}
+                totalPages={transactionPagination.totalPages}
+                onPageChange={setTransactionPage}
+              />
+            )}
           </div>
         ) : (
-          <p className="text-gray-500">Chưa có giao dịch ví.</p>
+          <p className="text-gray-500">Không có giao dịch phù hợp.</p>
         )}
       </div>
     </div>

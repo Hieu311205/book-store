@@ -14,7 +14,7 @@ const popularTerms = [
   { label: 'Sách bán chạy', to: '/products?bestseller=true' },
   { label: 'Thiếu nhi', to: '/search?q=thi%E1%BA%BFu%20nhi' },
   { label: 'Kỹ năng', to: '/search?q=k%E1%BB%B9%20n%C4%83ng' },
-  { label: 'Văn học', to: '/search?q=v%C4%83n%20h%E1%BB%8Dc' },
+  { label: 'Kinh tế', to: '/search?q=kinh%20t%E1%BA%BF' },
 ]
 
 const flattenCategories = (items = [], depth = 0) =>
