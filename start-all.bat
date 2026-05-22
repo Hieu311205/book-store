@@ -55,16 +55,20 @@ if not exist "book-store-python\venv" (
     pause
     exit /b 1
   )
-  call venv\Scripts\activate
-  pip install -r requirements.txt
-  if errorlevel 1 (
-    echo [LOI] Cai dat dependencies that bai.
-    cd /d "%~dp0"
-    pause
-    exit /b 1
-  )
   cd /d "%~dp0"
 )
+
+echo Kiem tra/cai dat Python dependencies cho Django AI...
+cd /d "%~dp0book-store-python"
+call venv\Scripts\activate
+python -m pip install -r requirements.txt
+if errorlevel 1 (
+  echo [LOI] Cai dat dependencies that bai.
+  cd /d "%~dp0"
+  pause
+  exit /b 1
+)
+cd /d "%~dp0"
 
 echo Dang chay backend, frontend, admin panel va AI...
 echo Backend:  http://127.0.0.1:5000
