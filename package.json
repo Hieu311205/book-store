@@ -1,0 +1,12 @@
+{
+  "name": "book-store-fullstack",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "install:all": "npm --prefix frontend install && npm --prefix admin-panel install",
+    "dev": "start-all.bat",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:admin": "npm --prefix admin-panel run dev",
+    "dev:backend": "php -S 127.0.0.1:5000 -t backend backend/index.php"
+  }
+}
