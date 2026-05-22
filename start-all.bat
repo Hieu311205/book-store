@@ -44,13 +44,37 @@ if not exist "admin-panel\node_modules" (
   if errorlevel 1 exit /b 1
 )
 
-echo Dang chay backend, frontend va admin panel...
+:: Kiem tra Python venv cho Django
+if not exist "book-store-python\venv" (
+  echo [THIEU] Moi truong ao Python chua tao. Dang tao...
+  cd /d "%~dp0book-store-python"
+  python -m venv venv
+  if errorlevel 1 (
+    echo [LOI] Khong the tao venv. Kiem tra Python da cai chua.
+    cd /d "%~dp0"
+    pause
+    exit /b 1
+  )
+  call venv\Scripts\activate
+  pip install -r requirements.txt
+  if errorlevel 1 (
+    echo [LOI] Cai dat dependencies that bai.
+    cd /d "%~dp0"
+    pause
+    exit /b 1
+  )
+  cd /d "%~dp0"
+)
+
+echo Dang chay backend, frontend, admin panel va AI...
 echo Backend:  http://127.0.0.1:5000
 echo Frontend: http://127.0.0.1:3000
 echo Admin:    http://127.0.0.1:3001
+echo AI API:   http://127.0.0.1:8000
 
 start "Backend PHP" cmd /k ""%PHP_CMD%" -S 127.0.0.1:5000 -t "%~dp0backend" "%~dp0backend\index.php""
 start "Frontend" cmd /k "cd /d "%~dp0frontend" && npm run dev -- --host 127.0.0.1"
 start "Admin Panel" cmd /k "cd /d "%~dp0admin-panel" && npm run dev -- --host 127.0.0.1"
+start "Django AI" cmd /k "cd /d "%~dp0book-store-python" && venv\Scripts\activate && python manage.py runserver 8000"
 
 endlocal

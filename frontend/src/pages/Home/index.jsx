@@ -8,6 +8,7 @@ import RankingSection from '../../components/home/RankingSection'
 import EditorialNews from '../../components/home/EditorialNews'
 import ComboSpotlight from '../../components/home/ComboSpotlight'
 import { productService } from '../../services/product.service'
+import Recommendations from '../../components/home/Recommendations'
 
 const benefits = [
   {
@@ -87,6 +88,8 @@ const Home = () => {
         isLoading={loadingFeatured}
         link="/products?featured=true"
       />
+
+      <Recommendations />
 
       <section className="store-promo-banner">
         <div>
