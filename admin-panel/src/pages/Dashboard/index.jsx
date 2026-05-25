@@ -12,6 +12,7 @@ import {
   FiAlertCircle, FiArrowRight,
 } from 'react-icons/fi'
 import { adminService } from '../../services/admin.service'
+import { aiService } from '../../services/ai.service'
 import { StatusBadge } from '../Orders'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -122,6 +123,22 @@ const Dashboard = () => {
     queryFn: adminService.getInventoryReport,
     select: (res) => res.data,
   })
+
+  const { data: aiOverview, isError: aiOverviewError } = useQuery({
+    queryKey: ['ai-sales-overview', 30],
+    queryFn: () => aiService.getSalesOverview(30),
+    retry: false,
+  })
+
+  const { data: aiTopProducts = [], isError: aiTopProductsError } = useQuery({
+    queryKey: ['ai-top-products', 5],
+    queryFn: () => aiService.getTopProducts(5),
+    retry: false,
+  })
+
+  const chartData = aiOverview?.daily_data?.length
+    ? aiOverview.daily_data.map((item) => ({ date: item.date, total: Number(item.revenue || 0), orders: Number(item.orders || 0) }))
+    : (salesData || [])
 
   // ── Inventory data từ API ──────────────────────────────────────────────────
   const byCategory = inventory?.byCategory || []
@@ -355,7 +372,7 @@ const Dashboard = () => {
         <h3 className="font-bold mb-6">Biểu đồ doanh thu tuần</h3>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={salesData || []}>
+            <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />

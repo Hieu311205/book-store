@@ -1,0 +1,22 @@
+.store-detail-description {
+  margin-top: 1.5rem;
+  color: var(--store-muted);
+  line-height: 1.7;
+}
+
+.dark .store-detail-breadcrumb,
+.dark .store-global-breadcrumb {
+  background: rgba(159, 31, 31, 0.18);
+}
+
+.dark .store-detail-info h1,
+.dark .store-detail-quantity button,
+.dark .store-detail-quantity span {
+  color: #f7efe3;
+}
+
+.dark .store-detail-cart-button,
+.dark .store-detail-secondary-button,
+.dark .store-coupon-card {
+  background: rgba(39, 30, 25, 0.9);
+}

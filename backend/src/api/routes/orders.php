@@ -224,13 +224,31 @@ function createOrder($user) {
 
 function listOrders($user) {
     $page = max(1, (int)($_GET['page'] ?? 1));
-    $limit = min(100, max(1, (int)($_GET['limit'] ?? 10)));
+    $limit = min(50, max(1, (int)($_GET['limit'] ?? 10)));
     $offset = ($page - 1) * $limit;
     $where = "user_id = ?";
     $params = [$user['id']];
     if (!empty($_GET['status'])) {
         $where .= " AND status = ?";
         $params[] = $_GET['status'];
+    }
+    $paymentStatus = $_GET['payment_status'] ?? '';
+    if (in_array($paymentStatus, ['pending', 'paid', 'failed', 'cancelled', 'refunded'], true)) {
+        $where .= " AND payment_status = ?";
+        $params[] = $paymentStatus;
+    }
+    $search = trim((string)($_GET['search'] ?? ''));
+    if ($search !== '') {
+        $where .= " AND (order_number LIKE ? OR coupon_code LIKE ? OR tracking_code LIKE ? OR shipping_name LIKE ? OR shipping_phone LIKE ?)";
+        $like = '%' . $search . '%';
+        array_push($params, $like, $like, $like, $like, $like);
+    }
+    $month = trim((string)($_GET['month'] ?? ''));
+    if (preg_match('/^\d{4}-\d{2}$/', $month)) {
+        $startDate = $month . '-01 00:00:00';
+        $endDate = date('Y-m-d H:i:s', strtotime($startDate . ' +1 month'));
+        $where .= " AND created_at >= ? AND created_at < ?";
+        array_push($params, $startDate, $endDate);
     }
     $count = (int)(queryOne("SELECT COUNT(*) AS count FROM orders WHERE {$where}", $params)['count'] ?? 0);
     $returnSelect = tableExists('return_requests')
@@ -272,6 +290,8 @@ function cancelOrder($user, $id) {
     if (($order['payment_status'] ?? 'pending') === 'paid') {
         $updateData['payment_status'] = 'refunded';
         creditWallet($user['id'], (float)$order['total_amount'], 'Hoan tien huy don ' . $order['order_number'], 'order_cancel', $id);
+    } else {
+        $updateData['payment_status'] = 'cancelled';
     }
     updateRow('orders', $id, $updateData);
     jsonResponse(['success' => true, 'message' => 'Đã hủy đơn hàng']);

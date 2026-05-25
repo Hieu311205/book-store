@@ -1,0 +1,305 @@
+.store-product-grid {
+  gap: 1.15rem;
+}
+
+.store-book-card {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--store-line);
+  border-radius: 0.55rem;
+  background: rgba(255, 253, 248, 0.98);
+  box-shadow: 0 12px 30px rgba(82, 45, 28, 0.08);
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.store-book-card:hover {
+  border-color: rgba(159, 31, 31, 0.34);
+  transform: translateY(-4px);
+  box-shadow: var(--store-shadow);
+}
+
+.dark .store-book-card {
+  border-color: rgba(234, 223, 206, 0.12);
+  background: rgba(39, 30, 25, 0.9);
+}
+
+.store-book-cover {
+  position: relative;
+  display: flex;
+  aspect-ratio: 3 / 4;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(255, 241, 238, 0.8), rgba(255, 250, 242, 0.96)),
+    repeating-linear-gradient(90deg, transparent 0 22px, rgba(159, 31, 31, 0.035) 22px 23px);
+  padding: 1rem;
+}
+
+.store-book-cover img {
+  width: 82%;
+  height: 92%;
+  object-fit: contain;
+  border-radius: 0.25rem;
+  filter: saturate(1.03) contrast(1.02);
+  box-shadow: 10px 16px 28px rgba(60, 33, 24, 0.25);
+  transition: transform 220ms ease;
+}
+
+.store-book-card:hover .store-book-cover img {
+  transform: translateY(-3px) rotate(-1deg);
+}
+
+.store-sale-badge,
+.store-soldout {
+  position: absolute;
+  left: 0.75rem;
+  top: 0.75rem;
+  border-radius: 999px;
+  background: var(--store-red);
+  color: #fff;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.73rem;
+  font-weight: 900;
+}
+
+.store-soldout {
+  left: auto;
+  right: 0.75rem;
+  background: rgba(47, 39, 32, 0.78);
+}
+
+.store-book-info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 0.95rem;
+}
+
+.store-book-title {
+  display: -webkit-box;
+  min-height: 2.65rem;
+  overflow: hidden;
+  color: var(--store-ink);
+  font-weight: 800;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.store-book-title:hover {
+  color: var(--store-red);
+}
+
+.dark .store-book-title {
+  color: #f7efe3;
+}
+
+.store-book-author {
+  margin-top: 0.35rem;
+  overflow: hidden;
+  color: var(--store-muted);
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dark .store-book-author {
+  color: #cdbfae;
+}
+
+.store-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.45rem;
+  color: #c58a14;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.store-price-row {
+  display: flex;
+  min-height: 1.7rem;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.7rem;
+}
+
+.store-price {
+  color: var(--store-red);
+  font-size: 1.08rem;
+  font-weight: 900;
+}
+
+.store-compare-price {
+  color: #9a8c7d;
+  font-size: 0.82rem;
+  text-decoration: line-through;
+}
+
+.store-book-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  margin-top: 0.75rem;
+}
+
+.store-buy-button,
+.store-cart-button,
+.store-heart-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.45rem;
+  border-radius: 0.45rem;
+  font-weight: 800;
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.store-buy-button {
+  gap: 0.42rem;
+  background: var(--store-red);
+  color: #fff;
+  padding: 0 0.75rem;
+}
+
+.store-cart-button {
+  gap: 0.38rem;
+  border: 1px solid var(--store-line);
+  background: #fffaf2;
+  color: var(--store-red);
+  padding: 0 0.65rem;
+  font-size: 0.9rem;
+}
+
+.store-buy-button {
+  grid-column: 1 / -1;
+}
+
+.store-cart-button:hover {
+  border-color: rgba(159, 31, 31, 0.35);
+  background: var(--store-red-soft);
+  transform: translateY(-1px);
+}
+
+.store-buy-button:hover {
+  background: var(--store-red-dark);
+  transform: translateY(-1px);
+}
+
+.store-buy-button:disabled,
+.store-cart-button:disabled {
+  cursor: not-allowed;
+  background: #b8aa9a;
+  border-color: #b8aa9a;
+  color: #fff;
+  transform: none;
+}
+
+.store-heart-button {
+  width: 2.45rem;
+  border: 1px solid var(--store-line);
+  background: #fffaf2;
+  color: var(--store-red);
+}
+
+.store-heart-button:hover {
+  border-color: rgba(159, 31, 31, 0.35);
+  background: var(--store-red-soft);
+}
+
+.dark .store-heart-button {
+  border-color: rgba(234, 223, 206, 0.14);
+  background: rgba(25, 18, 15, 0.92);
+}
+
+.dark .store-cart-button {
+  border-color: rgba(234, 223, 206, 0.14);
+  background: rgba(25, 18, 15, 0.92);
+}
+
+.store-empty-state {
+  display: grid;
+  min-height: 12rem;
+  place-items: center;
+  border: 1px dashed #d8c5ad;
+  border-radius: 0.7rem;
+  background: rgba(255, 253, 248, 0.68);
+  color: var(--store-muted);
+  text-align: center;
+}
+
+.store-not-found h1 {
+  color: var(--store-red);
+  font-size: 4rem;
+  font-weight: 900;
+}
+
+.store-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  margin-top: 2rem;
+}
+
+.store-pagination-page,
+.store-pagination-arrow,
+.store-pagination-ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.45rem;
+  color: var(--store-ink);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.store-pagination-page {
+  transition: background 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.store-pagination-page:hover {
+  background: var(--store-red-soft);
+  color: var(--store-red);
+  transform: translateY(-1px);
+}
+
+.store-pagination-page.is-active {
+  background: #d40000;
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(212, 0, 0, 0.22);
+}
+
+.store-pagination-arrow {
+  color: #f59f00;
+  font-size: 2rem;
+  transition: color 180ms ease, opacity 180ms ease, transform 180ms ease;
+}
+
+.store-pagination-arrow:hover:not(:disabled) {
+  color: #d40000;
+  transform: translateY(-1px);
+}
+
+.store-pagination-arrow:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.store-pagination-ellipsis {
+  color: var(--store-ink);
+  letter-spacing: 0.08em;
+}
+
+.dark .store-pagination-page,
+.dark .store-pagination-ellipsis {
+  color: #f7efe3;
+}

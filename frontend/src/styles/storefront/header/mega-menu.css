@@ -1,0 +1,129 @@
+.store-mega {
+  position: relative;
+}
+
+.store-mega-trigger {
+  gap: 0.4rem;
+  border: 0;
+}
+
+.store-mega-panel {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 0.85rem);
+  z-index: 80;
+  display: grid;
+  grid-template-columns: 15rem 1fr;
+  gap: 1.2rem;
+  width: min(64rem, calc(100vw - 2rem));
+  border: 1px solid var(--store-line);
+  border-radius: 0.7rem;
+  background: #fffaf2;
+  padding: 1.2rem;
+  color: var(--store-ink);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(0.5rem);
+  box-shadow: var(--store-shadow-strong);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.store-mega-panel::before {
+  content: "";
+  position: absolute;
+  left: 1.4rem;
+  top: -0.55rem;
+  width: 1rem;
+  height: 1rem;
+  border-left: 1px solid var(--store-line);
+  border-top: 1px solid var(--store-line);
+  background: #fffaf2;
+  transform: rotate(45deg);
+}
+
+.store-mega.is-open .store-mega-panel {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.store-mega.is-open .store-mega-trigger {
+  background: #fffaf2;
+  color: var(--store-red-dark);
+}
+
+.store-mega-intro {
+  border-radius: 0.55rem;
+  background:
+    radial-gradient(circle at 80% 16%, rgba(245, 200, 102, 0.28), transparent 10rem),
+    linear-gradient(135deg, var(--store-red-dark), var(--store-red));
+  color: #fffaf2;
+  padding: 1rem;
+}
+
+.store-mega-intro strong,
+.store-mega-intro span,
+.store-mega-intro a {
+  display: block;
+}
+
+.store-mega-intro strong {
+  font-family: Arial, sans-serif;
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.store-mega-intro span {
+  margin-top: 0.55rem;
+  color: rgba(255, 250, 242, 0.82);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.store-mega-intro a {
+  margin-top: 1rem;
+  color: #f5c866;
+  font-weight: 800;
+}
+
+.store-mega-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  align-content: start;
+  gap: 1rem;
+  max-height: 24rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.store-mega-group h3 {
+  color: var(--store-red);
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.store-mega-group ul {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.7rem;
+}
+
+.store-mega-group a {
+  color: var(--store-ink);
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.store-mega-group a:hover {
+  color: var(--store-red);
+}
+
+.dark .store-mega-panel {
+  border-color: rgba(234, 223, 206, 0.12);
+  background: #211915;
+}
+
+.dark .store-mega-group a {
+  color: #f7efe3;
+}

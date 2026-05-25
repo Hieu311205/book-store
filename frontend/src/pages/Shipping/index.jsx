@@ -15,6 +15,14 @@ const shippingProviderText = {
   express: 'Nhanh',
 }
 
+const paymentStatusText = {
+  pending: 'Chờ thanh toán',
+  paid: 'Đã thanh toán',
+  failed: 'Thất bại',
+  cancelled: 'Đã hủy',
+  refunded: 'Đã hoàn tiền',
+}
+
 const addDays = (date, days) => {
   const result = new Date(date)
   result.setDate(result.getDate() + days)
@@ -22,6 +30,11 @@ const addDays = (date, days) => {
 }
 
 const shortDate = (date) => new Date(date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
+
+const getDaysSince = (date) => {
+  if (!date) return 0
+  return Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / (1000 * 60 * 60 * 24)))
+}
 
 const TrackingProgress = ({ status }) => {
   const activeIndex = status === 'delivered' ? 2 : 1
@@ -51,9 +64,10 @@ const TrackingProgress = ({ status }) => {
 
 const ShippingTracker = ({ order, onConfirmReceived, confirmPending }) => {
   const provider = shippingProviderText[order.shipping_provider || order.shipping_method] || order.shipping_provider || order.shipping_method || 'Đơn vị vận chuyển'
-  const shippedAt = order.shipped_at || order.updated_at || order.created_at
-  const estimateStart = addDays(shippedAt, 2)
-  const estimateEnd = addDays(shippedAt, 4)
+  const shippedAt = order.shipped_at
+  const estimateStart = shippedAt ? addDays(shippedAt, 2) : null
+  const estimateEnd = shippedAt ? addDays(shippedAt, 4) : null
+  const daysSinceShipped = getDaysSince(shippedAt)
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 space-y-5">
@@ -62,13 +76,22 @@ const ShippingTracker = ({ order, onConfirmReceived, confirmPending }) => {
           <p className="text-sm text-gray-500">Đơn {order.order_number}</p>
           <h1 className="text-2xl font-bold mt-1">{order.status === 'delivered' ? 'Đã giao hàng' : 'Đang giao hàng'}</h1>
           <p className="text-emerald-600 font-semibold mt-3">
-            Ngày giao hàng dự kiến: {shortDate(estimateStart)} - {shortDate(estimateEnd)}
+            Ngày giao hàng dự kiến: {estimateStart && estimateEnd ? `${shortDate(estimateStart)} - ${shortDate(estimateEnd)}` : 'Đang cập nhật'}
           </p>
         </div>
         <Link to="/profile/orders" className="btn btn-outline btn-sm">Quay lại đơn hàng</Link>
       </div>
 
       <TrackingProgress status={order.status} />
+
+      {order.status === 'shipped' && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
+          <p className="font-semibold">Nhắc xác nhận nhận hàng</p>
+          <p className="mt-1">
+            Đơn đã được vận chuyển {daysSinceShipped} ngày. Nếu bạn đã nhận được hàng, hãy bấm “Đã nhận hàng” để shop hoàn tất đơn.
+          </p>
+        </div>
+      )}
 
       <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-900/50 p-4">
         <div className="grid md:grid-cols-3 gap-4 items-center">
@@ -102,7 +125,7 @@ const ShippingTracker = ({ order, onConfirmReceived, confirmPending }) => {
           </div>
           <div>
             <p className="font-semibold text-emerald-600">Đơn vị vận chuyển lấy hàng thành công</p>
-            <p className="text-sm text-gray-500">{new Date(shippedAt).toLocaleString('vi-VN')}</p>
+            <p className="text-sm text-gray-500">{shippedAt ? new Date(shippedAt).toLocaleString('vi-VN') : 'Đang cập nhật'}</p>
           </div>
         </div>
         <div className="flex gap-3">
@@ -122,7 +145,7 @@ const ShippingTracker = ({ order, onConfirmReceived, confirmPending }) => {
 
       <div className="grid md:grid-cols-3 gap-3 text-sm border-t dark:border-gray-700 pt-4">
         <div><span className="text-gray-500">Phí ship: </span><span className="font-semibold">{formatPrice(order.shipping_cost)} đ</span></div>
-        <div><span className="text-gray-500">Thanh toán: </span><span className="font-semibold">{order.payment_status === 'paid' ? 'Đã thanh toán' : 'Chờ thanh toán'}</span></div>
+        <div><span className="text-gray-500">Thanh toán: </span><span className="font-semibold">{paymentStatusText[order.payment_status] || order.payment_status || 'Chờ thanh toán'}</span></div>
         <div><span className="text-gray-500">Tổng tiền: </span><span className="font-semibold text-primary-600">{formatPrice(order.total_amount)} đ</span></div>
       </div>
 

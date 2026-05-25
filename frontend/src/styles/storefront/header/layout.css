@@ -1,0 +1,54 @@
+.store-header {
+  border-bottom: 1px solid rgba(117, 23, 23, 0.12);
+  background: rgba(255, 253, 248, 0.96);
+  box-shadow: 0 10px 35px rgba(82, 45, 28, 0.08);
+  backdrop-filter: blur(16px);
+}
+
+.dark .store-header {
+  background: rgba(25, 18, 15, 0.95);
+  border-bottom-color: rgba(234, 223, 206, 0.12);
+}
+
+.store-topbar {
+  border-bottom: 1px solid var(--store-line);
+  background: #f4eadc;
+}
+
+.dark .store-topbar {
+  border-bottom-color: rgba(234, 223, 206, 0.12);
+  background: rgba(48, 35, 28, 0.9);
+}
+
+.store-mainbar {
+  background: rgba(255, 253, 248, 0.92);
+}
+
+.dark .store-mainbar {
+  background: rgba(25, 18, 15, 0.76);
+}
+
+.store-logo {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1;
+  min-width: max-content;
+}
+
+.store-logo span {
+  color: var(--store-red);
+  font-family: Arial, sans-serif;
+  font-size: clamp(1.35rem, 2.2vw, 2rem);
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.store-logo small {
+  margin-top: 0.35rem;
+  color: var(--store-muted);
+  font-size: 0.74rem;
+}
+
+.dark .store-logo small {
+  color: #cdbfae;
+}

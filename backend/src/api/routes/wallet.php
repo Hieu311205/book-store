@@ -23,9 +23,44 @@ function handleWallet($method, $pathParts) {
 
 function getWalletSummary($user) {
     $wallet = getOrCreateWallet($user['id']);
+    $page = max(1, (int)($_GET['page'] ?? 1));
+    $limit = min(50, max(1, (int)($_GET['limit'] ?? 10)));
+    $offset = ($page - 1) * $limit;
+    $where = "user_id = ?";
+    $params = [$user['id']];
+
+    $search = trim((string)($_GET['search'] ?? ''));
+    if ($search !== '') {
+        $where .= " AND (description LIKE ? OR reference_type LIKE ? OR bank_name LIKE ? OR bank_account_number LIKE ? OR bank_account_name LIKE ?)";
+        $like = '%' . $search . '%';
+        array_push($params, $like, $like, $like, $like, $like);
+    }
+
+    $type = $_GET['type'] ?? '';
+    if (in_array($type, ['credit', 'debit'], true)) {
+        $where .= " AND type = ?";
+        $params[] = $type;
+    }
+
+    $status = $_GET['status'] ?? '';
+    if (in_array($status, ['pending', 'completed', 'rejected'], true)) {
+        $where .= " AND status = ?";
+        $params[] = $status;
+    }
+
+    $month = trim((string)($_GET['month'] ?? ''));
+    if (preg_match('/^\d{4}-\d{2}$/', $month)) {
+        $startDate = $month . '-01 00:00:00';
+        $endDate = date('Y-m-d H:i:s', strtotime($startDate . ' +1 month'));
+        $where .= " AND created_at >= ? AND created_at < ?";
+        array_push($params, $startDate, $endDate);
+    }
+    
+    // Đếm tổng số giao dịch để phục vụ phân trang
+    $count = (int)(queryOne("SELECT COUNT(*) AS count FROM wallet_transactions WHERE {$where}", $params)['count'] ?? 0);
     $transactions = queryAll(
-        "SELECT * FROM wallet_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 50",
-        [$user['id']]
+        "SELECT * FROM wallet_transactions WHERE {$where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        array_merge($params, [$limit, $offset])
     );
     $bankAccounts = tableExists('user_bank_accounts')
         ? queryAll("SELECT * FROM user_bank_accounts WHERE user_id = ? AND is_active = 1 ORDER BY is_default DESC, id DESC", [$user['id']])
@@ -33,6 +68,12 @@ function getWalletSummary($user) {
     jsonResponse(['success' => true, 'data' => [
         'wallet' => $wallet,
         'transactions' => $transactions,
+        'pagination' => [
+            'page' => $page,
+            'limit' => $limit,
+            'totalItems' => $count,
+            'totalPages' => (int)ceil($count / $limit),
+        ],
         'bank_accounts' => $bankAccounts,
     ]]);
 }

@@ -7,6 +7,14 @@ ALTER TABLE orders
   MODIFY status ENUM('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded') DEFAULT 'pending';
 
 ALTER TABLE orders
+  MODIFY payment_status ENUM('pending', 'paid', 'failed', 'cancelled', 'refunded') DEFAULT 'pending';
+
+UPDATE orders
+SET payment_status = 'cancelled'
+WHERE status = 'cancelled'
+  AND payment_status = 'pending';
+
+ALTER TABLE orders
   MODIFY payment_method ENUM('cod', 'bank_transfer', 'card', 'wallet') DEFAULT 'cod';
 
 SET @shipping_provider_exists = (

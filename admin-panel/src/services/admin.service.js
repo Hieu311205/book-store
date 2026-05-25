@@ -22,6 +22,9 @@ export const adminService = {
   updateProduct: (id, data) => api.put(`/admin/products/${id}`, data),
   deleteProduct: (id) => api.delete(`/admin/products/${id}`),
   updateProductStock: (id, stock) => api.put(`/admin/products/${id}/stock`, { stock }),
+  uploadProductCover: (data) => api.post('/admin/products/cover', data, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
 
   // Categories
   getCategories: (params) => api.get('/admin/categories', { params }),
