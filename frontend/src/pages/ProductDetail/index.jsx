@@ -1,18 +1,43 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { FiChevronRight, FiHeart, FiMinus, FiPlus, FiShare2, FiShoppingCart } from 'react-icons/fi'
-import { FaStar } from 'react-icons/fa'
+import {
+  FiChevronRight,
+  FiHeart,
+  FiMapPin,
+  FiMinus,
+  FiPlus,
+  FiRefreshCw,
+  FiShare2,
+  FiShoppingCart,
+  FiTag,
+  FiTruck,
+  FiUsers,
+} from 'react-icons/fi'
 import { productService } from '../../services/product.service'
 import { useCart } from '../../context/CartContext'
 import { useAuth } from '../../context/AuthContext'
 import { userService } from '../../services/user.service'
+import { cartService } from '../../services/cart.service'
 import { formatNumber, formatPrice } from '../../utils/formatPrice'
 import { saveBuyNowItem } from '../../utils/buyNowStorage'
 import { ProductDetailSkeleton } from '../../components/common/Loading'
 import ProductGrid from '../../components/product/ProductGrid'
 import ReviewSection from '../../components/review/ReviewSection'
+import { getCouponDescription } from '../../components/checkout/CouponList'
+
+const formatBookFormat = (format) => {
+  if (format === 'hardcover') return 'Bìa cứng'
+  if (format === 'paperback') return 'Bìa mềm'
+  if (format === 'ebook') return 'Sách điện tử'
+  return '-'
+}
+
+const valueOrDash = (value) => {
+  if (value === null || value === undefined || value === '') return '-'
+  return value
+}
 
 const ProductDetail = () => {
   const { slug } = useParams()
@@ -21,8 +46,7 @@ const ProductDetail = () => {
   const { isAuthenticated } = useAuth()
   const queryClient = useQueryClient()
   const [quantity, setQuantity] = useState(1)
-  const [activeTab, setActiveTab] = useState('description')
-  const [activeImg, setActiveImg] = useState(null) // null = dùng ảnh chính mặc định
+  const [selectedImage, setSelectedImage] = useState('')
 
   const { data: product, isLoading } = useQuery({
     queryKey: ['product', slug],
@@ -37,6 +61,29 @@ const ProductDetail = () => {
     enabled: !!product?.category_id,
   })
 
+  const { data: addresses = [] } = useQuery({
+    queryKey: ['addresses'],
+    queryFn: userService.getAddresses,
+    select: (res) => {
+      const payload = res?.data ?? res
+      if (Array.isArray(payload)) return payload
+      if (Array.isArray(payload?.addresses)) return payload.addresses
+      return []
+    },
+    enabled: isAuthenticated,
+  })
+
+  const { data: coupons = [] } = useQuery({
+    queryKey: ['public-coupons'],
+    queryFn: cartService.getCoupons,
+    select: (res) => {
+      const payload = res?.data ?? res
+      if (Array.isArray(payload)) return payload
+      if (Array.isArray(payload?.coupons)) return payload.coupons
+      return []
+    },
+  })
+
   const wishlistMutation = useMutation({
     mutationFn: userService.addToWishlist,
     onSuccess: () => {
@@ -46,6 +93,20 @@ const ProductDetail = () => {
     },
     onError: (error) => toast.error(error.message || 'Không thể thêm vào yêu thích'),
   })
+
+  const productImages = useMemo(() => {
+    if (!product) return []
+    const images = product.images?.length
+      ? product.images.map((img) => img.image_url)
+      : [product.image_url || '/images/placeholder-book.jpg']
+    return [...new Set(images.filter(Boolean))]
+  }, [product])
+
+  useEffect(() => {
+    if (productImages.length) {
+      setSelectedImage(productImages[0])
+    }
+  }, [productImages])
 
   if (isLoading) return <ProductDetailSkeleton />
 
@@ -62,12 +123,6 @@ const ProductDetail = () => {
       </div>
     )
   }
-
-  const defaultImage = product.images?.find((img) => img.is_primary)?.image_url ||
-    product.images?.[0]?.image_url ||
-    '/images/placeholder-book.jpg'
-
-  const displayImage = activeImg || defaultImage
 
   const handleAddToCart = () => {
     addToCart(product.id, quantity)
@@ -105,12 +160,34 @@ const ProductDetail = () => {
     }
   }
 
+  const detailRows = [
+    ['SKU', product.sku],
+    ['ISBN', product.isbn],
+    ['Danh mục', product.category_name],
+    ['Tác giả', product.author_name],
+    ['Nhà xuất bản', product.publisher_name],
+    ['Số trang', product.pages ? formatNumber(product.pages) : ''],
+    ['Năm xuất bản', product.publish_year],
+    ['Ngôn ngữ', product.language],
+    ['Người dịch', product.translator],
+    ['Phiên bản', product.edition],
+    ['Hình thức bìa', product.format ? formatBookFormat(product.format) : ''],
+    ['Trọng lượng (gr)', product.weight ? formatNumber(product.weight) : ''],
+  ].filter(([, value]) => valueOrDash(value) !== '-')
+
+  const defaultAddress = addresses.find((address) => address.is_default) || addresses[0]
+  const comparePrice = Number(product.compare_price || 0)
+  const price = Number(product.price || 0)
+  const discountPercent = Number(product.discount_percent || 0)
+    || (comparePrice > price ? Math.round(((comparePrice - price) / comparePrice) * 100) : 0)
+  const activeCoupons = coupons.slice(0, 4)
+
   return (
     <div className="store-product-detail-page">
       <nav className="store-detail-breadcrumb">
         <Link to="/">Trang chủ</Link>
         <FiChevronRight />
-        <Link to="/products?sort=newest">SÁCH MỚI PHÁT HÀNH</Link>
+        <Link to="/products?sort=newest">Sách mới phát hành</Link>
         {product.category_name && (
           <>
             <FiChevronRight />
@@ -121,103 +198,41 @@ const ProductDetail = () => {
         <span>{product.title}</span>
       </nav>
 
-      <div className="store-detail-layout">
-        {/* Gallery với thumbnail clickable */}
-        <div className="store-detail-gallery">
-          <div className="store-detail-main-image store-detail-zoom-wrap">
-            <img
-              src={displayImage}
-              alt={product.title}
-              key={displayImage}
-              className="store-detail-zoom-img"
-            />
+      <div className="store-detail-shell">
+        <aside className="store-detail-purchase-card">
+          <div className="store-detail-main-image">
+            <img src={selectedImage || '/images/placeholder-book.jpg'} alt={product.title} />
           </div>
-          {product.images?.length > 1 && (
+
+          {productImages.length > 1 && (
             <div className="store-detail-thumbs">
-              {product.images.map((img, index) => (
+              {productImages.map((image) => (
                 <button
-                  key={index}
-                  className={`store-detail-thumb${(activeImg || defaultImage) === img.image_url ? ' is-active' : ''}`}
-                  onClick={() => setActiveImg(img.image_url)}
-                  aria-label={`Ảnh ${index + 1}`}
+                  type="button"
+                  key={image}
+                  className={`store-detail-thumb ${selectedImage === image ? 'is-active' : ''}`}
+                  onClick={() => setSelectedImage(image)}
                 >
-                  <img src={img.image_url} alt="" />
+                  <img src={image} alt={product.title} />
                 </button>
               ))}
             </div>
           )}
-        </div>
-
-        <div className="store-detail-info">
-          <h1>{product.title}</h1>
-          {product.title_en && <p className="store-detail-subtitle">{product.title_en}</p>}
-
-          <div className="store-detail-rating-row">
-            <div className="store-detail-stars">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <FaStar key={star} className={star <= Math.round(product.rating_avg) ? 'is-filled' : ''} />
-              ))}
-            </div>
-            <span>
-              {product.rating_count > 0
-                ? `(${formatNumber(product.rating_count)} đánh giá)`
-                : '(Chưa có đánh giá)'}
-            </span>
-            <span className="store-detail-sold">Đã bán {formatNumber(product.sales_count || 0)}</span>
-          </div>
-
-          {product.author_name && (
-            <p className="store-detail-author">
-              <span>Tác giả:</span>
-              <Link to={`/products?author=${product.author_id}`}>{product.author_name}</Link>
-            </p>
-          )}
-
-          {product.publisher_name && (
-            <p className="store-detail-meta">
-              <span>Nhà xuất bản:</span>
-              <strong>{product.publisher_name}</strong>
-            </p>
-          )}
-
-          <div className="store-detail-price-row">
-            <strong>{formatPrice(product.price)}</strong>
-            {product.compare_price && product.compare_price > product.price && (
-              <span>{formatPrice(product.compare_price)}</span>
-            )}
-            {product.discount_percent > 0 && <em>- {product.discount_percent}%</em>}
-          </div>
-
-          {product.stock > 0 ? (
-            <div className="store-detail-quantity">
-              <button onClick={() => setQuantity(Math.max(1, quantity - 1))} disabled={quantity <= 1}>
-                <FiMinus />
-              </button>
-              <span>{quantity}</span>
-              <button
-                onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
-                disabled={quantity >= product.stock}
-              >
-                <FiPlus />
-              </button>
-            </div>
-          ) : (
-            <span className="store-detail-soldout">Hết hàng</span>
-          )}
 
           <div className="store-detail-actions">
             {product.stock > 0 && (
-              <button onClick={handleAddToCart} className="store-detail-cart-button">
-                Thêm vào giỏ hàng
+              <button type="button" onClick={handleAddToCart} className="store-detail-cart-button">
                 <FiShoppingCart />
+                Thêm vào giỏ hàng
               </button>
             )}
             {product.stock > 0 && (
-              <button onClick={handleBuyNow} className="store-detail-buy-button">
-                Mua ngay
+              <button type="button" onClick={handleBuyNow} className="store-detail-buy-button">
+                Đặt trước
               </button>
             )}
             <button
+              type="button"
               onClick={handleWishlist}
               disabled={wishlistMutation.isPending}
               className="store-detail-secondary-button"
@@ -225,78 +240,149 @@ const ProductDetail = () => {
               <FiHeart />
               Yêu thích
             </button>
-            <button onClick={handleShare} className="store-detail-secondary-button">
+            <button type="button" onClick={handleShare} className="store-detail-secondary-button">
               <FiShare2 />
               Chia sẻ
             </button>
           </div>
 
-          {product.short_description && (
-            <p className="store-detail-description">{product.short_description}</p>
-          )}
-        </div>
-      </div>
+          <div className="store-detail-policy">
+            <h3>Chính sách ưu đãi của Book Store</h3>
+            <p>
+              <FiTruck />
+              <span><strong>Thời gian giao hàng:</strong> Giao nhanh và uy tín</span>
+            </p>
+            <p>
+              <FiRefreshCw />
+              <span><strong>Chính sách đổi trả:</strong> Đổi trả theo quy định của shop</span>
+            </p>
+            <p>
+              <FiUsers />
+              <span><strong>Chính sách khách sỉ:</strong> Ưu đãi khi mua số lượng lớn</span>
+            </p>
+          </div>
+        </aside>
 
-      {/* Tabs */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl">
-        <div className="border-b dark:border-gray-700">
-          <nav className="flex gap-8 px-6">
-            {[
-              { id: 'description', label: 'Mô tả' },
-              { id: 'specs', label: 'Thông tin chi tiết' },
-              { id: 'reviews', label: `Đánh giá${product.rating_count > 0 ? ` (${formatNumber(product.rating_count)})` : ''}` },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`py-4 border-b-2 font-medium transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-primary-600 text-primary-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
-        </div>
+        <section className="store-detail-content">
+          <article className="store-detail-card store-detail-sale-card">
+            <h1>
+              <span>Mới</span>
+              {product.title}
+            </h1>
+            {product.title_en && <p>{product.title_en}</p>}
 
-        <div className="p-6">
-          {activeTab === 'description' && (
-            <div className="prose dark:prose-invert max-w-none">
-              {product.description || 'Chưa có mô tả cho sách này.'}
+            <div className="store-detail-top-meta">
+              <p>Danh mục: <strong>{product.category_name || '-'}</strong></p>
+              <p>Tác giả: <strong>{product.author_name || '-'}</strong></p>
+              <p>Nhà xuất bản: <strong>{product.publisher_name || '-'}</strong></p>
+              <p>Hình thức bìa: <strong>{formatBookFormat(product.format)}</strong></p>
             </div>
-          )}
 
-          {activeTab === 'specs' && (
-            <table className="w-full max-w-2xl">
-              <tbody className="divide-y dark:divide-gray-700">
-                {[
-                  product.isbn && ['ISBN', product.isbn],
-                  product.pages && ['Số trang', formatNumber(product.pages)],
-                  product.publish_year && ['Năm xuất bản', product.publish_year],
-                  product.translator && ['Dịch giả', product.translator],
-                  product.language && ['Ngôn ngữ', product.language],
-                  product.format && ['Định dạng',
-                    product.format === 'hardcover' ? 'Bìa cứng' :
-                    product.format === 'paperback' ? 'Bìa mềm' : 'Sách điện tử'],
-                ].filter(Boolean).map(([label, value]) => (
-                  <tr key={label}>
-                    <td className="py-3 text-gray-500 w-40">{label}</td>
-                    <td className="py-3">{value}</td>
-                  </tr>
+            <div className="store-detail-rating-line">
+              <span>★★★★★</span>
+              <strong>({formatNumber(product.rating_count || 0)} đánh giá)</strong>
+            </div>
+
+            <div className="store-detail-price-row">
+              <strong>{formatPrice(product.price)} đ</strong>
+              {comparePrice > price && <span>{formatPrice(comparePrice)} đ</span>}
+              {discountPercent > 0 && <em>-{discountPercent}%</em>}
+            </div>
+
+            <Link className="store-detail-promo-link" to="/products?sort=bestseller">
+              Chính sách khuyến mãi trên chỉ áp dụng tại Book Store
+              <FiChevronRight />
+            </Link>
+
+            <div className="store-detail-arrival-note">
+              {product.stock > 0 ? `Sản phẩm có sẵn - còn ${formatNumber(product.stock)} sản phẩm` : 'Sản phẩm sắp có hàng'}
+            </div>
+          </article>
+
+          <article className="store-detail-card store-detail-shipping-card">
+            <h2>Thông tin vận chuyển</h2>
+            <p className="store-detail-address-line">
+              <FiMapPin />
+              {defaultAddress ? (
+                <>
+                  Giao hàng đến <strong>{defaultAddress.address}, {defaultAddress.city}, {defaultAddress.province}</strong>
+                  <Link to="/profile/addresses">Thay đổi</Link>
+                </>
+              ) : (
+                <>
+                  Chưa chọn địa chỉ giao hàng
+                  <Link to={isAuthenticated ? '/profile/addresses' : '/login'}>Thêm địa chỉ</Link>
+                </>
+              )}
+            </p>
+
+            <div className="store-detail-coupon-heading">
+              <strong>Ưu đãi liên quan</strong>
+              <Link to="/checkout">Xem thêm <FiChevronRight /></Link>
+            </div>
+
+            {activeCoupons.length > 0 && (
+              <div className="store-detail-coupon-list">
+                {activeCoupons.map((coupon) => (
+                  <div className="store-detail-coupon-pill" key={coupon.id || coupon.code}>
+                    <FiTag />
+                    <span>{coupon.code} - {getCouponDescription(coupon)}</span>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          )}
+              </div>
+            )}
 
-          {activeTab === 'reviews' && <ReviewSection productId={product.id} />}
-        </div>
+            <div className="store-detail-quantity-row">
+              <strong>Số lượng:</strong>
+              {product.stock > 0 ? (
+                <div className="store-detail-quantity">
+                  <button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} disabled={quantity <= 1}>
+                    <FiMinus />
+                  </button>
+                  <span>{quantity}</span>
+                  <button
+                    type="button"
+                    onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
+                    disabled={quantity >= product.stock}
+                  >
+                    <FiPlus />
+                  </button>
+                </div>
+              ) : (
+                <span className="store-detail-soldout">Hết hàng</span>
+              )}
+            </div>
+          </article>
+
+          <article className="store-detail-card">
+            <h2>Thông tin chi tiết</h2>
+            <div className="store-detail-specs">
+              {detailRows.map(([label, value]) => (
+                <div className="store-detail-spec-row" key={label}>
+                  <span>{label}</span>
+                  <strong>{value}</strong>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          <article className="store-detail-card store-detail-description-card">
+            <h2>Mô tả sản phẩm</h2>
+            <h3>{product.title}</h3>
+            <div className="store-detail-description">
+              {product.description || product.short_description || 'Chưa có mô tả cho sách này.'}
+            </div>
+          </article>
+
+          <article className="store-detail-card">
+            <ReviewSection productId={product.id} />
+          </article>
+        </section>
       </div>
 
       {relatedProducts && relatedProducts.length > 0 && (
-        <section className="mt-12">
-          <h2 className="text-xl font-bold mb-6">Sách liên quan</h2>
+        <section className="store-detail-related">
+          <h2>Sách liên quan</h2>
           <ProductGrid products={relatedProducts} />
         </section>
       )}

@@ -25,7 +25,7 @@ module.exports = (ctx) => {
       // ════════════════════════════ CHƯƠNG IV ════════════════════════════
       h('IV. KIẾN TRÚC HỆ THỐNG'),
       h2('4.1. Mô hình kiến trúc tổng thể'),
-      p(t('Hệ thống theo kiến trúc '), bold('SPA + REST API'), t(' (Single Page Application kết hợp với PHP REST API):')),
+      p(t('Hệ thống theo kiến trúc '), bold('SPA + REST API + AI service'), t(' (Single Page Application kết hợp PHP REST API cho nghiệp vụ chính và Python Django service cho phân tích/gợi ý):')),
       new Paragraph({
         children: [new TextRun({ text: '┌─────────────────────────┐      ┌─────────────────────────┐', font: 'Courier New', size: 20, color: '333333' })],
         spacing: { before: 60, after: 0 },
@@ -57,6 +57,7 @@ module.exports = (ctx) => {
           dataRow('Frontend (Storefront)', 'React 18, Vite, Tailwind CSS, TanStack Query v5', 'Giao diện khách hàng'),
           dataRow('Admin Panel', 'React 18, Vite, Tailwind CSS, Recharts, React Hook Form', 'Trang quản trị'),
           dataRow('Backend API', 'PHP 8+, PHP built-in server, PDO, JSON', 'REST API server'),
+          dataRow('AI / Analytics service', 'Python Django, Django REST-style JsonResponse', 'Gợi ý sách, FAQ, phân tích doanh thu và top sản phẩm bán chạy'),
           dataRow('Database', 'MySQL 8.0, utf8mb4', 'Lưu trữ dữ liệu'),
           dataRow('Authentication', 'JWT (Access + Refresh Token), Google OAuth 2.0', 'Xác thực người dùng'),
           dataRow('Routing', 'React Router v6 (SPA routing)', 'Điều hướng phía client'),
@@ -77,6 +78,10 @@ module.exports = (ctx) => {
       bullet('book-store-main/backend/      — PHP API'),
       bullet2('src/api/routes/ — orders.php, admin.php, auth.php, products.php…'),
       bullet2('src/middleware/ — AuthMiddleware, CorsMiddleware'),
+      bullet('book-store-main/book-store-python/ — Python Django AI/analytics service'),
+      bullet2('api/recommendation_engine.py — gợi ý sách cho người dùng'),
+      bullet2('api/analytics_engine.py — phân tích doanh thu và top sản phẩm bán chạy'),
+      bullet2('api/support_engine.py — dữ liệu FAQ động cho người dùng'),
       bullet('book-store-main/database/     — schema_mysql.sql'),
       pageBreak(),
 

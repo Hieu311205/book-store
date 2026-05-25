@@ -312,7 +312,10 @@ function creditWallet($userId, $amount, $description, $referenceType = null, $re
     if ($amount <= 0 || !tableExists('wallets') || !tableExists('wallet_transactions')) {
         return false;
     }
-    $pdo->beginTransaction();
+    $startedTransaction = !$pdo->inTransaction();
+    if ($startedTransaction) {
+        $pdo->beginTransaction();
+    }
     try {
         // SELECT FOR UPDATE — khoá hàng, chặn race condition khi nhiều request cùng lúc
         $wallet = queryOne("SELECT * FROM wallets WHERE user_id = ? FOR UPDATE", [$userId]);
@@ -337,10 +340,14 @@ function creditWallet($userId, $amount, $description, $referenceType = null, $re
                 $bankData['bank_account_name'] ?? null,
             ]
         );
-        $pdo->commit();
+        if ($startedTransaction) {
+            $pdo->commit();
+        }
         return true;
     } catch (\Throwable $e) {
-        $pdo->rollBack();
+        if ($startedTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         throw $e;
     }
 }
@@ -362,13 +369,17 @@ function debitWallet($userId, $amount, $description, $referenceType = null, $ref
     if ($amount <= 0 || !tableExists('wallets') || !tableExists('wallet_transactions')) {
         return false;
     }
-    $pdo->beginTransaction();
+    $startedTransaction = !$pdo->inTransaction();
+    if ($startedTransaction) {
+        $pdo->beginTransaction();
+    }
     try {
         // SELECT FOR UPDATE — khoá hàng, ngăn double-spending khi nhiều request cùng lúc
         $wallet = queryOne("SELECT * FROM wallets WHERE user_id = ? FOR UPDATE", [$userId]);
         if (!$wallet || (float)$wallet['balance'] < $amount) {
-            // Số dư không đủ → rollback ngay, trả false để caller thông báo lỗi
-            $pdo->rollBack();
+            if ($startedTransaction && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             return false;
         }
         executeSql(
@@ -388,10 +399,14 @@ function debitWallet($userId, $amount, $description, $referenceType = null, $ref
                 $bankData['bank_account_name'] ?? null,
             ]
         );
-        $pdo->commit();
+        if ($startedTransaction) {
+            $pdo->commit();
+        }
         return true;
     } catch (\Throwable $e) {
-        $pdo->rollBack();
+        if ($startedTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         throw $e;
     }
 }

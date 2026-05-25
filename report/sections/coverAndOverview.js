@@ -30,7 +30,7 @@ module.exports = (ctx) => {
       }),
       new Paragraph({
         alignment: AlignmentType.CENTER,
-        children: [new TextRun({ text: 'Công nghệ sử dụng: PHP · MySQL · React.js · Tailwind CSS', size: 22, font: 'Times New Roman', color: '444444' })],
+        children: [new TextRun({ text: 'Công nghệ sử dụng: PHP · MySQL · React.js · Tailwind CSS · Python Django AI service', size: 22, font: 'Times New Roman', color: '444444' })],
         spacing: { after: 800 },
       }),
       new Paragraph({
@@ -73,13 +73,14 @@ module.exports = (ctx) => {
       bullet('Xây dựng hệ thống bán sách trực tuyến hoàn chỉnh từ giao diện khách hàng đến trang quản trị.'),
       bullet('Áp dụng kiến trúc tách biệt Frontend – Backend (REST API) hiện đại.'),
       bullet('Thiết kế cơ sở dữ liệu quan hệ đầy đủ cho một hệ thống thương mại điện tử thực tế.'),
-      bullet('Triển khai các tính năng cốt lõi: quản lý sản phẩm, đặt hàng, thanh toán, ví điện tử, mã giảm giá, đánh giá sản phẩm.'),
+      bullet('Triển khai các tính năng cốt lõi: quản lý sản phẩm, đặt hàng, thanh toán, ví điện tử, mã giảm giá, đánh giá sản phẩm và gợi ý sách bằng AI service.'),
       bullet('Xây dựng trang quản trị cho admin theo dõi đơn hàng, giao hàng, đổi trả, ví điện tử, doanh thu và quản lý nội dung.'),
       h2('1.3. Phạm vi dự án'),
       p(t('Hệ thống bao gồm 3 thành phần độc lập:')),
       bullet('Frontend (Storefront): Giao diện dành cho khách hàng tại cổng 3000.'),
       bullet('Admin Panel: Trang quản trị dành cho nhân viên/admin tại cổng 3001.'),
-      bullet('Backend API: REST API PHP thuần tại cổng 5000, phục vụ cả hai giao diện trên.'),
+      bullet('Backend API: REST API PHP thuần tại cổng 5000, phục vụ nghiệp vụ chính cho cả hai giao diện trên.'),
+      bullet('Python AI service: Django API tại cổng 8000, phục vụ gợi ý sách, FAQ, thống kê doanh thu và top sản phẩm bán chạy.'),
       pageBreak(),
 
       // ════════════════════════════ CHƯƠNG II ════════════════════════════
@@ -94,7 +95,7 @@ module.exports = (ctx) => {
       bullet('Hệ thống đánh giá và review sản phẩm có xác thực mua hàng.'),
       bullet('Quản lý đơn hàng thời gian thực với tracking vận chuyển.'),
       bullet('Hệ thống voucher, flash sale, và TikiXu (điểm thưởng).'),
-      bullet('Hỗ trợ nhiều phương thức thanh toán: COD, thẻ, ví điện tử VNPay, Momo, ZaloPay.'),
+      bullet('Hỗ trợ nhiều phương thức thanh toán: COD, thẻ, ví điện tử và các cổng thanh toán như VNPay, Momo, ZaloPay.'),
       p(bold('Hạn chế: '), t('Giao diện phức tạp, nhiều quảng cáo, trải nghiệm mobile đôi khi chậm với kết nối yếu.')),
       h3('2.2.2. Fahasa Online (fahasa.com)'),
       p(bold('Mô tả: '), t('Fahasa là chuỗi nhà sách lớn nhất Việt Nam với hệ thống cửa hàng vật lý và website TMĐT tích hợp. Ưu điểm là danh mục sách phong phú, đặc biệt là sách giáo khoa, sách thiếu nhi và sách tiếng Việt.')),
@@ -140,7 +141,8 @@ module.exports = (ctx) => {
       bullet('Có nghiệp vụ giao hàng, mã vận đơn, khách xác nhận đã nhận hàng và theo dõi timeline vận chuyển.'),
       bullet('Có nghiệp vụ đổi trả/hoàn tiền sau khi đơn đã giao, liên kết với trạng thái xử lý ở admin.'),
       bullet('Có ví điện tử nội bộ, tài khoản ngân hàng liên kết, nạp/rút tiền và dùng ví để thanh toán.'),
-      bullet('Admin panel thống kê doanh thu, quản lý đơn hàng, đổi trả, ví điện tử và thông báo vận hành.'),
+      bullet('Admin panel thống kê doanh thu, tồn kho, quản lý đơn hàng, đổi trả, ví điện tử và thông báo vận hành.'),
+      bullet('Python AI service hỗ trợ gợi ý sách, FAQ động, phân tích doanh thu và thống kê top sản phẩm bán chạy.'),
       bullet('Hỗ trợ đăng nhập Google để giảm rào cản cho người dùng mới.'),
       pageBreak(),
     ]
