@@ -176,26 +176,79 @@ function addWalletTransaction($userId, $amount, $type, $description, $referenceT
 }
 
 function creditWallet($userId, $amount, $description, $referenceType = null, $referenceId = null, $bankData = []) {
+    global $pdo;
     if ($amount <= 0 || !tableExists('wallets') || !tableExists('wallet_transactions')) {
         return false;
     }
-    $wallet = getOrCreateWallet($userId);
-    executeSql("UPDATE wallets SET balance = balance + ?, updated_at = NOW() WHERE id = ?", [$amount, $wallet['id']]);
-    addWalletTransaction($userId, $amount, 'credit', $description, $referenceType, $referenceId, 'completed', $bankData);
-    return true;
+    $pdo->beginTransaction();
+    try {
+        // SELECT FOR UPDATE — khoá hàng, chặn race condition khi nhiều request cùng lúc
+        $wallet = queryOne("SELECT * FROM wallets WHERE user_id = ? FOR UPDATE", [$userId]);
+        if (!$wallet) {
+            executeSql("INSERT INTO wallets (user_id, balance) VALUES (?, 0)", [$userId]);
+            $wallet = queryOne("SELECT * FROM wallets WHERE user_id = ?", [$userId]);
+        }
+        executeSql(
+            "UPDATE wallets SET balance = balance + ?, updated_at = NOW() WHERE id = ?",
+            [$amount, $wallet['id']]
+        );
+        executeSql(
+            "INSERT INTO wallet_transactions
+             (wallet_id, user_id, type, amount, status, description,
+              reference_type, reference_id, bank_name, bank_account_number, bank_account_name)
+             VALUES (?, ?, 'credit', ?, 'completed', ?, ?, ?, ?, ?, ?)",
+            [
+                $wallet['id'], $userId, $amount, $description,
+                $referenceType, $referenceId,
+                $bankData['bank_name'] ?? null,
+                $bankData['bank_account_number'] ?? null,
+                $bankData['bank_account_name'] ?? null,
+            ]
+        );
+        $pdo->commit();
+        return true;
+    } catch (\Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
 }
 
 function debitWallet($userId, $amount, $description, $referenceType = null, $referenceId = null, $status = 'completed', $bankData = []) {
+    global $pdo;
     if ($amount <= 0 || !tableExists('wallets') || !tableExists('wallet_transactions')) {
         return false;
     }
-    $wallet = getOrCreateWallet($userId);
-    if ((float)$wallet['balance'] < $amount) {
-        return false;
+    $pdo->beginTransaction();
+    try {
+        // SELECT FOR UPDATE — khoá hàng, ngăn double-spending khi nhiều request cùng lúc
+        $wallet = queryOne("SELECT * FROM wallets WHERE user_id = ? FOR UPDATE", [$userId]);
+        if (!$wallet || (float)$wallet['balance'] < $amount) {
+            $pdo->rollBack();
+            return false;
+        }
+        executeSql(
+            "UPDATE wallets SET balance = balance - ?, updated_at = NOW() WHERE id = ?",
+            [$amount, $wallet['id']]
+        );
+        executeSql(
+            "INSERT INTO wallet_transactions
+             (wallet_id, user_id, type, amount, status, description,
+              reference_type, reference_id, bank_name, bank_account_number, bank_account_name)
+             VALUES (?, ?, 'debit', ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                $wallet['id'], $userId, $amount, $status, $description,
+                $referenceType, $referenceId,
+                $bankData['bank_name'] ?? null,
+                $bankData['bank_account_number'] ?? null,
+                $bankData['bank_account_name'] ?? null,
+            ]
+        );
+        $pdo->commit();
+        return true;
+    } catch (\Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
     }
-    executeSql("UPDATE wallets SET balance = balance - ?, updated_at = NOW() WHERE id = ?", [$amount, $wallet['id']]);
-    addWalletTransaction($userId, $amount, 'debit', $description, $referenceType, $referenceId, $status, $bankData);
-    return true;
 }
 
 function getDefaultBankAccount($userId) {

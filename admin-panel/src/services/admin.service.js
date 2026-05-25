@@ -11,6 +11,7 @@ export const adminService = {
   getSalesReport: (period) => api.get('/admin/dashboard/sales', { params: { period } }),
   getRecentOrders: () => api.get('/admin/dashboard/recent-orders'),
   getNotifications: () => api.get('/admin/dashboard/notifications'),
+  getInventoryReport: () => api.get('/admin/dashboard/inventory'),
   getContactMessages: () => api.get('/admin/contact-messages'),
   markContactMessageRead: (id) => api.put(`/admin/contact-messages/${id}/read`),
   deleteContactMessage: (id) => api.delete(`/admin/contact-messages/${id}`),

@@ -73,6 +73,8 @@ const Wallets = () => {
     queryKey: ['admin-wallets', queryParams],
     queryFn: () => adminService.getWalletTransactions(queryParams),
     select: (res) => res.data,
+    refetchInterval: 3000,
+    refetchIntervalInBackground: false,
   })
 
   const transactions = data?.transactions || []
@@ -98,39 +100,49 @@ const Wallets = () => {
     setPage(1)
   }
 
-  const handleWithdraw = (transaction, nextStatus) => {
-    const message = nextStatus === 'completed'
-      ? 'Xác nhận đã chuyển tiền cho yêu cầu rút này?'
-      : 'Từ chối yêu cầu rút và hoàn lại tiền vào ví?'
+  const handleTransaction = (transaction, nextStatus) => {
+    const isDeposit = transaction.reference_type === 'wallet_deposit'
+    let message
+    let adminNote
+    if (isDeposit) {
+      message = nextStatus === 'completed'
+        ? 'Xác nhận duyệt nạp tiền vào ví người dùng?'
+        : 'Từ chối yêu cầu nạp tiền này?'
+      adminNote = nextStatus === 'completed' ? 'Admin đã duyệt nạp tiền vào ví' : 'Admin từ chối yêu cầu nạp tiền'
+    } else {
+      message = nextStatus === 'completed'
+        ? 'Xác nhận đã chuyển tiền cho yêu cầu rút này?'
+        : 'Từ chối yêu cầu rút và hoàn lại tiền vào ví?'
+      adminNote = nextStatus === 'completed' ? 'Đã chuyển tiền về ngân hàng' : 'Admin từ chối yêu cầu rút tiền'
+    }
     if (!window.confirm(message)) return
-
-    updateMutation.mutate({
-      id: transaction.id,
-      status: nextStatus,
-      admin_note: nextStatus === 'completed' ? 'Đã chuyển tiền về ngân hàng' : 'Admin từ chối yêu cầu rút tiền',
-    })
+    updateMutation.mutate({ id: transaction.id, status: nextStatus, admin_note: adminNote })
   }
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Quản lý ví điện tử</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="card p-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="card p-4 lg:col-span-2">
           <p className="text-sm text-gray-500">Tổng số dư ví</p>
           <p className="text-2xl font-bold text-primary-600 mt-1">{formatPrice(stats.totalBalance)} đ</p>
         </div>
         <div className="card p-4">
-          <p className="text-sm text-gray-500">Yêu cầu rút chờ xử lý</p>
+          <p className="text-sm text-gray-500">Nạp tiền chờ duyệt</p>
+          <p className="text-2xl font-bold text-blue-500 mt-1">{stats.pendingDeposits || 0}</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-sm text-gray-500">Tiền nạp đang chờ</p>
+          <p className="text-2xl font-bold text-blue-400 mt-1">{formatPrice(stats.pendingDepositAmount)} đ</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-sm text-gray-500">Rút tiền chờ duyệt</p>
           <p className="text-2xl font-bold text-yellow-500 mt-1">{stats.pendingWithdrawals || 0}</p>
         </div>
         <div className="card p-4">
           <p className="text-sm text-gray-500">Tiền rút đang chờ</p>
           <p className="text-2xl font-bold text-red-500 mt-1">{formatPrice(stats.pendingWithdrawAmount)} đ</p>
-        </div>
-        <div className="card p-4">
-          <p className="text-sm text-gray-500">Ngân hàng đã liên kết</p>
-          <p className="text-2xl font-bold mt-1">{stats.linkedBanks || 0}</p>
         </div>
       </div>
 
@@ -222,6 +234,7 @@ const Wallets = () => {
                 const statusInfo = statusLabels[item.status] || { label: item.status, cls: 'badge' }
                 const typeInfo = typeLabels[item.type] || { label: item.type, cls: 'text-gray-500' }
                 const isPendingWithdraw = item.type === 'debit' && item.status === 'pending' && item.reference_type === 'wallet_withdraw'
+                const isPendingDeposit = item.type === 'credit' && item.status === 'pending' && item.reference_type === 'wallet_deposit'
 
                 return (
                   <tr key={item.id}>
@@ -255,19 +268,19 @@ const Wallets = () => {
                     </td>
                     <td>{new Date(item.created_at).toLocaleDateString('vi-VN')}</td>
                     <td>
-                      {isPendingWithdraw ? (
+                      {(isPendingWithdraw || isPendingDeposit) ? (
                         <div className="flex items-center gap-2">
                           <button
                             className="btn btn-sm btn-primary gap-1"
                             disabled={updateMutation.isPending}
-                            onClick={() => handleWithdraw(item, 'completed')}
+                            onClick={() => handleTransaction(item, 'completed')}
                           >
                             <FiCheck size={14} /> Duyệt
                           </button>
                           <button
                             className="btn btn-sm btn-outline text-red-500 gap-1"
                             disabled={updateMutation.isPending}
-                            onClick={() => handleWithdraw(item, 'rejected')}
+                            onClick={() => handleTransaction(item, 'rejected')}
                           >
                             <FiXCircle size={14} /> Từ chối
                           </button>

@@ -102,7 +102,10 @@ function handleAdminDashboard($method, $pathParts) {
             ? (int)(queryOne("SELECT COUNT(*) AS count FROM return_requests WHERE status = 'approved'")['count'] ?? 0)
             : 0;
         $pendingWithdrawals = tableExists('wallet_transactions')
-            ? (int)(queryOne("SELECT COUNT(*) AS count FROM wallet_transactions WHERE type = 'debit' AND status = 'pending' AND reference_type = 'wallet_withdraw'")['count'] ?? 0)
+            ? (int)(queryOne("SELECT COUNT(*) AS count FROM wallet_transactions WHERE type = 'debit'  AND status = 'pending' AND reference_type = 'wallet_withdraw'")['count'] ?? 0)
+            : 0;
+        $pendingDeposits = tableExists('wallet_transactions')
+            ? (int)(queryOne("SELECT COUNT(*) AS count FROM wallet_transactions WHERE type = 'credit' AND status = 'pending' AND reference_type = 'wallet_deposit'")['count'] ?? 0)
             : 0;
 
         $items = [];
@@ -151,6 +154,15 @@ function handleAdminDashboard($method, $pathParts) {
                 'to' => '/wallets',
             ];
         }
+        if ($pendingDeposits > 0) {
+            $items[] = [
+                'id' => 'pending-wallet-deposits',
+                'type' => 'wallets',
+                'title' => 'Yêu cầu nạp tiền',
+                'message' => "{$pendingDeposits} yêu cầu nạp tiền đang chờ duyệt",
+                'to' => '/wallets',
+            ];
+        }
         if ($lowStockProducts > 0) {
             $items[] = [
                 'id' => 'low-stock',
@@ -171,8 +183,92 @@ function handleAdminDashboard($method, $pathParts) {
         }
 
         jsonResponse(['success' => true, 'data' => [
-            'count' => $pendingOrders + $shippedOrders + $pendingReturns + $approvedReturns + $pendingWithdrawals + $lowStockProducts + $unreadMessages,
+            'count' => $pendingOrders + $shippedOrders + $pendingReturns + $approvedReturns + $pendingWithdrawals + $pendingDeposits + $lowStockProducts + $unreadMessages,
             'items' => $items,
+        ]]);
+    }
+
+    if ($action === 'inventory') {
+        // Tồn kho theo danh mục
+        $byCategory = queryAll(
+            "SELECT c.name AS name,
+                    SUM(p.stock) AS total_stock,
+                    SUM(p.stock * p.price) AS total_value
+             FROM products p
+             JOIN categories c ON p.category_id = c.id
+             WHERE p.is_active = 1
+             GROUP BY c.id, c.name
+             ORDER BY total_stock DESC"
+        );
+
+        // Tồn kho theo tác giả (top 8)
+        $byAuthor = queryAll(
+            "SELECT a.name AS name,
+                    SUM(p.stock) AS total_stock
+             FROM products p
+             JOIN authors a ON p.author_id = a.id
+             WHERE p.is_active = 1
+             GROUP BY a.id, a.name
+             ORDER BY total_stock DESC
+             LIMIT 8"
+        );
+
+        // Top sản phẩm tồn kho nhiều nhất
+        $topProducts = queryAll(
+            "SELECT p.id, p.title, p.stock, p.price,
+                    (p.stock * p.price) AS inventory_value
+             FROM products p
+             WHERE p.is_active = 1
+             ORDER BY p.stock DESC
+             LIMIT 12"
+        );
+
+        // Tổng doanh thu và lợi nhuận (doanh thu sau khi trừ chi phí vận chuyển)
+        $revenue = queryOne(
+            "SELECT
+                SUM(total_amount)                              AS total_revenue,
+                SUM(total_amount - IFNULL(shipping_cost, 0))  AS net_profit
+             FROM orders
+             WHERE payment_status = 'paid'"
+        );
+
+        // Tăng trưởng doanh thu so với tháng trước
+        $thisMonth = (float)(queryOne(
+            "SELECT SUM(total_amount) AS total FROM orders
+             WHERE payment_status = 'paid'
+               AND YEAR(created_at)  = YEAR(CURDATE())
+               AND MONTH(created_at) = MONTH(CURDATE())"
+        )['total'] ?? 0);
+        $lastMonth = (float)(queryOne(
+            "SELECT SUM(total_amount) AS total FROM orders
+             WHERE payment_status = 'paid'
+               AND YEAR(created_at)  = YEAR(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))
+               AND MONTH(created_at) = MONTH(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))"
+        )['total'] ?? 0);
+        $revenueGrowth = $lastMonth > 0
+            ? round((($thisMonth - $lastMonth) / $lastMonth) * 100, 2)
+            : 0;
+
+        jsonResponse(['success' => true, 'data' => [
+            'byCategory'    => array_map(fn($r) => [
+                'name'       => $r['name'],
+                'value'      => (int)$r['total_stock'],
+                'totalValue' => (float)$r['total_value'],
+            ], $byCategory),
+            'byAuthor'      => array_map(fn($r) => [
+                'name'  => $r['name'],
+                'value' => (int)$r['total_stock'],
+            ], $byAuthor),
+            'topProducts'   => array_map(fn($r) => [
+                'id'              => (int)$r['id'],
+                'title'           => $r['title'],
+                'stock'           => (int)$r['stock'],
+                'price'           => (float)$r['price'],
+                'inventory_value' => (float)$r['inventory_value'],
+            ], $topProducts),
+            'totalRevenue'  => (float)($revenue['total_revenue'] ?? 0),
+            'netProfit'     => (float)($revenue['net_profit']    ?? 0),
+            'revenueGrowth' => $revenueGrowth,
         ]]);
     }
 
@@ -878,8 +974,10 @@ function handleAdminWallets($method, $pathParts, $currentUser) {
 
         $stats = [
             'totalBalance' => (float)(queryOne("SELECT SUM(balance) AS total FROM wallets")['total'] ?? 0),
-            'pendingWithdrawals' => (int)(queryOne("SELECT COUNT(*) AS count FROM wallet_transactions WHERE type = 'debit' AND status = 'pending' AND reference_type = 'wallet_withdraw'")['count'] ?? 0),
-            'pendingWithdrawAmount' => (float)(queryOne("SELECT SUM(amount) AS total FROM wallet_transactions WHERE type = 'debit' AND status = 'pending' AND reference_type = 'wallet_withdraw'")['total'] ?? 0),
+            'pendingWithdrawals' => (int)(queryOne("SELECT COUNT(*) AS count FROM wallet_transactions WHERE type = 'debit'  AND status = 'pending' AND reference_type = 'wallet_withdraw'")['count'] ?? 0),
+            'pendingWithdrawAmount' => (float)(queryOne("SELECT SUM(amount) AS total FROM wallet_transactions WHERE type = 'debit'  AND status = 'pending' AND reference_type = 'wallet_withdraw'")['total'] ?? 0),
+            'pendingDeposits' => (int)(queryOne("SELECT COUNT(*) AS count FROM wallet_transactions WHERE type = 'credit' AND status = 'pending' AND reference_type = 'wallet_deposit'")['count'] ?? 0),
+            'pendingDepositAmount' => (float)(queryOne("SELECT SUM(amount) AS total FROM wallet_transactions WHERE type = 'credit' AND status = 'pending' AND reference_type = 'wallet_deposit'")['total'] ?? 0),
             'linkedBanks' => tableExists('user_bank_accounts')
                 ? (int)(queryOne("SELECT COUNT(*) AS count FROM user_bank_accounts WHERE is_active = 1")['count'] ?? 0)
                 : 0,
@@ -898,7 +996,8 @@ function handleAdminWallets($method, $pathParts, $currentUser) {
     }
 
     if ($method === 'PUT' && $resource === 'transactions' && $id) {
-        $input = requestJson();
+        global $pdo;
+        $input     = requestJson();
         $newStatus = $input['status'] ?? '';
         if (!in_array($newStatus, ['completed', 'rejected'], true)) {
             jsonResponse(['success' => false, 'message' => 'Trang thai giao dich khong hop le'], 400);
@@ -911,33 +1010,83 @@ function handleAdminWallets($method, $pathParts, $currentUser) {
         if (($transaction['status'] ?? '') !== 'pending') {
             jsonResponse(['success' => false, 'message' => 'Chi xu ly duoc giao dich dang cho'], 400);
         }
-        if (($transaction['type'] ?? '') !== 'debit' || ($transaction['reference_type'] ?? '') !== 'wallet_withdraw') {
-            jsonResponse(['success' => false, 'message' => 'Chi xu ly duoc yeu cau rut tien'], 400);
+
+        $type    = $transaction['type']           ?? '';
+        $refType = $transaction['reference_type'] ?? '';
+
+        $isDeposit  = ($type === 'credit' && $refType === 'wallet_deposit');
+        $isWithdraw = ($type === 'debit'  && $refType === 'wallet_withdraw');
+
+        if (!$isDeposit && !$isWithdraw) {
+            jsonResponse(['success' => false, 'message' => 'Loai giao dich nay khong the duyet thu cong'], 400);
         }
 
-        updateRow('wallet_transactions', $id, [
-            'status' => $newStatus,
-            'description' => $newStatus === 'completed'
-                ? trim((string)($input['admin_note'] ?? 'Yeu cau rut tien da duoc xu ly'))
-                : trim((string)($input['admin_note'] ?? 'Yeu cau rut tien bi tu choi')),
-        ]);
+        $defaultNotes = [
+            'deposit_completed'  => 'Yêu cầu nạp tiền đã được duyệt',
+            'deposit_rejected'   => 'Yêu cầu nạp tiền bị từ chối',
+            'withdraw_completed' => 'Yêu cầu rút tiền đã được xử lý',
+            'withdraw_rejected'  => 'Yêu cầu rút tiền bị từ chối',
+        ];
+        $noteKey   = ($isDeposit ? 'deposit' : 'withdraw') . '_' . $newStatus;
+        $adminNote = trim((string)($input['admin_note'] ?? $defaultNotes[$noteKey]));
+        $amount    = (float)$transaction['amount'];
+        $userId    = (int)$transaction['user_id'];
+        $bankData  = [
+            'bank_name'           => $transaction['bank_name'],
+            'bank_account_number' => $transaction['bank_account_number'],
+            'bank_account_name'   => $transaction['bank_account_name'],
+        ];
 
-        if ($newStatus === 'rejected') {
-            creditWallet(
-                $transaction['user_id'],
-                (float)$transaction['amount'],
-                'Hoan lai tien rut bi tu choi',
-                'wallet_withdraw_rejected',
-                $id,
-                [
-                    'bank_name' => $transaction['bank_name'],
-                    'bank_account_number' => $transaction['bank_account_number'],
-                    'bank_account_name' => $transaction['bank_account_name'],
-                ]
+        // Toàn bộ thao tác trong một DB transaction — đảm bảo tính nguyên tử
+        $pdo->beginTransaction();
+        try {
+            executeSql(
+                "UPDATE wallet_transactions SET status = ?, description = ? WHERE id = ?",
+                [$newStatus, $adminNote, $id]
             );
+
+            if ($isDeposit && $newStatus === 'completed') {
+                // Duyệt nạp tiền → khoá hàng và cộng số dư
+                $wallet = queryOne("SELECT * FROM wallets WHERE user_id = ? FOR UPDATE", [$userId]);
+                if (!$wallet) {
+                    executeSql("INSERT INTO wallets (user_id, balance) VALUES (?, 0)", [$userId]);
+                    $wallet = queryOne("SELECT * FROM wallets WHERE user_id = ?", [$userId]);
+                }
+                executeSql(
+                    "UPDATE wallets SET balance = balance + ?, updated_at = NOW() WHERE id = ?",
+                    [$amount, $wallet['id']]
+                );
+            } elseif ($isWithdraw && $newStatus === 'rejected') {
+                // Từ chối rút tiền → khoá hàng và hoàn số dư + ghi log
+                $wallet = queryOne("SELECT * FROM wallets WHERE user_id = ? FOR UPDATE", [$userId]);
+                executeSql(
+                    "UPDATE wallets SET balance = balance + ?, updated_at = NOW() WHERE id = ?",
+                    [$amount, $wallet['id']]
+                );
+                executeSql(
+                    "INSERT INTO wallet_transactions
+                     (wallet_id, user_id, type, amount, status, description,
+                      reference_type, reference_id, bank_name, bank_account_number, bank_account_name)
+                     VALUES (?, ?, 'credit', ?, 'completed', ?, 'wallet_withdraw_rejected', ?, ?, ?, ?)",
+                    [
+                        $wallet['id'], $userId, $amount,
+                        'Hoàn lại tiền rút bị từ chối', $id,
+                        $bankData['bank_name'],
+                        $bankData['bank_account_number'],
+                        $bankData['bank_account_name'],
+                    ]
+                );
+            }
+            // Duyệt rút tiền (completed): không làm gì — tiền đã bị trừ lúc user yêu cầu
+            // Từ chối nạp tiền (rejected): không làm gì — tiền chưa được cộng
+
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
         }
 
-        jsonResponse(['success' => true, 'message' => 'Da cap nhat giao dich vi']);
+        jsonResponse(['success' => true, 'message' => 'Đã cập nhật giao dịch ví']);
     }
 
     jsonResponse(['success' => false, 'message' => 'Khong tim thay thao tac'], 404);
