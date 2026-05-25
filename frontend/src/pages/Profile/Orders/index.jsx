@@ -6,12 +6,14 @@ import Pagination from '../../../components/common/Pagination'
 import { orderService } from '../../../services/order.service'
 import OrderCard from './components/OrderCard'
 import OrderDetailModal from './components/OrderDetailModal'
+import ReviewOrderModal from '../../../components/review/ReviewOrderModal'
 import { getDaysSince } from './utils/orderStatus'
 
 const ProfileOrders = () => {
   const queryClient = useQueryClient()
   const [selectedOrderId, setSelectedOrderId] = useState(null)
   const [returnOrder, setReturnOrder] = useState(null)
+  const [reviewOrderId, setReviewOrderId] = useState(null)
   const [returnType, setReturnType] = useState('return')
   const [returnReason, setReturnReason] = useState('')
   const [returnNote, setReturnNote] = useState('')
@@ -154,6 +156,7 @@ const ProfileOrders = () => {
               onCancel={(id) => cancelMutation.mutate(id)}
               cancelPending={cancelMutation.isPending}
               onReturn={setReturnOrder}
+              onReview={setReviewOrderId}
             />
           ))}
           {data?.pagination && (
@@ -172,6 +175,7 @@ const ProfileOrders = () => {
       )}
 
       {selectedOrderId && <OrderDetailModal orderId={selectedOrderId} onClose={() => setSelectedOrderId(null)} />}
+      {reviewOrderId && <ReviewOrderModal orderId={reviewOrderId} onClose={() => setReviewOrderId(null)} />}
 
       {returnOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

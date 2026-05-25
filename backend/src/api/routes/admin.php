@@ -28,6 +28,9 @@ function handleAdmin($method, $pathParts) {
     } elseif ($section === 'settings') {
         requireSuperAdmin($user);
         handleSettings($method, $pathParts);
+    } elseif ($section === 'reviews') {
+        require_once __DIR__ . '/reviews.php';
+        handleAdminReviews($method, $pathParts);
     } elseif ($section === 'contact-messages') {
         requireSuperAdmin($user);
         handleContactMessages($method, $pathParts);
@@ -213,14 +216,16 @@ function handleAdminDashboard($method, $pathParts) {
              LIMIT 8"
         );
 
-        // Top sản phẩm tồn kho nhiều nhất
+        // Top sản phẩm tồn kho nhiều nhất (kèm category_name để filter phía client)
         $topProducts = queryAll(
             "SELECT p.id, p.title, p.stock, p.price,
-                    (p.stock * p.price) AS inventory_value
+                    (p.stock * p.price) AS inventory_value,
+                    c.name AS category_name
              FROM products p
+             LEFT JOIN categories c ON p.category_id = c.id
              WHERE p.is_active = 1
              ORDER BY p.stock DESC
-             LIMIT 12"
+             LIMIT 50"
         );
 
         // Tổng doanh thu và lợi nhuận (doanh thu sau khi trừ chi phí vận chuyển)

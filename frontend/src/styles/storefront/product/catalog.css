@@ -303,3 +303,43 @@
 .dark .store-pagination-ellipsis {
   color: #f7efe3;
 }
+
+/* ── Active filter chips ─────────────────────────────────────────────────── */
+.store-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--store-red);
+  background: var(--store-red-soft);
+  color: var(--store-red);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 150ms ease, transform 150ms ease;
+  white-space: nowrap;
+}
+
+.store-filter-chip:hover {
+  background: rgba(159, 31, 31, 0.14);
+  transform: translateY(-1px);
+}
+
+.store-filter-chip-clear {
+  border-color: var(--store-muted);
+  background: transparent;
+  color: var(--store-muted);
+}
+
+.store-filter-chip-clear:hover {
+  background: rgba(116, 106, 93, 0.1);
+}
+
+.dark .store-filter-chip {
+  background: rgba(159, 31, 31, 0.18);
+}
+
+.dark .store-filter-chip-clear {
+  background: transparent;
+}

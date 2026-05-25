@@ -10,8 +10,9 @@ import { useAuth } from '../../context/AuthContext'
 import { userService } from '../../services/user.service'
 import { formatNumber, formatPrice } from '../../utils/formatPrice'
 import { saveBuyNowItem } from '../../utils/buyNowStorage'
-import { PageLoading } from '../../components/common/Loading'
+import { ProductDetailSkeleton } from '../../components/common/Loading'
 import ProductGrid from '../../components/product/ProductGrid'
+import ReviewSection from '../../components/review/ReviewSection'
 
 const ProductDetail = () => {
   const { slug } = useParams()
@@ -21,6 +22,7 @@ const ProductDetail = () => {
   const queryClient = useQueryClient()
   const [quantity, setQuantity] = useState(1)
   const [activeTab, setActiveTab] = useState('description')
+  const [activeImg, setActiveImg] = useState(null) // null = dùng ảnh chính mặc định
 
   const { data: product, isLoading } = useQuery({
     queryKey: ['product', slug],
@@ -45,22 +47,27 @@ const ProductDetail = () => {
     onError: (error) => toast.error(error.message || 'Không thể thêm vào yêu thích'),
   })
 
-  if (isLoading) return <PageLoading />
+  if (isLoading) return <ProductDetailSkeleton />
 
   if (!product) {
     return (
-      <div className="text-center py-12">
-        <h1 className="text-2xl font-bold mb-4">Không tìm thấy sách</h1>
-        <Link to="/products" className="text-primary-600 hover:underline">
-          Quay lại danh sách sách
-        </Link>
+      <div className="store-empty-state store-not-found py-16">
+        <div>
+          <h1>404</h1>
+          <p className="text-lg mb-4">Không tìm thấy sách này</p>
+          <Link to="/products" className="btn btn-primary">
+            Xem tất cả sách
+          </Link>
+        </div>
       </div>
     )
   }
 
-  const mainImage = product.images?.find((img) => img.is_primary)?.image_url ||
+  const defaultImage = product.images?.find((img) => img.is_primary)?.image_url ||
     product.images?.[0]?.image_url ||
     '/images/placeholder-book.jpg'
+
+  const displayImage = activeImg || defaultImage
 
   const handleAddToCart = () => {
     addToCart(product.id, quantity)
@@ -115,16 +122,27 @@ const ProductDetail = () => {
       </nav>
 
       <div className="store-detail-layout">
+        {/* Gallery với thumbnail clickable */}
         <div className="store-detail-gallery">
-          <div className="store-detail-main-image">
-            <img src={mainImage} alt={product.title} />
+          <div className="store-detail-main-image store-detail-zoom-wrap">
+            <img
+              src={displayImage}
+              alt={product.title}
+              key={displayImage}
+              className="store-detail-zoom-img"
+            />
           </div>
           {product.images?.length > 1 && (
             <div className="store-detail-thumbs">
               {product.images.map((img, index) => (
-                <div key={index} className="store-detail-thumb">
+                <button
+                  key={index}
+                  className={`store-detail-thumb${(activeImg || defaultImage) === img.image_url ? ' is-active' : ''}`}
+                  onClick={() => setActiveImg(img.image_url)}
+                  aria-label={`Ảnh ${index + 1}`}
+                >
                   <img src={img.image_url} alt="" />
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -137,7 +155,7 @@ const ProductDetail = () => {
           <div className="store-detail-rating-row">
             <div className="store-detail-stars">
               {[1, 2, 3, 4, 5].map((star) => (
-                <FaStar key={star} className={star <= product.rating_avg ? 'is-filled' : ''} />
+                <FaStar key={star} className={star <= Math.round(product.rating_avg) ? 'is-filled' : ''} />
               ))}
             </div>
             <span>
@@ -176,7 +194,10 @@ const ProductDetail = () => {
                 <FiMinus />
               </button>
               <span>{quantity}</span>
-              <button onClick={() => setQuantity(Math.min(product.stock, quantity + 1))} disabled={quantity >= product.stock}>
+              <button
+                onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
+                disabled={quantity >= product.stock}
+              >
                 <FiPlus />
               </button>
             </div>
@@ -196,7 +217,11 @@ const ProductDetail = () => {
                 Mua ngay
               </button>
             )}
-            <button onClick={handleWishlist} disabled={wishlistMutation.isPending} className="store-detail-secondary-button">
+            <button
+              onClick={handleWishlist}
+              disabled={wishlistMutation.isPending}
+              className="store-detail-secondary-button"
+            >
               <FiHeart />
               Yêu thích
             </button>
@@ -206,17 +231,20 @@ const ProductDetail = () => {
             </button>
           </div>
 
-          {product.short_description && <p className="store-detail-description">{product.short_description}</p>}
+          {product.short_description && (
+            <p className="store-detail-description">{product.short_description}</p>
+          )}
         </div>
       </div>
 
+      {/* Tabs */}
       <div className="bg-white dark:bg-gray-800 rounded-xl">
         <div className="border-b dark:border-gray-700">
           <nav className="flex gap-8 px-6">
             {[
               { id: 'description', label: 'Mô tả' },
               { id: 'specs', label: 'Thông tin chi tiết' },
-              { id: 'reviews', label: 'Đánh giá' },
+              { id: 'reviews', label: `Đánh giá${product.rating_count > 0 ? ` (${formatNumber(product.rating_count)})` : ''}` },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -243,54 +271,26 @@ const ProductDetail = () => {
           {activeTab === 'specs' && (
             <table className="w-full max-w-2xl">
               <tbody className="divide-y dark:divide-gray-700">
-                {product.isbn && (
-                  <tr>
-                    <td className="py-3 text-gray-500 w-40">ISBN</td>
-                    <td className="py-3">{product.isbn}</td>
+                {[
+                  product.isbn && ['ISBN', product.isbn],
+                  product.pages && ['Số trang', formatNumber(product.pages)],
+                  product.publish_year && ['Năm xuất bản', product.publish_year],
+                  product.translator && ['Dịch giả', product.translator],
+                  product.language && ['Ngôn ngữ', product.language],
+                  product.format && ['Định dạng',
+                    product.format === 'hardcover' ? 'Bìa cứng' :
+                    product.format === 'paperback' ? 'Bìa mềm' : 'Sách điện tử'],
+                ].filter(Boolean).map(([label, value]) => (
+                  <tr key={label}>
+                    <td className="py-3 text-gray-500 w-40">{label}</td>
+                    <td className="py-3">{value}</td>
                   </tr>
-                )}
-                {product.pages && (
-                  <tr>
-                    <td className="py-3 text-gray-500">Số trang</td>
-                    <td className="py-3">{formatNumber(product.pages)}</td>
-                  </tr>
-                )}
-                {product.publish_year && (
-                  <tr>
-                    <td className="py-3 text-gray-500">Năm xuất bản</td>
-                    <td className="py-3">{product.publish_year}</td>
-                  </tr>
-                )}
-                {product.translator && (
-                  <tr>
-                    <td className="py-3 text-gray-500">Dịch giả</td>
-                    <td className="py-3">{product.translator}</td>
-                  </tr>
-                )}
-                {product.language && (
-                  <tr>
-                    <td className="py-3 text-gray-500">Ngôn ngữ</td>
-                    <td className="py-3">{product.language}</td>
-                  </tr>
-                )}
-                {product.format && (
-                  <tr>
-                    <td className="py-3 text-gray-500">Định dạng</td>
-                    <td className="py-3">
-                      {product.format === 'hardcover' ? 'Bìa cứng' :
-                        product.format === 'paperback' ? 'Bìa mềm' : 'Sách điện tử'}
-                    </td>
-                  </tr>
-                )}
+                ))}
               </tbody>
             </table>
           )}
 
-          {activeTab === 'reviews' && (
-            <div className="text-center py-8 text-gray-500">
-              Chưa có đánh giá.
-            </div>
-          )}
+          {activeTab === 'reviews' && <ReviewSection productId={product.id} />}
         </div>
       </div>
 

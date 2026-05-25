@@ -1,5 +1,36 @@
 <?php
+/**
+ * ROUTER XÁC THỰC — src/api/routes/auth.php
+ *
+ * Vị trí trong kiến trúc:
+ *   index.php  →  handleAuth()  →  auth.controller.php  (logic xử lý thực sự)
+ *
+ * Luồng dữ liệu:
+ *   HTTP Request /api/v1/auth/<action>
+ *     → index.php dispatch vào handleAuth($method, $pathParts)
+ *       → handleAuth() đọc $pathParts[1] làm $action
+ *         → require auth.controller.php (chỉ load 1 lần nhờ require_once)
+ *           → gọi hàm controller tương ứng (register, login, googleLogin, ...)
+ *
+ * Ánh xạ endpoint → hàm controller:
+ *   POST /auth/register         → register()
+ *   POST /auth/login            → login()
+ *   POST /auth/google           → googleLogin()
+ *   POST /auth/logout           → logout()
+ *   POST /auth/forgot-password  → forgotPassword()
+ *   POST /auth/reset-password   → resetPassword()
+ *   GET  /auth/me               → getMe()
+ *   PUT  /auth/me               → updateMe()
+ *   PUT  /auth/password         → changePassword()
+ */
+
 // src/api/routes/auth.php
+/**
+ * Entry point cho tất cả request tới /api/v1/auth/*.
+ * Input:  $method (string) — HTTP method; $pathParts (array) — phân đoạn URL.
+ * Output: gọi hàm controller phù hợp → jsonResponse (exit trong controller).
+ * Gọi từ: index.php khi $endpoint === 'auth'.
+ */
 function handleAuth($method, $pathParts) {
     $action = $pathParts[1] ?? '';
     switch ($method) {

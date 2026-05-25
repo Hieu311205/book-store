@@ -69,6 +69,7 @@
   padding: 2rem;
 }
 
+/* Ảnh chính — được điều khiển bởi .store-detail-zoom-img (xem bên dưới) */
 .store-detail-main-image img {
   max-width: 78%;
   max-height: 32rem;
@@ -234,6 +235,39 @@
   margin-top: 1.4rem;
   color: var(--store-red);
   font-weight: 900;
+}
+
+/* ── Image zoom on hover ─────────────────────────────────────────────────── */
+.store-detail-zoom-wrap {
+  overflow: hidden;
+  cursor: zoom-in;
+}
+
+.store-detail-zoom-img {
+  max-width: 78%;
+  max-height: 32rem;
+  object-fit: contain;
+  box-shadow: 14px 20px 38px rgba(60, 33, 24, 0.24);
+  transition: transform 350ms ease;
+}
+
+.store-detail-zoom-wrap:hover .store-detail-zoom-img {
+  transform: scale(1.06);
+}
+
+/* ── Thumbnail clickable state ───────────────────────────────────────────── */
+.store-detail-thumb {
+  cursor: pointer;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.store-detail-thumb:hover {
+  border-color: var(--store-red);
+}
+
+.store-detail-thumb.is-active {
+  border-color: var(--store-red);
+  box-shadow: 0 0 0 2px var(--store-red);
 }
 
 .store-detail-actions {

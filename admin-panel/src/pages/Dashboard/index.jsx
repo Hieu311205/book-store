@@ -310,7 +310,7 @@ const Dashboard = () => {
                       </span>
                     </td>
                     <td className="text-right">{p.stock || 0}</td>
-                    <td className="text-right">{fmtShort(p.inv_value)} đ</td>
+                    <td className="text-right">{fmtShort(p.inventory_value)} đ</td>
                   </tr>
                 ))}
               </tbody>

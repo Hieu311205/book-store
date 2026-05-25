@@ -3,6 +3,8 @@ import Header from './components/common/Header'
 import Footer from './components/common/Footer'
 import MiniCart from './components/common/MiniCart'
 import StoreBreadcrumb from './components/common/StoreBreadcrumb'
+import ScrollToTop from './components/common/ScrollToTop'
+import BackToTop from './components/common/BackToTop'
 import Home from './pages/Home'
 import Products from './pages/Products'
 import ProductDetail from './pages/ProductDetail'
@@ -26,6 +28,7 @@ import Shipping from './pages/Shipping'
 const App = () => {
   return (
     <div className="store-app min-h-screen flex flex-col">
+      <ScrollToTop />
       <Header />
       <main className="store-page-main flex-1 container mx-auto px-4 py-6">
         <StoreBreadcrumb />
@@ -54,9 +57,16 @@ const App = () => {
           <Route
             path="*"
             element={
-              <div className="store-empty-state store-not-found">
-                <h1>404</h1>
-                <p>Không tìm thấy trang</p>
+              <div className="store-404-page">
+                <div className="store-404-content">
+                  <div className="store-404-number">404</div>
+                  <h1 className="store-404-title">Trang không tồn tại</h1>
+                  <p className="store-404-desc">Trang bạn đang tìm có thể đã bị xóa, đổi tên hoặc tạm thời không khả dụng.</p>
+                  <div className="store-404-actions">
+                    <a href="/" className="btn btn-primary">Về trang chủ</a>
+                    <a href="/products" className="btn btn-outline">Xem tất cả sách</a>
+                  </div>
+                </div>
               </div>
             }
           />
@@ -64,6 +74,7 @@ const App = () => {
       </main>
       <Footer />
       <MiniCart />
+      <BackToTop />
     </div>
   )
 }

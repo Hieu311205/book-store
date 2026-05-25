@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { FiHeart, FiMapPin, FiMenu, FiMoon, FiSearch, FiShoppingCart, FiSun, FiUser, FiX } from 'react-icons/fi'
@@ -8,6 +8,8 @@ import { useCart } from '../../context/CartContext'
 import { useTheme } from '../../context/ThemeContext'
 import { categoryService } from '../../services/category.service'
 import { settingsService } from '../../services/settings.service'
+import { productService } from '../../services/product.service'
+import { formatPrice } from '../../utils/formatPrice'
 
 const popularTerms = [
   { label: 'Sách mới', to: '/products?sort=newest' },
@@ -23,9 +25,148 @@ const flattenCategories = (items = [], depth = 0) =>
     ...flattenCategories(item.children || [], depth + 1),
   ])
 
+// ─── SearchBox với autocomplete ──────────────────────────────────────────────
+const SearchBox = ({ placeholder = 'Tìm sách, tác giả, thể loại...', buttonLabel = 'Tìm kiếm', onSearch }) => {
+  const navigate = useNavigate()
+  const [query, setQuery]         = useState('')
+  const [debouncedQ, setDebouncedQ] = useState('')
+  const [open, setOpen]           = useState(false)
+  const [cursor, setCursor]       = useState(-1)
+  const wrapperRef                = useRef(null)
+  const inputRef                  = useRef(null)
+  const timerRef                  = useRef(null)
+
+  // Debounce 280ms
+  const handleChange = (e) => {
+    const val = e.target.value
+    setQuery(val)
+    setCursor(-1)
+    clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => setDebouncedQ(val.trim()), 280)
+    setOpen(true)
+  }
+
+  const { data: suggestions = [] } = useQuery({
+    queryKey: ['suggest', debouncedQ],
+    queryFn: () => productService.suggestProducts(debouncedQ),
+    select: (res) => res.data || [],
+    enabled: debouncedQ.length >= 1,
+    staleTime: 10_000,
+  })
+
+  const showDropdown = open && query.trim().length >= 1
+
+  // Click outside đóng dropdown
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const goToProduct = useCallback((slug) => {
+    setOpen(false)
+    setQuery('')
+    setDebouncedQ('')
+    navigate(`/product/${slug}`)
+  }, [navigate])
+
+  const submitSearch = useCallback((q) => {
+    const term = (q || query).trim()
+    if (!term) return
+    setOpen(false)
+    setQuery('')
+    setDebouncedQ('')
+    onSearch?.()
+    navigate(`/search?q=${encodeURIComponent(term)}`)
+  }, [query, navigate, onSearch])
+
+  const handleKeyDown = (e) => {
+    if (!showDropdown || suggestions.length === 0) {
+      if (e.key === 'Enter') { e.preventDefault(); submitSearch() }
+      return
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setCursor((c) => Math.min(c + 1, suggestions.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setCursor((c) => Math.max(c - 1, -1))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (cursor >= 0 && suggestions[cursor]) goToProduct(suggestions[cursor].slug)
+      else submitSearch()
+    } else if (e.key === 'Escape') {
+      setOpen(false)
+      setCursor(-1)
+    }
+  }
+
+  return (
+    <div className="store-search-wrapper" ref={wrapperRef}>
+      <form onSubmit={(e) => { e.preventDefault(); submitSearch() }}>
+        <div className="store-search">
+          <FiSearch size={20} />
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onFocus={() => query.trim().length >= 1 && setOpen(true)}
+            placeholder={placeholder}
+            autoComplete="off"
+          />
+          <button type="submit">{buttonLabel}</button>
+        </div>
+      </form>
+
+      {showDropdown && (
+        <div className="store-suggest-dropdown">
+          {suggestions.length === 0 && debouncedQ === query.trim() && (
+            <div className="store-suggest-empty">Không tìm thấy sách phù hợp</div>
+          )}
+
+          {suggestions.map((item, i) => (
+            <div
+              key={item.id}
+              className={`store-suggest-item ${cursor === i ? 'is-active' : ''}`}
+              onMouseEnter={() => setCursor(i)}
+              onMouseDown={() => goToProduct(item.slug)}
+            >
+              <img
+                className="store-suggest-thumb"
+                src={item.image_url || '/images/placeholder-book.jpg'}
+                alt={item.title}
+                onError={(e) => { e.target.src = '/images/placeholder-book.jpg' }}
+              />
+              <div className="store-suggest-info">
+                <div className="store-suggest-title">{item.title}</div>
+                {item.author_name && (
+                  <div className="store-suggest-author">{item.author_name}</div>
+                )}
+              </div>
+              <div className="store-suggest-price">{formatPrice(item.price)}</div>
+            </div>
+          ))}
+
+          {suggestions.length > 0 && (
+            <div
+              className="store-suggest-footer"
+              onMouseDown={() => submitSearch()}
+            >
+              Xem tất cả kết quả cho &ldquo;{query}&rdquo; →
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
   const navigate = useNavigate()
   const location = useLocation()
   const { isAuthenticated, logout } = useAuth()
@@ -43,15 +184,6 @@ const Header = () => {
     queryFn: settingsService.getSettings,
     select: (res) => res.data || {},
   })
-
-  const handleSearch = (event) => {
-    event.preventDefault()
-    if (searchQuery.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`)
-      setSearchQuery('')
-      setIsMenuOpen(false)
-    }
-  }
 
   const goToSearchTerm = (term) => {
     navigate(term.to)
@@ -102,18 +234,7 @@ const Header = () => {
             </Link>
 
             <div className="hidden md:block max-w-2xl w-full justify-self-center">
-              <form onSubmit={handleSearch}>
-                <div className="store-search">
-                  <FiSearch size={20} />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Tìm sách, tác giả, thể loại..."
-                  />
-                  <button type="submit">Tìm kiếm</button>
-                </div>
-              </form>
+              <SearchBox placeholder="Tìm sách, tác giả, thể loại..." buttonLabel="Tìm kiếm" />
               <div className="store-search-tags" aria-label="Từ khóa được tìm kiếm nhiều">
                 <span>Được tìm kiếm nhiều:</span>
                 {popularTerms.map((term) => (
@@ -143,18 +264,13 @@ const Header = () => {
             </div>
           </div>
 
-          <form onSubmit={handleSearch} className="md:hidden pb-4">
-            <div className="store-search">
-              <FiSearch size={18} />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tìm sách..."
-              />
-              <button type="submit">Tìm</button>
-            </div>
-          </form>
+          <div className="md:hidden pb-4">
+            <SearchBox
+              placeholder="Tìm sách..."
+              buttonLabel="Tìm"
+              onSearch={() => setIsMenuOpen(false)}
+            />
+          </div>
         </div>
       </div>
 

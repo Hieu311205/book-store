@@ -1,0 +1,629 @@
+/* ═══════════════════════════════════════════════════════════
+   Review Section — Shopee / Amazon style
+   ═══════════════════════════════════════════════════════════ */
+
+.rv-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* ── Rating Summary ─────────────────────────────────────── */
+.rv-summary {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+  background: linear-gradient(135deg, #fff8f6 0%, #fff3f0 100%);
+  border: 1px solid #ffd6cc;
+  border-radius: 1rem;
+  padding: 1.5rem 2rem;
+  flex-wrap: wrap;
+}
+
+.dark .rv-summary {
+  background: linear-gradient(135deg, #2a1a18 0%, #241512 100%);
+  border-color: #5a2a22;
+}
+
+.rv-summary-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 120px;
+}
+
+.rv-summary-score {
+  font-size: 3.5rem;
+  font-weight: 800;
+  color: var(--store-red, #e53e3e);
+  line-height: 1;
+}
+
+.rv-summary-stars {
+  display: flex;
+  gap: 3px;
+}
+
+.rv-summary-stars svg {
+  font-size: 1.1rem;
+  color: #d1d5db;
+}
+
+.rv-summary-stars svg.filled {
+  color: #f59e0b;
+}
+
+.rv-summary-stars svg.half {
+  color: #f59e0b;
+  opacity: 0.5;
+}
+
+.rv-summary-count {
+  font-size: 0.85rem;
+  color: #6b7280;
+  text-align: center;
+}
+
+.rv-summary-bars {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 220px;
+}
+
+.rv-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.rv-bar-label {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.85rem;
+  color: #374151;
+  min-width: 40px;
+}
+
+.dark .rv-bar-label { color: #d1d5db; }
+
+.rv-bar-label svg {
+  font-size: 0.75rem;
+  color: #f59e0b;
+}
+
+.rv-bar-track {
+  flex: 1;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.dark .rv-bar-track { background: #374151; }
+
+.rv-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #f59e0b, #ef4444);
+  border-radius: 4px;
+  transition: width 0.6s ease;
+}
+
+.rv-bar-count {
+  font-size: 0.8rem;
+  color: #6b7280;
+  min-width: 24px;
+  text-align: right;
+}
+
+/* ── Toolbar ────────────────────────────────────────────── */
+.rv-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.rv-filter-stars {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.rv-filter-stars button {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0.35rem 0.8rem;
+  border-radius: 2rem;
+  border: 1.5px solid #e5e7eb;
+  background: #fff;
+  color: #374151;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.dark .rv-filter-stars button {
+  background: #1f2937;
+  border-color: #374151;
+  color: #d1d5db;
+}
+
+.rv-filter-stars button svg {
+  font-size: 0.75rem;
+  color: #f59e0b;
+}
+
+.rv-filter-stars button.active,
+.rv-filter-stars button:hover {
+  border-color: var(--store-red, #e53e3e);
+  color: var(--store-red, #e53e3e);
+  background: #fff5f5;
+}
+
+.dark .rv-filter-stars button.active,
+.dark .rv-filter-stars button:hover {
+  background: #2d1515;
+}
+
+.rv-filter-badge {
+  font-size: 0.7rem;
+  background: var(--store-red, #e53e3e);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0 5px;
+  margin-left: 2px;
+}
+
+.rv-sort-select {
+  padding: 0.4rem 0.8rem;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #374151;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.dark .rv-sort-select {
+  background: #1f2937;
+  border-color: #374151;
+  color: #d1d5db;
+}
+
+/* ── Write review button ───────────────────────────────── */
+.rv-write-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 1.5rem;
+  background: var(--store-red, #e53e3e);
+  color: #fff;
+  border: none;
+  border-radius: 0.6rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  align-self: flex-start;
+}
+
+.rv-write-btn:hover { opacity: 0.88; }
+
+.rv-already-reviewed {
+  padding: 0.75rem 1rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 0.6rem;
+  color: #166534;
+  font-size: 0.9rem;
+}
+
+.dark .rv-already-reviewed {
+  background: #14261c;
+  border-color: #166534;
+  color: #86efac;
+}
+
+/* ── Review Form ───────────────────────────────────────── */
+.rv-form {
+  background: #f9fafb;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.dark .rv-form {
+  background: #111827;
+  border-color: #374151;
+}
+
+.rv-form-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.dark .rv-form-title { color: #f9fafb; }
+
+.rv-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 600px) {
+  .rv-form-row { grid-template-columns: 1fr; }
+}
+
+.rv-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.rv-form-field label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.dark .rv-form-field label { color: #d1d5db; }
+
+.rv-form-field input,
+.rv-form-field textarea {
+  padding: 0.6rem 0.8rem;
+  border: 1.5px solid #d1d5db;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #111827;
+  font-size: 0.9rem;
+  font-family: inherit;
+  resize: vertical;
+  transition: border-color 0.2s;
+}
+
+.dark .rv-form-field input,
+.dark .rv-form-field textarea {
+  background: #1f2937;
+  border-color: #374151;
+  color: #f9fafb;
+}
+
+.rv-form-field input:focus,
+.rv-form-field textarea:focus {
+  outline: none;
+  border-color: var(--store-red, #e53e3e);
+}
+
+.rv-char-count {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  text-align: right;
+}
+
+/* Star Selector */
+.rv-star-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.3rem 0;
+}
+
+.rv-star-selector svg {
+  font-size: 2rem;
+  color: #d1d5db;
+  cursor: pointer;
+  transition: color 0.15s, transform 0.15s;
+}
+
+.rv-star-selector svg:hover,
+.rv-star-selector svg.filled {
+  color: #f59e0b;
+  transform: scale(1.1);
+}
+
+.rv-star-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #f59e0b;
+  margin-left: 6px;
+}
+
+.rv-submit-btn {
+  padding: 0.7rem 2rem;
+  background: var(--store-red, #e53e3e);
+  color: #fff;
+  border: none;
+  border-radius: 0.6rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  align-self: flex-start;
+  transition: opacity 0.2s;
+}
+
+.rv-submit-btn:hover { opacity: 0.88; }
+.rv-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Review Item ────────────────────────────────────────── */
+.rv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-radius: 0.8rem;
+  overflow: hidden;
+  border: 1px solid #f3f4f6;
+}
+
+.dark .rv-list { border-color: #1f2937; }
+
+.rv-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1.25rem 1.5rem;
+  background: #fff;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.dark .rv-item {
+  background: #111827;
+  border-color: #1f2937;
+}
+
+.rv-item:last-child { border-bottom: none; }
+
+.rv-item-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.rv-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--store-red, #e53e3e), #f97316);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rv-item-meta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rv-item-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.dark .rv-item-name { color: #f9fafb; }
+
+.rv-item-stars {
+  display: flex;
+  gap: 2px;
+}
+
+.rv-item-stars svg {
+  font-size: 0.8rem;
+  color: #d1d5db;
+}
+
+.rv-item-stars svg.filled { color: #f59e0b; }
+
+.rv-item-date {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin-left: auto;
+}
+
+.rv-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: #16a34a;
+  font-weight: 500;
+}
+
+.rv-item-title {
+  font-weight: 700;
+  color: #111827;
+  font-size: 0.95rem;
+}
+
+.dark .rv-item-title { color: #f9fafb; }
+
+.rv-item-comment {
+  color: #374151;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.dark .rv-item-comment { color: #d1d5db; }
+
+.rv-pros-cons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: #4b5563;
+  background: #f9fafb;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+}
+
+.dark .rv-pros-cons {
+  background: #1f2937;
+  color: #9ca3af;
+}
+
+.rv-pros span, .rv-cons span { font-weight: 600; }
+
+.rv-helpful-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0.35rem 0.8rem;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 2rem;
+  background: transparent;
+  color: #6b7280;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  align-self: flex-start;
+}
+
+.rv-helpful-btn:hover:not(:disabled) {
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+.rv-helpful-btn.helped {
+  border-color: #3b82f6;
+  color: #3b82f6;
+  background: #eff6ff;
+}
+
+.dark .rv-helpful-btn.helped { background: #1e3a5f; }
+
+/* ── Empty / Loading ────────────────────────────────────── */
+.rv-empty,
+.rv-loading {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: #9ca3af;
+  font-size: 0.95rem;
+}
+
+/* ── Pagination ─────────────────────────────────────────── */
+.rv-pagination {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding-top: 0.5rem;
+}
+
+.rv-pagination button {
+  width: 36px;
+  height: 36px;
+  border-radius: 0.4rem;
+  border: 1.5px solid #e5e7eb;
+  background: #fff;
+  color: #374151;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.dark .rv-pagination button {
+  background: #1f2937;
+  border-color: #374151;
+  color: #d1d5db;
+}
+
+.rv-pagination button.active,
+.rv-pagination button:hover {
+  border-color: var(--store-red, #e53e3e);
+  background: var(--store-red, #e53e3e);
+  color: #fff;
+}
+
+/* ── Review Modal (dùng trong trang đơn hàng) ──────────── */
+.rv-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.rv-modal {
+  background: #fff;
+  border-radius: 1rem;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 2rem;
+  position: relative;
+  animation: rv-slide-up 0.25s ease;
+}
+
+.dark .rv-modal {
+  background: #111827;
+  border: 1px solid #374151;
+}
+
+@keyframes rv-slide-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.rv-modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #6b7280;
+  line-height: 1;
+}
+
+.rv-modal-product {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.dark .rv-modal-product { border-color: #374151; }
+
+.rv-modal-product img {
+  width: 56px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.rv-modal-product-title {
+  font-weight: 600;
+  color: #111827;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.dark .rv-modal-product-title { color: #f9fafb; }

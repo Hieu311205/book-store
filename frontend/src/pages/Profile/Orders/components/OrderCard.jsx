@@ -9,6 +9,7 @@ const OrderCard = ({
   onCancel,
   cancelPending,
   onReturn,
+  onReview,
 }) => (
   <div className="border dark:border-gray-700 rounded-xl p-4 space-y-3 hover:border-primary-400 transition-colors">
     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -40,6 +41,11 @@ const OrderCard = ({
       )}
       {['pending', 'confirmed'].includes(order.status) && (
         <button onClick={() => onCancel(order.id)} disabled={cancelPending} className="text-sm text-red-500 hover:text-red-600 disabled:opacity-50">Hủy đơn</button>
+      )}
+      {order.status === 'delivered' && (
+        <button onClick={() => onReview(order.id)} className="text-sm text-primary-600 hover:underline font-medium">
+          ⭐ Đánh giá
+        </button>
       )}
       {order.status === 'delivered' && !['pending', 'approved', 'completed'].includes(order.return_status || '') && (
         <button onClick={() => onReturn(order)} className="text-sm text-orange-600 hover:text-orange-700">Yêu cầu đổi trả</button>

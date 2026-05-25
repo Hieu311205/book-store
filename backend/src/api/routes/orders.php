@@ -22,25 +22,48 @@ function handleOrders($method, $pathParts) {
 }
 
 function createOrder($user) {
+    // ── BƯỚC 6: Nhận toàn bộ dữ liệu đơn hàng từ frontend ──────────────────
     $input = requestJson();
+
+    // Địa chỉ giao hàng (bắt buộc)
     $addressId = (int)($input['address_id'] ?? 0);
+
+    // Đơn vị vận chuyển — chỉ chấp nhận các giá trị hợp lệ, mặc định tiết kiệm
     $shippingMethod = $input['shipping_method'] ?? 'giao_hang_tiet_kiem';
     $allowedShippingMethods = ['giao_hang_tiet_kiem', 'ghn', 'viettel_post', 'shop_delivery', 'standard', 'express'];
     if (!in_array($shippingMethod, $allowedShippingMethods, true)) {
         $shippingMethod = 'giao_hang_tiet_kiem';
     }
+
+    // Phương thức thanh toán — chỉ chấp nhận 4 giá trị, mặc định COD
     $paymentMethod = $input['payment_method'] ?? 'cod';
     $allowedPaymentMethods = ['cod', 'bank_transfer', 'card', 'wallet'];
     if (!in_array($paymentMethod, $allowedPaymentMethods, true)) {
         $paymentMethod = 'cod';
     }
+
+    // Kiểm tra bảng ví tồn tại khi dùng phương thức wallet
     if ($paymentMethod === 'wallet' && (!tableExists('wallets') || !tableExists('wallet_transactions'))) {
         jsonResponse(['success' => false, 'message' => 'Chua tao bang vi dien tu. Vui long chay migrate_order_workflow.sql'], 500);
     }
+
+    // Kiểm tra tài khoản ngân hàng đã liên kết khi dùng bank_transfer / card
     $bankAccountId = (int)($input['bank_account_id'] ?? 0);
     if (in_array($paymentMethod, ['bank_transfer', 'card'], true) && !getUserBankAccount($user['id'], $bankAccountId)) {
         jsonResponse(['success' => false, 'message' => 'Vui long lien ket tai khoan ngan hang truoc khi dung phuong thuc thanh toan nay'], 400);
     }
+
+    // ── BƯỚC 7: Xác minh OTP trước khi tạo đơn (chỉ với bank_transfer / card) ──
+    // verifyOrderOtp() trong otp.php sẽ:
+    //   - Kiểm tra mã trong DB: đúng user, đúng mã, chưa dùng, còn hạn
+    //   - Nếu sai → gọi jsonResponse(400) và dừng luồng tại đây
+    //   - Nếu đúng → đánh dấu used_at = NOW() và trả về bình thường
+    if (in_array($paymentMethod, ['bank_transfer', 'card'], true)) {
+        require_once __DIR__ . '/otp.php';
+        verifyOrderOtp($user['id'], $input['otp_code'] ?? '');
+    }
+    // ── Từ đây trở xuống: OTP đã được xác minh, tiếp tục tạo đơn hàng ────────
+
     $couponCode = $input['coupon_code'] ?? null;
     $address = queryOne("SELECT * FROM user_addresses WHERE id = ? AND user_id = ?", [$addressId, $user['id']]);
     if (!$address) {
