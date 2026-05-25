@@ -15,7 +15,7 @@ const ProductCard = ({ product }) => {
   const { isAuthenticated } = useAuth()
   const queryClient = useQueryClient()
 
-  const imageUrl = product.images?.[0]?.image_url || product.primary_image || '/images/placeholder-book.jpg'
+  const imageUrl = product.images?.[0]?.image_url || product.primary_image || product.image_url || '/images/placeholder-book.jpg'
 
   const wishlistMutation = useMutation({
     mutationFn: userService.addToWishlist,
@@ -27,7 +27,7 @@ const ProductCard = ({ product }) => {
     onError: (error) => toast.error(error.message || 'Không thể thêm vào yêu thích'),
   })
 
-  const canBuy = product.stock > 0
+  const canBuy = Number(product.stock ?? 0) > 0
 
   const handleAddToCart = () => {
     if (!canBuy) return

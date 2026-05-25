@@ -1,0 +1,48 @@
+module.exports = (ctx) => {
+  with (ctx) {
+    return [
+      h('VII. ĐÁNH GIÁ VÀ HƯỚNG PHÁT TRIỂN'),
+      h2('7.1. Kết quả đạt được'),
+      bullet('Xây dựng thành công hệ thống TMĐT sách hoàn chỉnh với đầy đủ luồng mua hàng từ duyệt sản phẩm đến đặt hàng.'),
+      bullet('Tách biệt rõ Frontend / Admin Panel / Backend — có thể phát triển độc lập và thay thế từng thành phần.'),
+      bullet('Thiết kế CSDL quan hệ 20+ bảng, chuẩn hóa tốt, hỗ trợ đầy đủ các nghiệp vụ TMĐT, đổi trả và ví điện tử.'),
+      bullet('Áp dụng JWT authentication an toàn với access/refresh token pattern.'),
+      bullet('Admin Panel với dashboard trực quan, quản lý đơn hàng, giao hàng, đổi trả, ví điện tử và sản phẩm hiệu quả.'),
+      bullet('Hệ thống coupon linh hoạt với nhiều loại điều kiện.'),
+      bullet('Hình ảnh bìa sách được tổ chức theo danh mục và đồng bộ nguồn giữa admin-panel và storefront.'),
+      h2('7.2. Hạn chế hiện tại'),
+      bullet('Chưa tích hợp cổng thanh toán thực (VNPay, MoMo, Stripe) — chuyển khoản/thẻ và ví đang là mô phỏng nghiệp vụ nội bộ.'),
+      bullet('Không có hệ thống gửi email tự động (xác nhận đơn hàng, reset mật khẩu).'),
+      bullet('Tìm kiếm full-text chưa tối ưu — cần MySQL FULLTEXT index hoặc Elasticsearch.'),
+      bullet('Stock không được quản lý real-time — có thể dẫn đến oversell.'),
+      bullet('Tracking vận chuyển chưa gọi API hãng vận chuyển thật; timeline dựa trên trạng thái và mã vận đơn do admin nhập.'),
+      bullet('Ví điện tử chưa có OTP, đối soát ngân hàng và cơ chế bảo mật giao dịch nâng cao.'),
+      bullet('Không có CDN hay image optimization — ảnh sản phẩm lớn ảnh hưởng hiệu năng.'),
+      h2('7.3. Hướng phát triển tiếp theo'),
+      bullet('Tích hợp VNPay hoặc MoMo để hoàn thiện luồng thanh toán.'),
+      bullet('Thêm hệ thống email tự động dùng PHPMailer hoặc dịch vụ SendGrid/Mailgun.'),
+      bullet('Nâng cấp tìm kiếm: thêm MySQL FULLTEXT index, autocomplete suggestion.'),
+      bullet('Thêm real-time notification cho admin khi có đơn hàng mới (WebSocket hoặc SSE).'),
+      bullet('Tích hợp API vận chuyển (GHN, GHTK) để tự động tính phí và theo dõi đơn.'),
+      bullet('Bổ sung OTP/xác thực hai lớp cho ví điện tử và lịch sử đối soát giao dịch ngân hàng.'),
+      bullet('Bổ sung upload bằng chứng đổi trả, quy trình kho kiểm hàng trả về và phiếu hoàn tiền.'),
+      bullet('Thêm tính năng loyalty points (điểm thưởng) cho khách hàng thân thiết.'),
+      bullet('Chuyển backend sang Laravel/Symfony để có ORM, queue, cache đầy đủ hơn.'),
+      bullet('Triển khai Docker để dễ dàng deploy lên cloud (AWS, GCP, hoặc VPS).'),
+      pageBreak(),
+
+      // ════════════════════════════ CHƯƠNG VIII ════════════════════════════
+      h('VIII. KẾT LUẬN'),
+      p(t('Dự án BookStore đã xây dựng thành công một hệ thống bán sách trực tuyến đầy đủ chức năng, có thể vận hành thực tế ở quy mô nhỏ và vừa. Hệ thống thể hiện khả năng tích hợp nhiều công nghệ hiện đại: React SPA, PHP REST API, MySQL, JWT authentication, và Google OAuth — phản ánh đúng xu hướng phát triển phần mềm web ngày nay.')),
+      p(t('Thông qua quá trình phân tích và so sánh với các hệ thống thương mại lớn như Tiki và Fahasa, nhóm đã định hướng thiết kế sát với thực tế, đặc biệt ở các tính năng cốt lõi như giỏ hàng, mã giảm giá linh hoạt, quy trình đơn hàng, đổi trả, ví điện tử và trang quản trị vận hành.')),
+      p(t('Những hạn chế hiện tại — chủ yếu về thanh toán online, API vận chuyển, bảo mật giao dịch ví và gửi email — là những phần cần đầu tư thêm thời gian và tích hợp dịch vụ bên thứ ba, hoàn toàn có thể bổ sung trong giai đoạn phát triển tiếp theo.')),
+      p(bold('Nhóm phát triển xin chân thành cảm ơn và mong nhận được nhận xét từ giảng viên hướng dẫn.')),
+      new Paragraph({ text: '' }),
+      new Paragraph({ text: '' }),
+      new Paragraph({
+        alignment: AlignmentType.RIGHT,
+        children: [new TextRun({ text: `Ngày ${new Date().getDate()} tháng ${new Date().getMonth()+1} năm ${new Date().getFullYear()}`, font: 'Times New Roman', size: 24, italics: true })],
+      }),
+    ]
+  }
+}

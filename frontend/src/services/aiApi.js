@@ -1,26 +1,41 @@
-// frontend/src/services/aiApi.js
-const AI_API_BASE = '/ai';
+const AI_API_BASE = '/ai'
 
-// Hàm gọi API lấy gợi ý cho user
-export const getUserRecommendations = async (token, limit = 6) => {
-  const res = await fetch(`${AI_API_BASE}/recommendations/user/?limit=${limit}`, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-  return res.json();
-};
+const parseJson = async (response) => {
+  if (!response.ok) {
+    throw new Error('Không thể tải dữ liệu AI service')
+  }
+  return response.json()
+}
 
-// Hàm lấy tổng quan doanh thu (admin)
+const authHeaders = (token) => (token ? { Authorization: `Bearer ${token}` } : {})
+
+export const getUserRecommendations = async ({ token, userId, limit = 6 }) => {
+  const response = await fetch(`${AI_API_BASE}/recommendations/user/?user_id=${userId}&limit=${limit}`, {
+    headers: authHeaders(token),
+  })
+  const payload = await parseJson(response)
+  return payload.data || []
+}
+
 export const getSalesOverview = async (token, days = 30) => {
-  const res = await fetch(`${AI_API_BASE}/analytics/overview/?days=${days}`, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-  return res.json();
-};
+  const response = await fetch(`${AI_API_BASE}/analytics/overview/?days=${days}`, {
+    headers: authHeaders(token),
+  })
+  const payload = await parseJson(response)
+  return payload.data
+}
 
-// Hàm lấy top sản phẩm bán chạy
 export const getTopProducts = async (token, limit = 5) => {
-  const res = await fetch(`${AI_API_BASE}/analytics/top-products/?limit=${limit}`, {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-  return res.json();
-};
+  const response = await fetch(`${AI_API_BASE}/analytics/top-products/?limit=${limit}`, {
+    headers: authHeaders(token),
+  })
+  const payload = await parseJson(response)
+  return payload.data || []
+}
+
+export const getSupportFaq = async (limit) => {
+  const params = limit ? `?limit=${limit}` : ''
+  const response = await fetch(`${AI_API_BASE}/support/faq/${params}`)
+  const payload = await parseJson(response)
+  return payload.data || []
+}

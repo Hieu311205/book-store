@@ -1,0 +1,33 @@
+.store-nav {
+  position: relative;
+  background: var(--store-red);
+  overflow: visible;
+}
+
+.store-nav-list {
+  scrollbar-width: none;
+  overflow: visible;
+}
+
+.store-nav-list::-webkit-scrollbar {
+  display: none;
+}
+
+.store-nav-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.35rem;
+  white-space: nowrap;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.9);
+  padding: 0.45rem 0.9rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  transition: background 180ms ease, color 180ms ease;
+}
+
+.store-nav-link:hover,
+.store-nav-link.is-active {
+  background: #fffaf2;
+  color: var(--store-red-dark);
+}

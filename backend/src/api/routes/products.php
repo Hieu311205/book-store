@@ -76,7 +76,7 @@ function listProducts($forced = [], $simple = false) {
         $where[] = 'p.is_featured = 1';
     }
     if (!empty($filters['bestseller'])) {
-        $where[] = 'p.is_bestseller = 1';
+        $where[] = 'COALESCE(p.sales_count, 0) > 0';
     }
     if (!empty($filters['search'])) {
         $where[] = '(p.title LIKE ? OR p.title_en LIKE ? OR a.name LIKE ?)';

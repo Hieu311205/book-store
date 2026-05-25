@@ -1,0 +1,126 @@
+.store-detail-coupons {
+  display: grid;
+  gap: 0.8rem;
+  width: min(100%, 18.5rem);
+  margin-top: 2.2rem;
+}
+
+.store-checkout-coupons {
+  border-radius: 0.75rem;
+  background: rgba(255, 253, 248, 0.96);
+  padding: 1.25rem;
+}
+
+.store-checkout-coupons label {
+  display: block;
+  color: var(--store-red);
+  font-size: 1.1rem;
+  font-weight: 900;
+}
+
+.store-coupon-select {
+  width: 100%;
+  max-width: 28rem;
+  min-height: 2.75rem;
+  margin-top: 0.75rem;
+  border: 1px solid var(--store-line);
+  border-radius: 0.45rem;
+  background: #fffaf2;
+  color: var(--store-ink);
+  padding: 0 0.85rem;
+  font-weight: 700;
+}
+
+.store-selected-coupon {
+  display: grid;
+  gap: 0.25rem;
+  width: min(100%, 24rem);
+  margin-top: 0.8rem;
+  border: 1px dashed var(--store-red);
+  border-radius: 0.45rem;
+  background: #fff8f5;
+  padding: 0.75rem 0.85rem;
+}
+
+.store-selected-coupon span {
+  color: var(--store-red);
+  font-weight: 900;
+}
+
+.store-selected-coupon strong {
+  color: var(--store-muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.store-coupon-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 2.5rem;
+  overflow: hidden;
+  border: 2px solid var(--store-red);
+  border-radius: 0.75rem;
+  background: #fff;
+}
+
+.store-coupon-card::before,
+.store-coupon-card::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 1rem;
+  height: 1.75rem;
+  background: var(--store-paper);
+  border: 2px solid var(--store-red);
+  transform: translateY(-50%);
+}
+
+.store-coupon-card::before {
+  left: -0.55rem;
+  border-left: 0;
+  border-radius: 0 999px 999px 0;
+}
+
+.store-coupon-card::after {
+  right: -0.55rem;
+  border-right: 0;
+  border-radius: 999px 0 0 999px;
+}
+
+.store-coupon-card div {
+  padding: 0.85rem 0.55rem 0.65rem 1.55rem;
+}
+
+.store-coupon-card h3 {
+  color: var(--store-red);
+  font-weight: 900;
+}
+
+.store-coupon-card p {
+  margin-top: 0.55rem;
+  color: #7d5080;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.store-coupon-card strong {
+  display: block;
+  margin-top: 0.55rem;
+  border-radius: 0.2rem;
+  background: #ff7308;
+  color: #fff;
+  padding: 0.25rem;
+  text-align: center;
+  font-size: 1rem;
+}
+
+.store-coupon-card > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 2px dashed var(--store-red);
+  color: var(--store-red);
+  writing-mode: vertical-rl;
+  font-weight: 800;
+  font-size: 0.8rem;
+}
