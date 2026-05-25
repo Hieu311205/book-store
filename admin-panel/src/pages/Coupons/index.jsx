@@ -63,6 +63,7 @@ const Coupons = () => {
   const [status, setStatus] = useState('')
   const [sort, setSort] = useState('newest')
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [isFormOpen, setIsFormOpen] = useState(false)
   const [page, setPage] = useState(1)
 
   const hasFilters = !!(search || type || status)
@@ -98,6 +99,7 @@ const Coupons = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-coupons'] })
       setForm(emptyForm)
+      setIsFormOpen(false)
       toast.success('Đã tạo mã giảm giá')
     },
     onError: (error) => toast.error(error.message || 'Không thể tạo mã'),
@@ -143,9 +145,78 @@ const Coupons = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Mã giảm giá</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Mã giảm giá</h1>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => {
+            setForm(emptyForm)
+            setIsFormOpen(true)
+          }}
+        >
+          <FiPlus /> Thêm mã
+        </button>
+      </div>
 
-      <form onSubmit={submit} className="card p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+      {isFormOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <form onSubmit={submit} className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-3xl shadow-2xl">
+            <div className="border-b dark:border-gray-700 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Thêm mã giảm giá</h2>
+              <button type="button" onClick={() => setIsFormOpen(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+                <FiX size={18} />
+              </button>
+            </div>
+
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="space-y-1">
+                <span className="text-sm font-medium">Code</span>
+                <input className="input" required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} />
+              </label>
+              <label className="space-y-1">
+                <span className="text-sm font-medium">Loại mã</span>
+                <select className="input" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+                  <option value="percentage">Phần trăm</option>
+                  <option value="fixed">Số tiền</option>
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-sm font-medium">Giá trị</span>
+                <input className="input" type="number" min="0" required value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} />
+              </label>
+              <label className="space-y-1">
+                <span className="text-sm font-medium">Đơn tối thiểu</span>
+                <input className="input" type="number" min="0" value={form.min_purchase} onChange={(e) => setForm({ ...form, min_purchase: e.target.value })} />
+              </label>
+              <label className="space-y-1">
+                <span className="text-sm font-medium">Giảm tối đa</span>
+                <input className="input" type="number" min="0" value={form.max_discount} onChange={(e) => setForm({ ...form, max_discount: e.target.value })} />
+              </label>
+              <label className="space-y-1">
+                <span className="text-sm font-medium">Lượt dùng</span>
+                <input className="input" type="number" min="0" value={form.usage_limit} onChange={(e) => setForm({ ...form, usage_limit: e.target.value })} />
+              </label>
+              <label className="space-y-1 md:col-span-2">
+                <span className="text-sm font-medium">Trạng thái</span>
+                <select className="input" value={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.value })}>
+                  <option value={1}>Kích hoạt</option>
+                  <option value={0}>Tắt</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="border-t dark:border-gray-700 px-6 py-4 flex justify-end gap-3">
+              <button type="button" onClick={() => setIsFormOpen(false)} className="btn btn-secondary">Hủy</button>
+              <button className="btn btn-primary min-w-28" disabled={createMutation.isPending}>
+                {createMutation.isPending ? 'Đang thêm...' : 'Thêm mã'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <form onSubmit={submit} className="hidden">
         <input className="input" placeholder="Code" required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} />
         <select className="input" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
           <option value="percentage">Phần trăm</option>

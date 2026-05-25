@@ -174,9 +174,13 @@ const Wallets = () => {
       <h1 className="text-2xl font-bold">Quản lý ví điện tử</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="card p-4 lg:col-span-2">
-          <p className="text-sm text-gray-500">Tổng số dư ví</p>
+        <div className="card p-4">
+          <p className="text-sm text-gray-500">Số dư khả dụng</p>
           <p className="text-2xl font-bold text-primary-600 mt-1">{formatPrice(stats.totalBalance)} đ</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-sm text-gray-500">Tổng tiền hệ thống giữ</p>
+          <p className="text-2xl font-bold text-purple-500 mt-1">{formatPrice(stats.heldBalance)} đ</p>
         </div>
         <div className="card p-4">
           <p className="text-sm text-gray-500">Nạp tiền chờ duyệt</p>

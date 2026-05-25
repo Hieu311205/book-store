@@ -1,7 +1,5 @@
 .store-detail-description {
-  margin-top: 1.5rem;
-  color: var(--store-muted);
-  line-height: 1.7;
+  line-height: 1.85;
 }
 
 .dark .store-detail-breadcrumb,
@@ -9,10 +7,9 @@
   background: rgba(159, 31, 31, 0.18);
 }
 
-.dark .store-detail-info h1,
 .dark .store-detail-quantity button,
 .dark .store-detail-quantity span {
-  color: #f7efe3;
+  color: #111;
 }
 
 .dark .store-detail-cart-button,
