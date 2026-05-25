@@ -78,6 +78,7 @@ function depositWallet($user) {
     $input = requestJson();
     $amount = (float)($input['amount'] ?? 0);
     $bankAccountId = (int)($input['bank_account_id'] ?? 0);
+
     if ($amount <= 0) {
         jsonResponse(['success' => false, 'message' => 'So tien nap khong hop le'], 400);
     }
@@ -85,16 +86,20 @@ function depositWallet($user) {
     if (!$bankAccount) {
         jsonResponse(['success' => false, 'message' => 'Vui long lien ket tai khoan ngan hang truoc khi nap tien'], 400);
     }
-    creditWallet(
-        $user['id'],
-        $amount,
-        'Nap tien vao vi',
-        'wallet_deposit',
-        null,
+
+    // Tạo yêu cầu nạp tiền ở trạng thái pending
+    // Số dư chỉ được cộng sau khi admin duyệt — tránh user tự credit tuỳ ý
+    $wallet = getOrCreateWallet($user['id']);
+    executeSql(
+        "INSERT INTO wallet_transactions
+         (wallet_id, user_id, type, amount, status, description, reference_type,
+          bank_name, bank_account_number, bank_account_name)
+         VALUES (?, ?, 'credit', ?, 'pending', 'Yêu cầu nạp tiền vào ví', 'wallet_deposit', ?, ?, ?)",
         [
-            'bank_name' => $bankAccount['bank_name'],
-            'bank_account_number' => $bankAccount['bank_account_number'],
-            'bank_account_name' => $bankAccount['bank_account_name'],
+            $wallet['id'], $user['id'], $amount,
+            $bankAccount['bank_name'],
+            $bankAccount['bank_account_number'],
+            $bankAccount['bank_account_name'],
         ]
     );
     getWalletSummary($user);

@@ -18,6 +18,8 @@ const Wallet = () => {
     queryKey: ['wallet'],
     queryFn: userService.getWallet,
     select: (res) => res.data,
+    refetchInterval: 3000,
+    refetchIntervalInBackground: false,
   })
 
   const wallet = data?.wallet
@@ -25,6 +27,7 @@ const Wallet = () => {
   const selectedBank = bankAccounts.find((item) => String(item.id) === String(selectedBankId)) || bankAccounts[0]
   const transactions = data?.transactions || []
   const hasLinkedBank = bankAccounts.length > 0
+  const pendingTransactions = transactions.filter((tx) => tx.status === 'pending')
 
   useEffect(() => {
     if (!selectedBankId && bankAccounts.length) {
@@ -50,7 +53,7 @@ const Wallet = () => {
   const depositMutation = useMutation({
     mutationFn: userService.depositWallet,
     onSuccess: () => {
-      toast.success('Đã nạp tiền vào ví')
+      toast.success('Đã gửi yêu cầu nạp tiền, vui lòng chờ admin duyệt')
       setDepositAmount('')
       refreshWallet()
     },
@@ -96,6 +99,11 @@ const Wallet = () => {
         <p className="text-sm text-gray-500 mt-2">
           Tiền hoàn từ hủy đơn hoặc trả hàng sẽ được cộng vào ví này.
         </p>
+        {pendingTransactions.length > 0 && (
+          <div className="mt-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 px-4 py-3 text-sm text-yellow-800 dark:text-yellow-300">
+            Bạn có <strong>{pendingTransactions.length}</strong> giao dịch đang chờ admin duyệt. Số dư sẽ tự động cập nhật khi được duyệt.
+          </div>
+        )}
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6 space-y-4">
@@ -224,20 +232,33 @@ const Wallet = () => {
         <h2 className="font-bold text-lg mb-4">Lịch sử ví</h2>
         {transactions.length ? (
           <div className="space-y-3">
-            {transactions.map((tx) => (
-              <div key={tx.id} className="flex flex-wrap items-center justify-between gap-3 border-b dark:border-gray-700 pb-3">
-                <div>
-                  <p className="font-medium">{tx.description || 'Giao dịch ví'}</p>
-                  <p className="text-xs text-gray-500">
-                    {new Date(tx.created_at).toLocaleString('vi-VN')} - {tx.status}
-                    {tx.bank_name ? ` - ${tx.bank_name} ${tx.bank_account_number}` : ''}
+            {transactions.map((tx) => {
+              const statusMap = {
+                pending: { label: 'Chờ duyệt', cls: 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20' },
+                completed: { label: 'Hoàn tất', cls: 'text-green-600 bg-green-50 dark:bg-green-900/20' },
+                rejected: { label: 'Từ chối', cls: 'text-red-500 bg-red-50 dark:bg-red-900/20' },
+              }
+              const statusInfo = statusMap[tx.status] || { label: tx.status, cls: 'text-gray-500' }
+              return (
+                <div key={tx.id} className="flex flex-wrap items-center justify-between gap-3 border-b dark:border-gray-700 pb-3">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium">{tx.description || 'Giao dịch ví'}</p>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusInfo.cls}`}>
+                        {statusInfo.label}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {new Date(tx.created_at).toLocaleString('vi-VN')}
+                      {tx.bank_name ? ` — ${tx.bank_name} ${tx.bank_account_number}` : ''}
+                    </p>
+                  </div>
+                  <p className={`font-bold ${tx.type === 'credit' ? (tx.status === 'rejected' ? 'text-gray-400 line-through' : 'text-green-600') : (tx.status === 'rejected' ? 'text-gray-400 line-through' : 'text-red-500')}`}>
+                    {tx.type === 'credit' ? '+' : '-'}{formatPrice(tx.amount)} đ
                   </p>
                 </div>
-                <p className={`font-bold ${tx.type === 'credit' ? 'text-green-600' : 'text-red-500'}`}>
-                  {tx.type === 'credit' ? '+' : '-'}{formatPrice(tx.amount)} đ
-                </p>
-              </div>
-            ))}
+              )
+            })}
           </div>
         ) : (
           <p className="text-gray-500">Chưa có giao dịch ví.</p>
