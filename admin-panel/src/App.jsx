@@ -6,9 +6,9 @@ import Products from './pages/Products'
 import Categories from './pages/Categories'
 import Orders from './pages/Orders'
 import Wallets from './pages/Wallets'
+import Payments from './pages/Payments'
 import Users from './pages/Users'
 import Coupons from './pages/Coupons'
-import Sliders from './pages/Sliders'
 import Settings from './pages/Settings'
 import ContactMessages from './pages/ContactMessages'
 import { useAuth } from './context/AuthContext'
@@ -38,9 +38,9 @@ const App = () => {
         <Route path="categories" element={<Categories />} />
         <Route path="orders" element={<Orders />} />
         <Route path="wallets" element={<Wallets />} />
+        <Route path="payments" element={<Payments />} />
         <Route path="users" element={<SuperAdminRoute><Users /></SuperAdminRoute>} />
         <Route path="coupons" element={<SuperAdminRoute><Coupons /></SuperAdminRoute>} />
-        <Route path="sliders" element={<SuperAdminRoute><Sliders /></SuperAdminRoute>} />
         <Route path="settings" element={<SuperAdminRoute><Settings /></SuperAdminRoute>} />
         <Route path="contact-messages" element={<SuperAdminRoute><ContactMessages /></SuperAdminRoute>} />
       </Route>

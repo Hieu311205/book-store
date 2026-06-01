@@ -1,7 +1,7 @@
 <?php
 function handleAdminWallets($method, $pathParts, $currentUser) {
     if (!tableExists('wallets') || !tableExists('wallet_transactions') || !tableExists('user_bank_accounts')) {
-        jsonResponse(['success' => false, 'message' => 'Chua tao bang vi dien tu. Vui long chay migrate_order_workflow.sql'], 500);
+        jsonResponse(['success' => false, 'message' => 'Chua tao bang vi dien tu. Vui long chay migrate_all_features.sql'], 500);
     }
 
     $resource = $pathParts[2] ?? '';
@@ -17,9 +17,14 @@ function handleAdminWallets($method, $pathParts, $currentUser) {
         $sort = $_GET['sort'] ?? 'newest';
         $dateFrom = trim((string)($_GET['date_from'] ?? ''));
         $dateTo = trim((string)($_GET['date_to'] ?? ''));
+        $userId = (int)($_GET['user_id'] ?? 0);
 
         $where = '1=1';
         $params = [];
+        $isSuperAdmin = (($currentUser['role'] ?? '') === 'super_admin');
+        if (!$isSuperAdmin) {
+            $where .= " AND u.role = 'customer'";
+        }
         if ($search !== '') {
             $where .= " AND (
                 u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ?
@@ -35,6 +40,10 @@ function handleAdminWallets($method, $pathParts, $currentUser) {
         if (in_array($status, ['pending', 'completed', 'rejected'], true)) {
             $where .= ' AND wt.status = ?';
             $params[] = $status;
+        }
+        if ($userId > 0) {
+            $where .= ' AND wt.user_id = ?';
+            $params[] = $userId;
         }
         if (($dateFrom !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom))
             || ($dateTo !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo))) {
@@ -91,21 +100,45 @@ function handleAdminWallets($method, $pathParts, $currentUser) {
             $params
         );
 
+        $statUserClause = $userId > 0 ? ' AND user_id = ?' : '';
+        $statUserParams = $userId > 0 ? [$userId] : [];
+        $statRoleClause = $isSuperAdmin ? '' : " AND user_id IN (SELECT id FROM users WHERE role = 'customer')";
+        $balanceSql = $userId > 0
+            ? "SELECT balance AS total FROM wallets WHERE user_id = ?{$statRoleClause}"
+            : "SELECT SUM(balance) AS total FROM wallets WHERE 1=1{$statRoleClause}";
+        $balanceParams = $userId > 0 ? [$userId] : [];
+
+        $walletRoleWhere = $isSuperAdmin ? '' : "WHERE u.role = 'customer'";
+        $wallets = queryAll(
+            "SELECT source.user_id,
+                    COALESCE(w.balance, 0) AS balance,
+                    u.first_name, u.last_name, u.email, u.role
+             FROM (
+                 SELECT user_id FROM wallets
+                 UNION
+                 SELECT user_id FROM wallet_transactions
+             ) source
+             LEFT JOIN wallets w ON w.user_id = source.user_id
+             LEFT JOIN users u ON u.id = source.user_id
+             {$walletRoleWhere}
+             ORDER BY u.first_name ASC, u.last_name ASC, u.email ASC"
+        );
+
         $stats = [
-            'totalBalance' => (float)(queryOne("SELECT SUM(balance) AS total FROM wallets")['total'] ?? 0),
-            'pendingWithdrawals' => (int)(queryOne("SELECT COUNT(*) AS count FROM wallet_transactions WHERE type = 'debit' AND status = 'pending' AND reference_type = 'wallet_withdraw'")['count'] ?? 0),
-            'pendingWithdrawAmount' => (float)(queryOne("SELECT SUM(amount) AS total FROM wallet_transactions WHERE type = 'debit' AND status = 'pending' AND reference_type = 'wallet_withdraw'")['total'] ?? 0),
-            'pendingDeposits' => (int)(queryOne("SELECT COUNT(*) AS count FROM wallet_transactions WHERE type = 'credit' AND status = 'pending' AND reference_type = 'wallet_deposit'")['count'] ?? 0),
-            'pendingDepositAmount' => (float)(queryOne("SELECT SUM(amount) AS total FROM wallet_transactions WHERE type = 'credit' AND status = 'pending' AND reference_type = 'wallet_deposit'")['total'] ?? 0),
+            'totalBalance' => (float)(queryOne($balanceSql, $balanceParams)['total'] ?? 0),
+            'pendingWithdrawals' => (int)(queryOne("SELECT COUNT(*) AS count FROM wallet_transactions WHERE type = 'debit' AND status = 'pending' AND reference_type = 'wallet_withdraw'{$statUserClause}{$statRoleClause}", $statUserParams)['count'] ?? 0),
+            'pendingWithdrawAmount' => (float)(queryOne("SELECT SUM(amount) AS total FROM wallet_transactions WHERE type = 'debit' AND status = 'pending' AND reference_type = 'wallet_withdraw'{$statUserClause}{$statRoleClause}", $statUserParams)['total'] ?? 0),
+            'pendingDeposits' => (int)(queryOne("SELECT COUNT(*) AS count FROM wallet_transactions WHERE type = 'credit' AND status = 'pending' AND reference_type = 'wallet_deposit'{$statUserClause}{$statRoleClause}", $statUserParams)['count'] ?? 0),
+            'pendingDepositAmount' => (float)(queryOne("SELECT SUM(amount) AS total FROM wallet_transactions WHERE type = 'credit' AND status = 'pending' AND reference_type = 'wallet_deposit'{$statUserClause}{$statRoleClause}", $statUserParams)['total'] ?? 0),
             'linkedBanks' => tableExists('user_bank_accounts')
                 ? (int)(queryOne("SELECT COUNT(*) AS count FROM user_bank_accounts WHERE is_active = 1")['count'] ?? 0)
                 : 0,
         ];
-        $stats['heldBalance'] = $stats['totalBalance'] + $stats['pendingWithdrawAmount'];
 
         jsonResponse(['success' => true, 'data' => [
             'transactions' => $transactions,
             'stats' => $stats,
+            'wallets' => $wallets,
             'pagination' => [
                 'page' => $page,
                 'limit' => $limit,

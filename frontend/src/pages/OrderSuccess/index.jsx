@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { formatPrice } from '../../utils/formatPrice'
 import { settingsService } from '../../services/settings.service'
+import { orderService } from '../../services/order.service'
 
 const paymentMethodText = {
   cod: 'Thanh toán khi nhận hàng (COD)',
@@ -21,6 +22,12 @@ const shippingProviderText = {
 }
 
 const CONFETTI_COLORS = ['#9f1f1f', '#d6a640', '#316b58', '#ff7a00', '#6366f1', '#ec4899']
+
+const getExpiryTime = (payment) => {
+  if (payment?.expires_at_unix) return Number(payment.expires_at_unix) * 1000
+  if (payment?.expires_at) return new Date(payment.expires_at).getTime()
+  return 0
+}
 
 const Confetti = () => {
   const [particles] = useState(() =>
@@ -61,6 +68,20 @@ const OrderSuccess = () => {
   const navigate = useNavigate()
   const order = location.state?.order
   const [showConfetti, setShowConfetti] = useState(true)
+  const [showQrModal, setShowQrModal] = useState(() => order?.payment_method === 'bank_transfer')
+  const [remainingSeconds, setRemainingSeconds] = useState(() => {
+    return Math.max(0, Math.floor((getExpiryTime(order?.payment) - Date.now()) / 1000))
+  })
+
+  const { data: refreshedOrder } = useQuery({
+    queryKey: ['order-success', order?.id],
+    queryFn: () => orderService.getOrderById(order.id),
+    select: (res) => res.data,
+    enabled: Boolean(order?.id && order?.payment_method === 'bank_transfer'),
+    refetchInterval: 3000,
+    refetchIntervalInBackground: false,
+  })
+  const activeOrder = refreshedOrder || order
 
   const { data: shopSettings } = useQuery({
     queryKey: ['public-settings'],
@@ -77,6 +98,20 @@ const OrderSuccess = () => {
     const t = setTimeout(() => setShowConfetti(false), 3500)
     return () => clearTimeout(t)
   }, [order, navigate])
+
+  useEffect(() => {
+    if (!getExpiryTime(activeOrder?.payment) || activeOrder.payment_method !== 'bank_transfer') return
+    const timer = setInterval(() => {
+      setRemainingSeconds(Math.max(0, Math.floor((getExpiryTime(activeOrder.payment) - Date.now()) / 1000)))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [activeOrder])
+
+  useEffect(() => {
+    if (activeOrder?.payment_status && activeOrder.payment_status !== 'pending') {
+      setShowQrModal(false)
+    }
+  }, [activeOrder?.payment_status])
 
   if (!order) return null
 
@@ -121,41 +156,33 @@ const OrderSuccess = () => {
           </div>
         </div>
 
-        {order.payment_method === 'bank_transfer' && (
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-xl p-4 text-sm text-left mb-6">
-            <p className="font-semibold text-yellow-800 dark:text-yellow-400 mb-2">Hướng dẫn chuyển khoản</p>
-            {(shopSettings?.bank_qr_image || shopSettings?.bank_account_number) && (
-              <div className="flex flex-col sm:flex-row gap-4 items-center mb-3">
-                {shopSettings?.bank_qr_image && (
-                  <img
-                    src={shopSettings.bank_qr_image}
-                    alt="QR chuyển khoản"
-                    className="w-40 h-40 object-contain rounded-lg border border-yellow-300 dark:border-yellow-600 bg-white"
-                  />
-                )}
-                <div className="space-y-1 text-yellow-800 dark:text-yellow-300">
-                  {shopSettings?.bank_name && <p>Ngân hàng: <strong>{shopSettings.bank_name}</strong></p>}
-                  {shopSettings?.bank_account_number && <p>Số TK: <strong className="font-mono">{shopSettings.bank_account_number}</strong></p>}
-                  {shopSettings?.bank_account_name && <p>Chủ TK: <strong>{shopSettings.bank_account_name}</strong></p>}
-                  <p>Số tiền: <strong>{formatPrice(order.total_amount)} đ</strong></p>
-                  <p>Nội dung CK: <strong className="font-mono">{order.order_number}</strong></p>
-                </div>
-              </div>
-            )}
-            <p className="text-yellow-700 dark:text-yellow-300">
-              {!shopSettings?.bank_account_number && (
-                <>Vui lòng chuyển khoản số tiền <strong>{formatPrice(order.total_amount)} đ</strong> đến tài khoản của shop và ghi nội dung: <strong>{order.order_number}</strong>.<br /></>
-              )}
-              Đơn hàng sẽ được xử lý sau khi chúng tôi xác nhận thanh toán.
-            </p>
+        {activeOrder.payment_method === 'bank_transfer' && activeOrder.payment_status === 'pending' && (
+          <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-left text-sm dark:border-blue-700 dark:bg-blue-900/20">
+            <p className="font-semibold text-blue-800 dark:text-blue-300">Thanh toán bằng chuyển khoản QR</p>
+            <p className="mt-1 text-blue-700 dark:text-blue-300">Đơn hàng sẽ được xử lý sau khi shop xác nhận thanh toán.</p>
+            <button type="button" className="btn btn-primary mt-3" onClick={() => setShowQrModal(true)}>Mở mã QR thanh toán</button>
+          </div>
+        )}
+
+        {activeOrder.payment_method === 'bank_transfer' && activeOrder.payment_status === 'paid' && (
+          <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4 text-left text-sm dark:border-green-700 dark:bg-green-900/20">
+            <p className="font-semibold text-green-800 dark:text-green-300">Đã thanh toán thành công</p>
+            <p className="mt-1 text-green-700 dark:text-green-300">Shop đã xác nhận khoản chuyển tiền. Đơn hàng đang được xử lý.</p>
+          </div>
+        )}
+
+        {activeOrder.payment_method === 'bank_transfer' && ['failed', 'expired'].includes(activeOrder.payment_status) && (
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-left text-sm dark:border-red-700 dark:bg-red-900/20">
+            <p className="font-semibold text-red-700 dark:text-red-300">Thanh toán không thành công</p>
+            <p className="mt-1 text-red-600 dark:text-red-300">Mã QR không còn hiệu lực. Vui lòng tạo đơn mới nếu bạn vẫn muốn mua sách.</p>
           </div>
         )}
 
         {order.payment_method === 'card' && (
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl p-4 text-sm text-left mb-6">
-            <p className="font-semibold text-blue-800 dark:text-blue-400 mb-1">Thanh toán thẻ</p>
+            <p className="font-semibold text-blue-800 dark:text-blue-400 mb-1">Đã thanh toán bằng thẻ test</p>
             <p className="text-blue-700 dark:text-blue-300">
-              Bộ phận hỗ trợ sẽ liên hệ với bạn để hướng dẫn thanh toán qua thẻ cho đơn <strong>{order.order_number}</strong>.
+              Cổng thanh toán mô phỏng đã xác nhận giao dịch cho đơn <strong>{order.order_number}</strong>. Thông tin thẻ và CVV không được lưu.
             </p>
           </div>
         )}
@@ -178,6 +205,84 @@ const OrderSuccess = () => {
           </Link>
         </div>
       </div>
+
+      {showQrModal && activeOrder.payment_method === 'bank_transfer' && activeOrder.payment_status === 'pending' && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={(event) => event.target === event.currentTarget && setShowQrModal(false)}
+        >
+          <section className="w-full max-w-md overflow-hidden rounded-lg bg-white shadow-2xl dark:bg-gray-800">
+            <header className="relative border-b border-gray-200 px-5 py-4 text-center dark:border-gray-700">
+              <h2 className="font-bold">Mã QR thanh toán</h2>
+              <button
+                type="button"
+                className="absolute right-4 top-3 text-2xl leading-none text-gray-400 hover:text-gray-700 dark:hover:text-white"
+                aria-label="Đóng"
+                onClick={() => setShowQrModal(false)}
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="p-5">
+              <div className="rounded-lg border-4 border-blue-100 bg-white p-4 text-gray-700">
+                <p className="mb-3 text-center text-xs font-semibold text-gray-500">Mở ứng dụng ngân hàng để quét mã QR</p>
+                {shopSettings?.bank_qr_image ? (
+                  <img
+                    src={shopSettings.bank_qr_image}
+                    alt="Mã QR chuyển khoản"
+                    className="mx-auto h-52 w-52 object-contain"
+                  />
+                ) : (
+                  <div className="flex h-52 items-center justify-center text-center text-sm text-gray-500">
+                    Chưa cấu hình ảnh QR trong phần cài đặt.
+                  </div>
+                )}
+
+                <dl className="mt-4 space-y-2 text-sm">
+                  {shopSettings?.bank_name && (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-gray-500">Ngân hàng:</dt>
+                      <dd className="font-bold">{shopSettings.bank_name}</dd>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-gray-500">Số tiền:</dt>
+                    <dd className="font-bold">{formatPrice(activeOrder.total_amount)} đ</dd>
+                  </div>
+                  {shopSettings?.bank_account_name && (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-gray-500">Tên chủ TK:</dt>
+                      <dd className="text-right font-bold">{shopSettings.bank_account_name}</dd>
+                    </div>
+                  )}
+                  {shopSettings?.bank_account_number && (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-gray-500">Số TK:</dt>
+                      <dd className="font-mono font-bold">{shopSettings.bank_account_number}</dd>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-gray-500">Nội dung CK:</dt>
+                    <dd className="font-mono font-bold">{activeOrder.order_number}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              <p className={`mt-4 text-center text-sm font-semibold ${remainingSeconds > 0 ? 'text-blue-700 dark:text-blue-300' : 'text-red-600'}`}>
+                {remainingSeconds > 0
+                  ? `QR hết hạn sau ${String(Math.floor(remainingSeconds / 60)).padStart(2, '0')}:${String(remainingSeconds % 60).padStart(2, '0')}`
+                  : 'QR đã hết hạn. Vui lòng tạo đơn mới nếu chưa chuyển khoản.'}
+              </p>
+              {getExpiryTime(activeOrder.payment) > 0 && (
+                <p className="mt-1 text-center text-xs text-gray-500">
+                  Thời hạn thanh toán: {new Date(getExpiryTime(activeOrder.payment)).toLocaleString('vi-VN')}
+                </p>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   )
 }

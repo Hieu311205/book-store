@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
+  FiChevronLeft,
   FiChevronRight,
   FiHeart,
   FiMapPin,
@@ -47,6 +48,7 @@ const ProductDetail = () => {
   const queryClient = useQueryClient()
   const [quantity, setQuantity] = useState(1)
   const [selectedImage, setSelectedImage] = useState('')
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false)
 
   const { data: product, isLoading } = useQuery({
     queryKey: ['product', slug],
@@ -94,19 +96,20 @@ const ProductDetail = () => {
     onError: (error) => toast.error(error.message || 'Không thể thêm vào yêu thích'),
   })
 
-  const productImages = useMemo(() => {
+  const galleryImages = useMemo(() => {
     if (!product) return []
-    const images = product.images?.length
+    const coverImages = product.images?.length
       ? product.images.map((img) => img.image_url)
       : [product.image_url || '/images/placeholder-book.jpg']
-    return [...new Set(images.filter(Boolean))]
+    const previewImages = (product.preview_images || []).map((img) => img.image_url)
+    return [...new Set([...coverImages, ...previewImages].filter(Boolean))]
   }, [product])
 
   useEffect(() => {
-    if (productImages.length) {
-      setSelectedImage(productImages[0])
+    if (galleryImages.length) {
+      setSelectedImage(galleryImages[0])
     }
-  }, [productImages])
+  }, [galleryImages])
 
   if (isLoading) return <ProductDetailSkeleton />
 
@@ -181,6 +184,15 @@ const ProductDetail = () => {
   const discountPercent = Number(product.discount_percent || 0)
     || (comparePrice > price ? Math.round(((comparePrice - price) / comparePrice) * 100) : 0)
   const activeCoupons = coupons.slice(0, 4)
+  const visibleThumbs = galleryImages.length > 4 ? galleryImages.slice(0, 3) : galleryImages
+  const hiddenThumbs = galleryImages.length > 4 ? galleryImages.slice(3) : []
+  const selectedImageIndex = Math.max(0, galleryImages.indexOf(selectedImage))
+  const showGalleryArrows = galleryImages.length > 1
+  const goToGalleryImage = (direction) => {
+    if (!galleryImages.length) return
+    const nextIndex = (selectedImageIndex + direction + galleryImages.length) % galleryImages.length
+    setSelectedImage(galleryImages[nextIndex])
+  }
 
   return (
     <div className="store-product-detail-page">
@@ -200,13 +212,55 @@ const ProductDetail = () => {
 
       <div className="store-detail-shell">
         <aside className="store-detail-purchase-card">
-          <div className="store-detail-main-image">
+          <button type="button" className="store-detail-main-image" onClick={() => setIsGalleryOpen(true)} title="Xem anh lon">
             <img src={selectedImage || '/images/placeholder-book.jpg'} alt={product.title} />
-          </div>
+            {showGalleryArrows && (
+              <>
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className="store-detail-gallery-arrow is-prev"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    goToGalleryImage(-1)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      goToGalleryImage(-1)
+                    }
+                  }}
+                  aria-label="Anh truoc"
+                >
+                  <FiChevronLeft />
+                </span>
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className="store-detail-gallery-arrow is-next"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    goToGalleryImage(1)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      goToGalleryImage(1)
+                    }
+                  }}
+                  aria-label="Anh tiep theo"
+                >
+                  <FiChevronRight />
+                </span>
+              </>
+            )}
+          </button>
 
-          {productImages.length > 1 && (
+          {galleryImages.length > 1 && (
             <div className="store-detail-thumbs">
-              {productImages.map((image) => (
+              {visibleThumbs.map((image) => (
                 <button
                   type="button"
                   key={image}
@@ -216,6 +270,16 @@ const ProductDetail = () => {
                   <img src={image} alt={product.title} />
                 </button>
               ))}
+              {hiddenThumbs.length > 0 && (
+                <button
+                  type="button"
+                  className="store-detail-thumb store-detail-thumb-more"
+                  onClick={() => setSelectedImage(hiddenThumbs[0])}
+                >
+                  <img src={hiddenThumbs[0]} alt={product.title} />
+                  <span>+{hiddenThumbs.length}</span>
+                </button>
+              )}
             </div>
           )}
 
@@ -386,6 +450,44 @@ const ProductDetail = () => {
           <ProductGrid products={relatedProducts} />
         </section>
       )}
+
+      {isGalleryOpen && (
+        <div className="store-gallery-viewer" role="dialog" aria-modal="true">
+          <button type="button" className="store-gallery-close" onClick={() => setIsGalleryOpen(false)}>
+            Dong
+          </button>
+
+          {showGalleryArrows && (
+            <>
+              <button type="button" className="store-gallery-nav is-prev" onClick={() => goToGalleryImage(-1)} aria-label="Anh truoc">
+                <FiChevronLeft />
+              </button>
+              <button type="button" className="store-gallery-nav is-next" onClick={() => goToGalleryImage(1)} aria-label="Anh tiep theo">
+                <FiChevronRight />
+              </button>
+            </>
+          )}
+
+          <div className="store-gallery-stage" onClick={() => setIsGalleryOpen(false)}>
+            <img src={selectedImage || '/images/placeholder-book.jpg'} alt={product.title} onClick={(event) => event.stopPropagation()} />
+            <div className="store-gallery-caption">{product.title}</div>
+          </div>
+
+          <div className="store-gallery-strip">
+            {galleryImages.map((image, index) => (
+              <button
+                type="button"
+                key={image}
+                className={`store-gallery-strip-item ${selectedImage === image ? 'is-active' : ''}`}
+                onClick={() => setSelectedImage(image)}
+              >
+                <img src={image} alt={`${product.title} ${index + 1}`} />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }

@@ -1,13 +1,14 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { FiPlus, FiSave, FiTrash2 } from 'react-icons/fi'
+import { FiPlus, FiSave, FiTrash2, FiUpload } from 'react-icons/fi'
 import { adminService } from '../../services/admin.service'
 
 const emptyForm = { key_name: '', value: '', type: 'string', group_name: 'general' }
 
 const Settings = () => {
   const queryClient = useQueryClient()
+  const qrInputRef = useRef(null)
   const [form, setForm] = useState(emptyForm)
 
   const { data: settings = [], isLoading } = useQuery({
@@ -44,9 +45,28 @@ const Settings = () => {
     onError: (error) => toast.error(error.message || 'Không thể xóa cài đặt'),
   })
 
+  const qrUploadMutation = useMutation({
+    mutationFn: adminService.uploadBankQr,
+    onSuccess: (res) => {
+      queryClient.invalidateQueries(['admin-settings'])
+      toast.success(res.message || 'Da tai anh ma QR')
+    },
+    onError: (error) => toast.error(error.message || 'Khong the tai anh ma QR'),
+  })
+
   const submit = (event) => {
     event.preventDefault()
     createMutation.mutate(form)
+  }
+
+  const uploadQrImage = (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const data = new FormData()
+    data.append('qr_image', file)
+    qrUploadMutation.mutate(data)
+    event.target.value = ''
   }
 
   const updateField = (id, key, value) => {
@@ -66,6 +86,14 @@ const Settings = () => {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Cài đặt</h1>
+
+      <input
+        ref={qrInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onChange={uploadQrImage}
+      />
 
       <form onSubmit={submit} className="card p-4 grid grid-cols-1 md:grid-cols-5 gap-3">
         <input
@@ -117,11 +145,33 @@ const Settings = () => {
                 <tr key={item.id}>
                   <td className="font-medium">{item.key_name}</td>
                   <td>
-                    <input
-                      className="input"
-                      defaultValue={item.value || ''}
-                      onBlur={(e) => updateField(item.id, 'value', e.target.value)}
-                    />
+                    <div className="space-y-2">
+                      <input
+                        className="input"
+                        defaultValue={item.value || ''}
+                        onBlur={(e) => updateField(item.id, 'value', e.target.value)}
+                      />
+                      {item.key_name === 'bank_qr_image' && (
+                        <div className="flex flex-wrap items-center gap-3">
+                          <button
+                            type="button"
+                            className="btn btn-outline btn-sm"
+                            disabled={qrUploadMutation.isPending}
+                            onClick={() => qrInputRef.current?.click()}
+                          >
+                            <FiUpload />
+                            {qrUploadMutation.isPending ? 'Dang tai...' : 'Tai QR'}
+                          </button>
+                          {item.value && (
+                            <img
+                              src={item.value}
+                              alt="QR chuyen khoan"
+                              className="h-20 w-20 rounded-lg border border-gray-200 bg-white object-contain p-1 dark:border-gray-600"
+                            />
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </td>
                   <td>
                     <select

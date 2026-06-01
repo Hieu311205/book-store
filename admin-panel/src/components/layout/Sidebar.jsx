@@ -5,9 +5,9 @@ import {
   FiFolder,
   FiShoppingCart,
   FiCreditCard,
+  FiActivity,
   FiUsers,
   FiTag,
-  FiImage,
   FiSettings,
   FiLogOut,
 } from 'react-icons/fi'
@@ -21,9 +21,9 @@ const menuItems = [
   { to: '/categories', icon: FiFolder, label: 'Danh mục' },
   { to: '/orders', icon: FiShoppingCart, label: 'Đơn hàng' },
   { to: '/wallets', icon: FiCreditCard, label: 'Ví điện tử' },
+  { to: '/payments', icon: FiActivity, label: 'Thanh toán' },
   { to: '/users', icon: FiUsers, label: 'Người dùng', superOnly: true },
   { to: '/coupons', icon: FiTag, label: 'Mã giảm giá', superOnly: true },
-  { to: '/sliders', icon: FiImage, label: 'Banner', superOnly: true },
   { to: '/settings', icon: FiSettings, label: 'Cài đặt', superOnly: true },
 ]
 

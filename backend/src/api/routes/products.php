@@ -213,6 +213,9 @@ function getProduct($field, $value) {
 
     // Gắn thêm ảnh và tag vào response
     $product['images'] = queryAll("SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order", [$product['id']]);
+    $product['preview_images'] = tableExists('product_preview_images')
+        ? queryAll("SELECT * FROM product_preview_images WHERE product_id = ? ORDER BY sort_order, id", [$product['id']])
+        : [];
     $product['tags']   = array_column(queryAll("SELECT tag FROM product_tags WHERE product_id = ?", [$product['id']]), 'tag');
 
     jsonResponse(['success' => true, 'data' => $product]);

@@ -20,6 +20,9 @@ const Wallet = () => {
   const [transactionMonth, setTransactionMonth] = useState('')
   const [transactionType, setTransactionType] = useState('')
   const [transactionStatus, setTransactionStatus] = useState('')
+  const [otpRequest, setOtpRequest] = useState(null)
+  const [otpCode, setOtpCode] = useState('')
+  const [otpSending, setOtpSending] = useState(false)
   //lọc
   const transactionParams = {
     page: transactionPage,
@@ -77,6 +80,8 @@ const Wallet = () => {
     onSuccess: () => {
       toast.success('Đã gửi yêu cầu nạp tiền, vui lòng chờ admin duyệt')
       setDepositAmount('')
+      setOtpRequest(null)
+      setOtpCode('')
       refreshWallet()
     },
     onError: (error) => toast.error(error.message || 'Không thể nạp tiền'),
@@ -87,6 +92,8 @@ const Wallet = () => {
     onSuccess: () => {
       toast.success('Đã gửi yêu cầu rút tiền')
       setWithdrawAmount('')
+      setOtpRequest(null)
+      setOtpCode('')
       refreshWallet()
     },
     onError: (error) => toast.error(error.message || 'Không thể rút tiền'),
@@ -97,6 +104,38 @@ const Wallet = () => {
     setBankAccountNumber('')
     setBankAccountName('')
     setShowBankForm(true)
+  }
+
+  const requestWalletOtp = async (purpose, payload, title) => {
+    setOtpSending(true)
+    try {
+      const response = await userService.sendWalletOtp(purpose)
+      const { email_sent: emailSent, dev_otp: devOtp } = response.data || {}
+      setOtpRequest({ purpose, payload, title, devOtp: devOtp || null })
+      setOtpCode('')
+      if (emailSent) {
+        toast.success('Mã OTP đã được gửi đến email của bạn')
+      } else {
+        toast(`Dev OTP: ${devOtp}`, { icon: '🔑', duration: 30000 })
+      }
+    } catch (error) {
+      toast.error(error.message || 'Không thể gửi mã OTP')
+    } finally {
+      setOtpSending(false)
+    }
+  }
+
+  const confirmWalletOtp = () => {
+    if (!otpRequest || !/^\d{6}$/.test(otpCode)) {
+      toast.error('Nhập mã OTP gồm 6 chữ số')
+      return
+    }
+    const payload = { ...otpRequest.payload, otp_code: otpCode }
+    if (otpRequest.purpose === 'wallet_deposit') {
+      depositMutation.mutate(payload)
+    } else {
+      withdrawMutation.mutate(payload)
+    }
   }
 
   const submitBankAccount = () => {
@@ -197,7 +236,7 @@ const Wallet = () => {
           />
           <button
             className="btn btn-primary w-full"
-            disabled={depositMutation.isPending || !selectedBank}
+            disabled={depositMutation.isPending || otpSending || !selectedBank}
             onClick={() => {
               if (!selectedBank) {
                 toast.error('Chọn tài khoản ngân hàng trước khi nạp tiền')
@@ -207,7 +246,11 @@ const Wallet = () => {
                 toast.error('Nhập số tiền hợp lệ')
                 return
               }
-              depositMutation.mutate({ amount: Number(depositAmount), bank_account_id: Number(selectedBankId) })
+              requestWalletOtp(
+                'wallet_deposit',
+                { amount: Number(depositAmount), bank_account_id: Number(selectedBankId) },
+                'Xác nhận nạp tiền',
+              )
             }}
           >
             Nạp vào ví
@@ -229,7 +272,7 @@ const Wallet = () => {
           />
           <button
             className="btn btn-primary w-full"
-            disabled={withdrawMutation.isPending || !selectedBank}
+            disabled={withdrawMutation.isPending || otpSending || !selectedBank}
             onClick={() => {
               if (!selectedBank) {
                 toast.error('Chọn tài khoản ngân hàng trước khi rút tiền')
@@ -239,13 +282,66 @@ const Wallet = () => {
                 toast.error('Nhập số tiền hợp lệ')
                 return
               }
-              withdrawMutation.mutate({ amount: Number(withdrawAmount), bank_account_id: Number(selectedBankId) })
+              requestWalletOtp(
+                'wallet_withdraw',
+                { amount: Number(withdrawAmount), bank_account_id: Number(selectedBankId) },
+                'Xác nhận rút tiền',
+              )
             }}
           >
             Gửi yêu cầu rút
           </button>
         </div>
       </div>
+
+      {otpRequest && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={(event) => event.target === event.currentTarget && setOtpRequest(null)}
+        >
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-lg font-bold">{otpRequest.title}</h3>
+              <button type="button" className="text-2xl text-gray-400 hover:text-gray-700 dark:hover:text-white" onClick={() => setOtpRequest(null)}>
+                ×
+              </button>
+            </div>
+            <p className="mt-2 text-sm text-gray-500">Nhập mã OTP gồm 6 chữ số đã được gửi đến email của bạn.</p>
+            {otpRequest.devOtp && (
+              <p className="mt-3 rounded-lg bg-yellow-50 p-3 text-sm text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">
+                OTP thử nghiệm: <strong>{otpRequest.devOtp}</strong>
+              </p>
+            )}
+            <input
+              className="input mt-4 w-full text-center text-xl tracking-widest"
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="Nhập mã OTP"
+              value={otpCode}
+              onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+            />
+            <div className="mt-4 flex justify-end gap-3">
+              <button
+                type="button"
+                className="btn btn-outline"
+                disabled={otpSending}
+                onClick={() => requestWalletOtp(otpRequest.purpose, otpRequest.payload, otpRequest.title)}
+              >
+                Gửi lại OTP
+              </button>
+              <button type="button" className="btn btn-outline" onClick={() => setOtpRequest(null)}>Hủy</button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={depositMutation.isPending || withdrawMutation.isPending}
+                onClick={confirmWalletOtp}
+              >
+                Xác nhận
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6">
         <div className="flex flex-wrap items-start justify-between gap-3 mb-4">

@@ -24,6 +24,7 @@ export const useAdminProducts = () => {
   const [editingProduct, setEditingProduct] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const coverInputRef = useRef(null)
+  const previewInputRef = useRef(null)
 
   const hasFilters = !!(category || author || publisher || status || priceMin || priceMax || isFeatured || isBestseller)
   const queryParams = {
@@ -129,6 +130,39 @@ export const useAdminProducts = () => {
     onError: (error) => toast.error(error.message || 'Không thể tải ảnh bìa'),
   })
 
+  const uploadPreviewMutation = useMutation({
+    mutationFn: ({ id, data }) => adminService.uploadProductPreviews(id, data),
+    onSuccess: (res) => {
+      const previewImages = res.data?.preview_images || []
+      setForm((current) => ({ ...current, preview_images: previewImages }))
+      invalidate()
+      toast.success('Da luu anh doc thu')
+    },
+    onError: (error) => toast.error(error.message || 'Khong the tai anh doc thu'),
+  })
+
+  const updatePreviewMutation = useMutation({
+    mutationFn: ({ productId, previewId, data }) => adminService.updateProductPreview(productId, previewId, data),
+    onSuccess: (res) => {
+      const previewImages = res.data?.preview_images || []
+      setForm((current) => ({ ...current, preview_images: previewImages }))
+      invalidate()
+      toast.success('Da cap nhat anh doc thu')
+    },
+    onError: (error) => toast.error(error.message || 'Khong the cap nhat anh doc thu'),
+  })
+
+  const deletePreviewMutation = useMutation({
+    mutationFn: ({ productId, previewId }) => adminService.deleteProductPreview(productId, previewId),
+    onSuccess: (res) => {
+      const previewImages = res.data?.preview_images || []
+      setForm((current) => ({ ...current, preview_images: previewImages }))
+      invalidate()
+      toast.success('Da xoa anh doc thu')
+    },
+    onError: (error) => toast.error(error.message || 'Khong the xoa anh doc thu'),
+  })
+
   const openCreate = () => {
     setEditingProduct(null)
     setForm(emptyForm)
@@ -155,6 +189,7 @@ export const useAdminProducts = () => {
       short_description: product.short_description || '',
       description: product.description || '',
       image_url: product.images?.[0]?.image_url || '',
+      preview_images: product.preview_images || [],
       is_active: Number(product.is_active ?? 1),
       is_featured: Number(product.is_featured ?? 0),
     })
@@ -200,6 +235,36 @@ export const useAdminProducts = () => {
     uploadCoverMutation.mutate(data)
   }
 
+  const openPreviewPicker = () => {
+    if (!editingProduct?.id) {
+      toast.error('Hay luu sach truoc khi them anh doc thu')
+      return
+    }
+    previewInputRef.current?.click()
+  }
+
+  const handlePreviewFileChange = (event) => {
+    const files = Array.from(event.target.files || [])
+    event.target.value = ''
+    if (!files.length || !editingProduct?.id) return
+
+    const data = new FormData()
+    files.forEach((file) => data.append('preview_images[]', file))
+    uploadPreviewMutation.mutate({ id: editingProduct.id, data })
+  }
+
+  const updatePreview = (previewId, data) => {
+    if (!editingProduct?.id) return
+    updatePreviewMutation.mutate({ productId: editingProduct.id, previewId, data })
+  }
+
+  const deletePreview = (previewId) => {
+    if (!editingProduct?.id) return
+    if (window.confirm('Xoa anh doc thu nay?')) {
+      deletePreviewMutation.mutate({ productId: editingProduct.id, previewId })
+    }
+  }
+
   return {
     data,
     isLoading,
@@ -221,6 +286,7 @@ export const useAdminProducts = () => {
     form,
     setForm,
     coverInputRef,
+    previewInputRef,
     openCreate,
     openEdit,
     closeForm,
@@ -228,8 +294,15 @@ export const useAdminProducts = () => {
     handleSubmit,
     openCoverPicker,
     handleCoverFileChange,
+    openPreviewPicker,
+    handlePreviewFileChange,
+    updatePreview,
+    deletePreview,
     uploadCoverMutation,
-    isSaving: createMutation.isPending || updateMutation.isPending || uploadCoverMutation.isPending,
+    uploadPreviewMutation,
+    updatePreviewMutation,
+    deletePreviewMutation,
+    isSaving: createMutation.isPending || updateMutation.isPending || uploadCoverMutation.isPending || uploadPreviewMutation.isPending,
     totalPages: data?.pagination?.totalPages || 1,
     totalItems: data?.pagination?.totalItems ?? 0,
   }

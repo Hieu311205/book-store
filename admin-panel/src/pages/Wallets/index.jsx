@@ -58,16 +58,18 @@ const Wallets = () => {
   const [sort, setSort] = useState('newest')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [selectedUserId, setSelectedUserId] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [page, setPage] = useState(1)
 
-  const hasFilters = Boolean(search || type || status || dateFrom || dateTo)
+  const hasFilters = Boolean(search || type || status || dateFrom || dateTo || selectedUserId)
   const queryParams = {
     page,
     limit: LIMIT,
     search: search || undefined,
     type: type || undefined,
     status: status || undefined,
+    user_id: selectedUserId || undefined,
     date_from: dateFrom || undefined,
     date_to: dateTo || undefined,
     sort,
@@ -83,6 +85,7 @@ const Wallets = () => {
 
   const transactions = data?.transactions || []
   const stats = data?.stats || {}
+  const wallets = data?.wallets || []
   const totalPages = data?.pagination?.totalPages || 1
   const totalItems = data?.pagination?.totalItems ?? 0
 
@@ -100,6 +103,7 @@ const Wallets = () => {
     setSearch('')
     setType('')
     setStatus('')
+    setSelectedUserId('')
     setDateFrom('')
     setDateTo('')
     setSort('newest')
@@ -173,14 +177,27 @@ const Wallets = () => {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Quản lý ví điện tử</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="card p-4">
-          <p className="text-sm text-gray-500">Số dư khả dụng</p>
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="card p-3">
+          <div className="space-y-2">
+            <p className="text-sm text-gray-500">Số dư khả dụng</p>
+            <select
+              value={selectedUserId}
+              onChange={(event) => { setSelectedUserId(event.target.value); setPage(1) }}
+              className="input h-8 w-full text-xs"
+            >
+              <option value="">Tất cả ví</option>
+              {wallets.map((wallet) => (
+                <option key={wallet.user_id} value={wallet.user_id}>
+                  {wallet.first_name} {wallet.last_name} - {wallet.email}
+                </option>
+              ))}
+            </select>
+          </div>
           <p className="text-2xl font-bold text-primary-600 mt-1">{formatPrice(stats.totalBalance)} đ</p>
-        </div>
-        <div className="card p-4">
-          <p className="text-sm text-gray-500">Tổng tiền hệ thống giữ</p>
-          <p className="text-2xl font-bold text-purple-500 mt-1">{formatPrice(stats.heldBalance)} đ</p>
+          <p className="text-xs text-gray-500 mt-1">
+            {selectedUserId ? 'Đang xem số dư của người dùng đã chọn' : 'Tổng số dư khả dụng của tất cả ví'}
+          </p>
         </div>
         <div className="card p-4">
           <p className="text-sm text-gray-500">Nạp tiền chờ duyệt</p>

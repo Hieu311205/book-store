@@ -40,9 +40,9 @@ const COLORS = [
   '#FFC000','#5B9BD5','#70AD47','#7030A0','#00B0F0','#FF7F7F',
 ]
 
-const YEARS  = [2022, 2023, 2024, 2025]
-const MONTHS = ['January','February','March','April','May','June',
-                'July','August','September','October','November','December']
+const YEARS  = Array.from({ length: new Date().getFullYear() - 2022 + 1 }, (_, index) => 2022 + index)
+const MONTHS = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
+                'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12']
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 const StatCard = ({ icon: Icon, label, value, color, suffix }) => (
@@ -106,8 +106,8 @@ const Dashboard = () => {
   })
 
   const { data: salesData } = useQuery({
-    queryKey: ['sales-report'],
-    queryFn: () => adminService.getSalesReport('7days'),
+    queryKey: ['sales-report', year, month],
+    queryFn: () => adminService.getSalesReport({ year, month }),
     select: (res) => res.data,
   })
 
@@ -119,8 +119,8 @@ const Dashboard = () => {
   })
 
   const { data: inventory } = useQuery({
-    queryKey: ['inventory-report'],
-    queryFn: adminService.getInventoryReport,
+    queryKey: ['inventory-report', year, month],
+    queryFn: () => adminService.getInventoryReport({ year, month }),
     select: (res) => res.data,
   })
 
@@ -136,9 +136,9 @@ const Dashboard = () => {
     retry: false,
   })
 
-  const chartData = aiOverview?.daily_data?.length
-    ? aiOverview.daily_data.map((item) => ({ date: item.date, total: Number(item.revenue || 0), orders: Number(item.orders || 0) }))
-    : (salesData || [])
+  const chartData = salesData?.length
+    ? salesData
+    : (aiOverview?.daily_data || []).map((item) => ({ date: item.date, total: Number(item.revenue || 0), orders: Number(item.orders || 0) }))
 
   // ── Inventory data từ API ──────────────────────────────────────────────────
   const byCategory = inventory?.byCategory || []
@@ -166,7 +166,7 @@ const Dashboard = () => {
 
   // ── KPI từ API ─────────────────────────────────────────────────────────────
   const totalRevenue  = inventory?.totalRevenue  ?? 0
-  const netProfit     = inventory?.netProfit     ?? 0
+  const productRevenue = inventory?.productRevenue ?? inventory?.revenueAfterShipping ?? 0
   const revenueGrowth = inventory?.revenueGrowth ?? 0
 
   return (
@@ -269,7 +269,7 @@ const Dashboard = () => {
         {/* KPI cards */}
         <div className="flex flex-col gap-4">
           <div className="card p-6 flex-1">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Tổng doanh thu</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Tổng tiền thu</p>
             <p className="text-3xl font-bold text-blue-600 mt-2 leading-tight">
               {fmtFull(totalRevenue)}
             </p>
@@ -279,9 +279,9 @@ const Dashboard = () => {
             </p>
           </div>
           <div className="card p-6 flex-1">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Lợi nhuận ròng</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Doanh thu hàng bán</p>
             <p className="text-3xl font-bold text-gray-800 dark:text-white mt-2 leading-tight">
-              {fmtFull(netProfit)}
+              {fmtFull(productRevenue)}
             </p>
           </div>
         </div>
@@ -298,7 +298,7 @@ const Dashboard = () => {
                 <tr>
                   <th>Sản phẩm</th>
                   <th className="text-right whitespace-nowrap">Số ĐV tồn kho</th>
-                  <th className="text-right whitespace-nowrap">Giá trị tồn kho</th>
+                  <th className="text-right whitespace-nowrap">Giá trị tồn kho theo giá bán</th>
                 </tr>
               </thead>
               <tbody>
@@ -347,7 +347,7 @@ const Dashboard = () => {
 
         {/* Horizontal bar – inventory value by category */}
         <div className="card p-4">
-          <h3 className="text-sm font-semibold mb-2">Giá trị hàng tồn kho</h3>
+          <h3 className="text-sm font-semibold mb-2">Giá trị tồn kho theo giá bán</h3>
           <ResponsiveContainer width="100%" height={230}>
             <BarChart
               data={invValueByCat}
@@ -367,9 +367,9 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* ── 6. Weekly revenue line chart (OLD – giữ lại) ─────────────────── */}
+      {/* ── 6. Monthly revenue line chart ─────────────────── */}
       <div className="card p-6">
-        <h3 className="font-bold mb-6">Biểu đồ doanh thu tuần</h3>
+        <h3 className="font-bold mb-6">Biểu đồ doanh thu theo tháng</h3>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>

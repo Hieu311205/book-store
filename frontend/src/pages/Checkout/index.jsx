@@ -22,9 +22,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
+import { FiCheckCircle, FiCreditCard, FiShield } from 'react-icons/fi'
 import { userService } from '../../services/user.service'
 import { orderService } from '../../services/order.service'
-import { settingsService } from '../../services/settings.service'
 import { useAuth } from '../../context/AuthContext'
 import { useCart } from '../../context/CartContext'
 import { formatPrice } from '../../utils/formatPrice'
@@ -38,10 +38,49 @@ const paymentMethodText = {
   wallet: 'Ví điện tử',
 }
 
+const detectCardIssuer = (cardNumber) => {
+  const number = cardNumber.replace(/\D/g, '')
+  const napasIssuers = [
+    ['970422', 'MB Bank'],
+    ['970436', 'Vietcombank'],
+    ['970415', 'VietinBank'],
+    ['970418', 'BIDV'],
+    ['970407', 'Techcombank'],
+    ['970432', 'VPBank'],
+    ['970423', 'TPBank'],
+    ['970416', 'ACB'],
+    ['970403', 'Sacombank'],
+    ['970405', 'Agribank'],
+  ]
+  const napasIssuer = napasIssuers.find(([prefix]) => number.startsWith(prefix))
+  if (napasIssuer) return { bank: napasIssuer[1], network: 'NAPAS' }
+  if (number.startsWith('4')) return { bank: number.startsWith('411111') ? 'Ngân hàng mô phỏng Visa' : 'Ngân hàng phát hành Visa', network: 'VISA' }
+  if (/^(5[1-5]|2[2-7])/.test(number)) return { bank: 'Ngân hàng phát hành Mastercard', network: 'MASTERCARD' }
+  if (/^35/.test(number)) return { bank: 'Ngân hàng phát hành JCB', network: 'JCB' }
+  return { bank: '', network: 'THẺ NGÂN HÀNG' }
+}
+
+const formatCardNumber = (value) => value.replace(/\D/g, '').slice(0, 16).replace(/(\d{4})(?=\d)/g, '$1 ')
+
+const formatCardExpiry = (value) => {
+  const digits = value.replace(/\D/g, '').slice(0, 4)
+  return digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits
+}
+
+const isCardExpiryValid = (value) => {
+  if (!/^\d{2}\/\d{2}$/.test(value)) return false
+  const [month, shortYear] = value.split('/').map(Number)
+  if (month < 1 || month > 12) return false
+  const now = new Date()
+  const expiryMonth = new Date(2000 + shortYear, month - 1, 1)
+  const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  return expiryMonth >= currentMonth
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // BƯỚC 4: OTP Modal — hiển thị sau khi backend gửi email thành công
 // ═══════════════════════════════════════════════════════════════════════════════
-const OtpModal = ({ email, devOtp, onVerify, onClose }) => {
+const OtpModal = ({ email, devOtp, purpose, verifying, onVerify, onClose }) => {
   const [code, setCode]         = useState('')       // chuỗi 6 chữ số đang nhập
   const [seconds, setSeconds]   = useState(300)      // đếm ngược 5 phút (đồng hồ phía client)
   const [cooldown, setCooldown] = useState(60)       // chờ 60s trước khi cho phép gửi lại
@@ -94,7 +133,7 @@ const OtpModal = ({ email, devOtp, onVerify, onClose }) => {
     if (cooldown > 0 || sending) return
     setSending(true)
     try {
-      const res = await orderService.sendOtp()
+      const res = await orderService.sendOtp(purpose)
       toast.success('Đã gửi lại mã OTP')
       setSeconds(300)    // reset đồng hồ 5 phút
       setCooldown(60)    // khóa nút gửi lại 60s
@@ -106,7 +145,7 @@ const OtpModal = ({ email, devOtp, onVerify, onClose }) => {
     } finally {
       setSending(false)
     }
-  }, [cooldown, sending])
+  }, [cooldown, sending, purpose])
 
   return (
     // Click ra ngoài modal → đóng
@@ -158,10 +197,10 @@ const OtpModal = ({ email, devOtp, onVerify, onClose }) => {
         {/* BƯỚC 5: Xác nhận → gọi handleOtpVerify(code) ở Checkout */}
         <button
           className="otp-submit"
-          disabled={code.length < 6 || seconds === 0}  // cần đủ 6 số và còn trong hạn
+          disabled={code.length < 6 || seconds === 0 || verifying}  // cần đủ 6 số và còn trong hạn
           onClick={() => onVerify(code)}
         >
-          Xác nhận & Đặt hàng
+          {verifying ? 'Đang xác minh...' : 'Xác nhận & Đặt hàng'}
         </button>
 
         {/* Gửi lại mã — disabled 60s sau mỗi lần gửi */}
@@ -205,7 +244,12 @@ const Checkout = () => {
   const [customerNote, setCustomerNote]     = useState('')
   const [paymentMethod, setPaymentMethod]   = useState('cod')
   const [selectedCoupon, setSelectedCoupon] = useState(null)
-  const [selectedBankId, setSelectedBankId] = useState('')
+  const [cardNumber, setCardNumber]         = useState('')
+  const [cardExpiry, setCardExpiry]         = useState('')
+  const [cardCvv, setCardCvv]               = useState('')
+  const [cardHolder, setCardHolder]         = useState('')
+  const [cardPhone, setCardPhone]           = useState('')
+  const [cardMode, setCardMode]             = useState('domestic')
 
   // OTP modal: null = ẩn, { email, devOtp } = hiện
   const [otpModal, setOtpModal] = useState(null)
@@ -258,23 +302,9 @@ const Checkout = () => {
     queryFn: userService.getWallet,
     select: (res) => res.data,
   })
-  const { data: shopSettings } = useQuery({
-    queryKey: ['public-settings'],
-    queryFn: settingsService.getSettings,
-    select: (res) => res.data,
-    staleTime: 60000,
-  })
-
   const walletBalance = Number(walletData?.wallet?.balance || 0)
-  const bankAccounts  = walletData?.bank_accounts || []
-  const selectedBank  = bankAccounts.find((item) => String(item.id) === String(selectedBankId)) || bankAccounts[0]
-  const hasLinkedBank = bankAccounts.length > 0
-
-  // Tự chọn ngân hàng đầu tiên khi dữ liệu load xong
-  useEffect(() => {
-    if (!selectedBankId && bankAccounts.length) setSelectedBankId(String(bankAccounts[0].id))
-  }, [bankAccounts, selectedBankId])
-
+  const cardIssuer = useMemo(() => detectCardIssuer(cardNumber), [cardNumber])
+  const cardExpiryValid = !cardExpiry || isCardExpiryValid(cardExpiry)
   // ── BƯỚC 6 → mutation tạo đơn hàng ─────────────────────────────────────────
   // Được gọi 2 trường hợp:
   //   (a) COD/wallet: gọi trực tiếp từ submit() — không có otp_code
@@ -296,7 +326,6 @@ const Checkout = () => {
     },
     onError: (error) => {
       toast.error(error.message || 'Không thể tạo đơn hàng')
-      setOtpModal(null)   // đóng modal nếu đang mở
     },
   })
 
@@ -305,10 +334,14 @@ const Checkout = () => {
     address_id:    Number(addressId),
     shipping_method: shippingMethod,
     payment_method:  paymentMethod,
-    bank_account_id: selectedBank ? Number(selectedBank.id) : undefined,
     customer_note:   customerNote,
     coupon_code:     selectedCoupon?.code || undefined,
     otp_code:        otpCode || undefined,   // backend sẽ validate mã này trong verifyOrderOtp()
+    card_number:     paymentMethod === 'card' ? cardNumber : undefined,
+    card_expiry:     paymentMethod === 'card' ? cardExpiry : undefined,
+    card_cvv:        paymentMethod === 'card' ? cardCvv : undefined,
+    card_holder:     paymentMethod === 'card' ? cardHolder : undefined,
+    card_phone:      paymentMethod === 'card' ? cardPhone : undefined,
     items: isBuyNow
       ? [{ product_id: buyNowItem.product_id, quantity: buyNowItem.quantity }]
       : selectedIds.length
@@ -321,8 +354,33 @@ const Checkout = () => {
   const submit = async () => {
     // Validate cơ bản trước khi gọi API
     if (!addressId) { toast.error('Vui lòng chọn địa chỉ giao hàng'); return }
-    if (['bank_transfer', 'card'].includes(paymentMethod) && !selectedBank) {
-      toast.error('Chọn tài khoản ngân hàng trước khi dùng phương thức thanh toán này')
+    const requiresCardCvv = cardIssuer.network !== 'NAPAS'
+    if (paymentMethod === 'card' && !/^\d{16}$/.test(cardNumber)) {
+      toast.error('Số thẻ phải gồm đúng 16 chữ số')
+      return
+    }
+    if (paymentMethod === 'card' && !isCardExpiryValid(cardExpiry)) {
+      toast.error('Ngày hết hạn phải theo định dạng MM/YY và không được ở quá khứ')
+      return
+    }
+    if (paymentMethod === 'card' && ((requiresCardCvv && !/^\d{3}$/.test(cardCvv)) || (!requiresCardCvv && cardCvv && !/^\d{3}$/.test(cardCvv)))) {
+      toast.error(requiresCardCvv ? 'CVV phải gồm đúng 3 chữ số' : 'Nếu nhập CVV, vui lòng dùng đúng 3 chữ số')
+      return
+    }
+    if (paymentMethod === 'card' && (!cardHolder.trim() || !/^\d{9,11}$/.test(cardPhone))) {
+      toast.error('Nhập tên in trên thẻ và số điện thoại hợp lệ')
+      return
+    }
+    if (paymentMethod === 'card' && cardNumber === '4000000000000002') {
+      toast.error('Thẻ test bị từ chối thanh toán')
+      return
+    }
+    if (paymentMethod === 'card' && cardNumber === '4000000000009995') {
+      toast.error('Thẻ test không đủ số dư')
+      return
+    }
+    if (paymentMethod === 'card' && cardNumber !== '4111111111111111' && cardIssuer.network !== 'NAPAS') {
+      toast.error('Chỉ chấp nhận thẻ test Visa hoặc thẻ NAPAS mô phỏng')
       return
     }
     if (paymentMethod === 'wallet' && walletBalance < payableTotal) {
@@ -330,25 +388,25 @@ const Checkout = () => {
       return
     }
 
-    // Nhánh OTP: bank_transfer / card
-    if (['bank_transfer', 'card'].includes(paymentMethod)) {
+    // Nhánh OTP: thẻ test / ví điện tử
+    if (['card', 'wallet'].includes(paymentMethod)) {
       try {
         // Gọi POST /api/v1/otp/send → backend tạo mã, lưu DB, gửi Gmail
-        const res = await orderService.sendOtp()
+        const res = await orderService.sendOtp(paymentMethod)
         const { email_sent, dev_otp } = res.data || {}
 
         // Nếu email chưa cấu hình → hiện toast kèm mã để test
         if (!email_sent) toast(`Dev OTP: ${dev_otp}`, { icon: '🔑', duration: 30000 })
 
         // Mở OtpModal (BƯỚC 4) — luồng tiếp theo do người dùng nhập mã
-        setOtpModal({ email: user?.email || 'email của bạn', devOtp: dev_otp || null })
+        setOtpModal({ email: user?.email || 'email của bạn', devOtp: dev_otp || null, purpose: paymentMethod })
       } catch (err) {
         toast.error(err.message || 'Không thể gửi mã OTP')
       }
       return  // dừng — chờ người dùng nhập mã trong modal
     }
 
-    // Nhánh không OTP: COD / wallet — tạo đơn ngay
+    // Nhánh không OTP: COD / chuyển khoản QR
     createMutation.mutate(buildOrderPayload())
   }
 
@@ -375,6 +433,8 @@ const Checkout = () => {
         <OtpModal
           email={otpModal.email}
           devOtp={otpModal.devOtp}
+          purpose={otpModal.purpose}
+          verifying={createMutation.isPending}
           onVerify={handleOtpVerify}
           onClose={() => setOtpModal(null)}
         />
@@ -426,24 +486,6 @@ const Checkout = () => {
 
             <div className="mt-6">
               <h3 className="font-semibold mb-3">Phương thức thanh toán</h3>
-              {!hasLinkedBank && (
-                <div className="mb-3 rounded-lg border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-700 dark:border-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300">
-                  Liên kết ngân hàng ở mục Ví điện tử trước khi thanh toán bằng chuyển khoản hoặc thẻ.
-                </div>
-              )}
-              {hasLinkedBank && (
-                <div className="mb-3">
-                  <label className="text-sm font-medium text-gray-500 mb-1 block">Tài khoản ngân hàng dùng cho thanh toán</label>
-                  <select className="input w-full max-w-xl" value={selectedBankId} onChange={(event) => setSelectedBankId(event.target.value)}>
-                    {bankAccounts.map((bank) => (
-                      <option key={bank.id} value={bank.id}>
-                        {bank.bank_name} - {bank.bank_account_name} - {bank.bank_account_number}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
               <div className="space-y-3">
                 <label className="flex items-start gap-3 border dark:border-gray-700 rounded-lg p-4 cursor-pointer">
                   <input type="radio" name="payment_method" value="cod" checked={paymentMethod === 'cod'} onChange={(event) => setPaymentMethod(event.target.value)} className="mt-1" />
@@ -453,49 +495,113 @@ const Checkout = () => {
                   </div>
                 </label>
 
-                <label className={`flex items-start gap-3 border dark:border-gray-700 rounded-lg p-4 ${hasLinkedBank ? 'cursor-pointer' : 'opacity-60'}`}>
-                  <input type="radio" name="payment_method" value="bank_transfer" checked={paymentMethod === 'bank_transfer'} disabled={!hasLinkedBank} onChange={(event) => setPaymentMethod(event.target.value)} className="mt-1" />
+                <label className="flex items-start gap-3 border dark:border-gray-700 rounded-lg p-4 cursor-pointer">
+                  <input type="radio" name="payment_method" value="bank_transfer" checked={paymentMethod === 'bank_transfer'} onChange={(event) => setPaymentMethod(event.target.value)} className="mt-1" />
                   <div className="flex-1">
                     <span className="font-medium">Chuyển khoản ngân hàng</span>
-                    <p className="text-sm text-gray-500">
-                      {selectedBank
-                        ? `Thanh toán qua ${selectedBank.bank_name} - ${selectedBank.bank_account_number}.`
-                        : 'Cần liên kết ngân hàng trước khi sử dụng.'}
-                    </p>
-                    {/* Thông báo OTP sẽ được gửi khi chọn phương thức này */}
+                    <p className="text-sm text-gray-500">Quét QR hoặc chuyển khoản vào tài khoản của shop sau khi đặt hàng.</p>
                     {paymentMethod === 'bank_transfer' && (
-                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                        🔒 Mã OTP sẽ được gửi về email khi đặt hàng để xác nhận thanh toán.
+                      <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-1">
+                        Shop sẽ xác nhận đơn sau khi nhận được tiền chuyển khoản.
                       </p>
-                    )}
-                    {paymentMethod === 'bank_transfer' && (shopSettings?.bank_qr_image || shopSettings?.bank_account_number) && (
-                      <div className="mt-3 rounded-lg border dark:border-gray-600 bg-gray-50 dark:bg-gray-700/40 p-4 flex flex-col sm:flex-row gap-4 items-center">
-                        {shopSettings?.bank_qr_image && (
-                          <img src={shopSettings.bank_qr_image} alt="QR chuyển khoản" className="w-36 h-36 object-contain rounded-lg border dark:border-gray-600 bg-white" />
-                        )}
-                        <div className="text-sm space-y-1 text-left">
-                          <p className="font-semibold text-gray-800 dark:text-gray-100">Thông tin chuyển khoản</p>
-                          {shopSettings?.bank_name && <p className="text-gray-600 dark:text-gray-300">Ngân hàng: <span className="font-medium">{shopSettings.bank_name}</span></p>}
-                          {shopSettings?.bank_account_number && <p className="text-gray-600 dark:text-gray-300">Số TK: <span className="font-medium font-mono">{shopSettings.bank_account_number}</span></p>}
-                          {shopSettings?.bank_account_name && <p className="text-gray-600 dark:text-gray-300">Chủ TK: <span className="font-medium">{shopSettings.bank_account_name}</span></p>}
-                          <p className="text-yellow-700 dark:text-yellow-400 text-xs pt-1">Nội dung CK sẽ hiển thị sau khi đặt hàng</p>
-                        </div>
-                      </div>
                     )}
                   </div>
                 </label>
 
-                <label className={`flex items-start gap-3 border dark:border-gray-700 rounded-lg p-4 ${hasLinkedBank ? 'cursor-pointer' : 'opacity-60'}`}>
-                  <input type="radio" name="payment_method" value="card" checked={paymentMethod === 'card'} disabled={!hasLinkedBank} onChange={(event) => setPaymentMethod(event.target.value)} className="mt-1" />
-                  <div>
+                <label className="flex items-start gap-3 border dark:border-gray-700 rounded-lg p-4 cursor-pointer">
+                  <input type="radio" name="payment_method" value="card" checked={paymentMethod === 'card'} onChange={(event) => setPaymentMethod(event.target.value)} className="mt-1" />
+                  <div className="flex-1">
                     <span className="font-medium">Thẻ tín dụng / Thẻ ngân hàng</span>
-                    <p className="text-sm text-gray-500">
-                      {selectedBank ? `Thanh toán bằng thẻ/ngân hàng ${selectedBank.bank_name}.` : 'Cần liên kết ngân hàng trước khi sử dụng.'}
-                    </p>
+                    <p className="text-sm text-gray-500">Cổng thanh toán thẻ mô phỏng, không lưu số thẻ hoặc CVV.</p>
                     {paymentMethod === 'card' && (
-                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                        🔒 Mã OTP sẽ được gửi về email khi đặt hàng để xác nhận thanh toán.
-                      </p>
+                      <div className="mt-4 overflow-hidden rounded-lg border border-orange-200 bg-white shadow-sm dark:border-gray-600 dark:bg-gray-800">
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+                          <div>
+                            <p className="font-semibold">Thông tin thẻ ngân hàng</p>
+                            <p className="mt-0.5 text-xs text-gray-500">Tên ngân hàng được tự động nhận diện theo số thẻ.</p>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-green-600">
+                            <FiShield />
+                            Bảo mật OTP
+                          </div>
+                        </div>
+
+                        <div className="grid gap-4 p-4 lg:grid-cols-[160px_1fr]">
+                          <div className="space-y-2">
+                            <button
+                              type="button"
+                              className={`flex w-full items-center gap-2 rounded-lg border px-3 py-3 text-left text-sm ${cardMode === 'domestic' ? 'border-orange-500 bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300' : 'border-gray-200 dark:border-gray-600'}`}
+                              onClick={() => setCardMode('domestic')}
+                            >
+                              <FiCreditCard />
+                              <span><strong>Thẻ nội địa</strong><br /><small>ATM / NAPAS</small></span>
+                            </button>
+                            <button
+                              type="button"
+                              className={`flex w-full items-center gap-2 rounded-lg border px-3 py-3 text-left text-sm ${cardMode === 'international' ? 'border-orange-500 bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300' : 'border-gray-200 dark:border-gray-600'}`}
+                              onClick={() => setCardMode('international')}
+                            >
+                              <FiCreditCard />
+                              <span><strong>Thẻ quốc tế</strong><br /><small>Visa / Mastercard / JCB</small></span>
+                            </button>
+                          </div>
+
+                          <div className="space-y-3">
+                            <div className="flex flex-wrap gap-2">
+                              {['NAPAS', 'VISA', 'MASTERCARD', 'JCB'].map((network) => (
+                                <span key={network} className={`rounded border px-2 py-1 text-xs font-bold ${cardIssuer.network === network ? 'border-orange-500 bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300' : 'border-gray-200 text-gray-400 dark:border-gray-600'}`}>
+                                  {network}
+                                </span>
+                              ))}
+                            </div>
+
+                            <label className="block">
+                              <span className="mb-1 block text-xs font-semibold text-gray-500">Số thẻ</span>
+                              <input
+                                className="input"
+                                value={formatCardNumber(cardNumber)}
+                                onChange={(event) => setCardNumber(event.target.value.replace(/\D/g, '').slice(0, 16))}
+                                placeholder="4111 1111 1111 1111"
+                                inputMode="numeric"
+                              />
+                            </label>
+
+                            <label className="block">
+                              <span className="mb-1 block text-xs font-semibold text-gray-500">Tên ngân hàng</span>
+                              <div className="relative">
+                                <input className="input pr-9" value={cardIssuer.bank} readOnly placeholder="Tự động điền theo số thẻ" />
+                                {cardIssuer.bank && <FiCheckCircle className="absolute right-3 top-2.5 text-green-600" />}
+                              </div>
+                            </label>
+
+                            <label className="block">
+                              <span className="mb-1 block text-xs font-semibold text-gray-500">Tên in trên thẻ</span>
+                              <input className="input uppercase" value={cardHolder} onChange={(event) => setCardHolder(event.target.value.toUpperCase())} placeholder="NGUYEN VAN A" />
+                            </label>
+
+                            <label className="block">
+                              <span className="mb-1 block text-xs font-semibold text-gray-500">Số điện thoại chủ thẻ</span>
+                              <input className="input" value={cardPhone} onChange={(event) => setCardPhone(event.target.value.replace(/\D/g, '').slice(0, 11))} placeholder="0912345678" inputMode="numeric" />
+                            </label>
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <label>
+                                <span className="mb-1 block text-xs font-semibold text-gray-500">Ngày hết hạn</span>
+                                <input className={`input ${cardExpiryValid ? '' : 'border-red-500'}`} value={cardExpiry} onChange={(event) => setCardExpiry(formatCardExpiry(event.target.value))} placeholder="MM/YY" inputMode="numeric" />
+                                {!cardExpiryValid && <span className="mt-1 block text-xs text-red-500">Tháng phải từ 01–12 và hạn thẻ không được ở quá khứ.</span>}
+                              </label>
+                              <label>
+                                <span className="mb-1 block text-xs font-semibold text-gray-500">CVV</span>
+                                <input className="input" value={cardCvv} onChange={(event) => setCardCvv(event.target.value.replace(/\D/g, '').slice(0, 3))} placeholder={cardIssuer.network === 'NAPAS' ? 'Không bắt buộc' : '123'} inputMode="numeric" type="password" />
+                              </label>
+                            </div>
+
+                            <p className="text-xs text-blue-600 dark:text-blue-400">Gửi mã OTP qua email để xác nhận giao dịch. OTP hết hạn sau 5 phút.</p>
+                            {cardIssuer.network === 'NAPAS' && <p className="text-xs text-gray-500">CVV không bắt buộc với thẻ nội địa NAPAS trong luồng mô phỏng.</p>}
+                            <p className="text-xs text-gray-500">Thẻ test: NAPAS đầu số 9704 hoặc Visa 4111111111111111 thành công; 4000000000000002 bị từ chối; 4000000000009995 không đủ số dư.</p>
+                          </div>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </label>
@@ -508,6 +614,7 @@ const Checkout = () => {
                     {walletBalance < payableTotal && (
                       <p className="text-sm text-red-500">Số dư chưa đủ cho đơn hàng này.</p>
                     )}
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">🔒 OTP email sẽ được gửi trước khi trừ tiền ví.</p>
                   </div>
                 </label>
               </div>
@@ -543,10 +650,10 @@ const Checkout = () => {
               </div>
             )}
             <div className="flex justify-between"><span>Phương thức thanh toán</span><span>{paymentMethodText[paymentMethod] || paymentMethod}</span></div>
-            {['bank_transfer', 'card'].includes(paymentMethod) && selectedBank && (
+            {paymentMethod === 'bank_transfer' && (
               <div className="flex justify-between text-sm text-gray-500">
-                <span>Ngân hàng</span>
-                <span>{selectedBank.bank_name}</span>
+                <span>Xác nhận</span>
+                <span>Shop kiểm tra chuyển khoản</span>
               </div>
             )}
             {paymentMethod === 'wallet' && (
@@ -567,7 +674,7 @@ const Checkout = () => {
             className="btn btn-primary w-full mt-6"
             disabled={createMutation.isPending}
           >
-            {['bank_transfer', 'card'].includes(paymentMethod) ? '🔒 Đặt hàng & nhận OTP' : 'Đặt hàng'}
+            {['card', 'wallet'].includes(paymentMethod) ? '🔒 Thanh toán & nhận OTP' : 'Đặt hàng'}
           </button>
         </aside>
       </div>

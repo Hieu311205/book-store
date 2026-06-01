@@ -54,11 +54,19 @@ const Products = () => {
         authors={products.authors}
         publishers={products.publishers}
         coverInputRef={products.coverInputRef}
+        previewInputRef={products.previewInputRef}
         openCoverPicker={products.openCoverPicker}
         handleCoverFileChange={products.handleCoverFileChange}
+        openPreviewPicker={products.openPreviewPicker}
+        handlePreviewFileChange={products.handlePreviewFileChange}
+        updatePreview={products.updatePreview}
+        deletePreview={products.deletePreview}
         handleSubmit={products.handleSubmit}
         closeForm={products.closeForm}
         uploadCoverMutation={products.uploadCoverMutation}
+        uploadPreviewMutation={products.uploadPreviewMutation}
+        updatePreviewMutation={products.updatePreviewMutation}
+        deletePreviewMutation={products.deletePreviewMutation}
         isSaving={products.isSaving}
       />
     </div>

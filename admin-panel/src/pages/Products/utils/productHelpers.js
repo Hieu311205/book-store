@@ -17,6 +17,7 @@ export const emptyForm = {
   short_description: '',
   description: '',
   image_url: '',
+  preview_images: [],
   is_active: 1,
   is_featured: 0,
 }
@@ -37,6 +38,7 @@ export const buildPayload = (form) => ({
   publish_year: numberOrNull(form.publish_year),
   is_active: Number(form.is_active),
   is_featured: Number(form.is_featured),
+  preview_images: undefined,
 })
 
 export const statusOptions = [

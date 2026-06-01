@@ -1,6 +1,5 @@
 import { FiBookOpen, FiHeadphones, FiRefreshCw, FiTruck } from 'react-icons/fi'
 import { useQuery } from '@tanstack/react-query'
-import HeroSlider from '../../components/home/HeroSlider'
 import CategoryGrid from '../../components/home/CategoryGrid'
 import ProductSection from '../../components/home/ProductSection'
 import PopularSearches from '../../components/home/PopularSearches'
@@ -54,8 +53,6 @@ const Home = () => {
 
   return (
     <div className="store-home">
-      <HeroSlider />
-
       <section className="store-benefits" aria-label="Cam kết dịch vụ">
         {benefits.map((item) => (
           <div className="store-benefit" key={item.title}>
@@ -90,17 +87,6 @@ const Home = () => {
       />
 
       <Recommendations />
-
-      <section className="store-promo-banner">
-        <div>
-          <span className="store-promo-kicker">Ưu đãi theo chủ đề</span>
-          <h2>Thêm sách hay vào kệ đọc của bạn</h2>
-          <p>Khám phá các đầu sách văn học, kỹ năng và thiếu nhi đang được độc giả quan tâm.</p>
-        </div>
-        <a href="/products" className="store-promo-button">
-          Xem ưu đãi
-        </a>
-      </section>
 
       <ProductSection
         eyebrow="Được mua nhiều"

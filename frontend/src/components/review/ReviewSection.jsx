@@ -154,12 +154,17 @@ function ReviewForm({ productId, onSuccess }) {
 
 // ─── Thẻ 1 đánh giá ─────────────────────────────────────────────────────────
 function ReviewItem({ review }) {
-  const [helped, setHelped] = useState(false)
+  const [helped, setHelped] = useState(Boolean(Number(review.has_helped)))
   const [helpCount, setHelpCount] = useState(review.helpful_count || 0)
 
   const helpMutation = useMutation({
     mutationFn: () => reviewService.markHelpful(review.id),
-    onSuccess: () => { setHelped(true); setHelpCount((n) => n + 1) },
+    onSuccess: (res) => {
+      const data = res?.data || res || {}
+      setHelped(Boolean(data.helped))
+      setHelpCount(Number(data.helpful_count ?? helpCount))
+    },
+    onError: (err) => toast.error(err.message || 'Không thể cập nhật hữu ích'),
   })
 
   const date = new Date(review.created_at).toLocaleDateString('vi-VN', {
@@ -205,8 +210,8 @@ function ReviewItem({ review }) {
 
       <button
         className={`rv-helpful-btn ${helped ? 'helped' : ''}`}
-        onClick={() => !helped && helpMutation.mutate()}
-        disabled={helped || helpMutation.isPending}
+        onClick={() => helpMutation.mutate()}
+        disabled={helpMutation.isPending}
       >
         <FiThumbsUp /> Hữu ích ({helpCount})
       </button>

@@ -44,23 +44,56 @@ function createOrder($user) {
 
     // Kiểm tra bảng ví tồn tại khi dùng phương thức wallet
     if ($paymentMethod === 'wallet' && (!tableExists('wallets') || !tableExists('wallet_transactions'))) {
-        jsonResponse(['success' => false, 'message' => 'Chua tao bang vi dien tu. Vui long chay migrate_order_workflow.sql'], 500);
+        jsonResponse(['success' => false, 'message' => 'Chua tao bang vi dien tu. Vui long chay migrate_all_features.sql'], 500);
     }
 
-    // Kiểm tra tài khoản ngân hàng đã liên kết khi dùng bank_transfer / card
-    $bankAccountId = (int)($input['bank_account_id'] ?? 0);
-    if (in_array($paymentMethod, ['bank_transfer', 'card'], true) && !getUserBankAccount($user['id'], $bankAccountId)) {
-        jsonResponse(['success' => false, 'message' => 'Vui long lien ket tai khoan ngan hang truoc khi dung phuong thuc thanh toan nay'], 400);
+    // Cong thanh toan the mo phong: chi chap nhan bo the test, khong luu so the/CVV.
+    if ($paymentMethod === 'card') {
+        $cardNumber = preg_replace('/\D+/', '', (string)($input['card_number'] ?? ''));
+        $cardExpiry = trim((string)($input['card_expiry'] ?? ''));
+        $cardCvv = trim((string)($input['card_cvv'] ?? ''));
+        $cardHolder = trim((string)($input['card_holder'] ?? ''));
+        $cardPhone = preg_replace('/\D+/', '', (string)($input['card_phone'] ?? ''));
+        $isNapas = str_starts_with($cardNumber, '9704');
+        $expiryValid = false;
+        if (preg_match('/^(\d{2})\/(\d{2})$/', $cardExpiry, $expiryParts)) {
+            $expiryMonth = (int)$expiryParts[1];
+            $expiryYear = 2000 + (int)$expiryParts[2];
+            $currentYear = (int)date('Y');
+            $currentMonth = (int)date('m');
+            $expiryValid = $expiryMonth >= 1
+                && $expiryMonth <= 12
+                && ($expiryYear > $currentYear || ($expiryYear === $currentYear && $expiryMonth >= $currentMonth));
+        }
+        if (
+            !preg_match('/^\d{16}$/', $cardNumber)
+            || !$expiryValid
+            || (!$isNapas && !preg_match('/^\d{3}$/', $cardCvv))
+            || ($isNapas && $cardCvv !== '' && !preg_match('/^\d{3}$/', $cardCvv))
+            || $cardHolder === ''
+            || !preg_match('/^\d{9,11}$/', $cardPhone)
+        ) {
+            jsonResponse(['success' => false, 'message' => 'Thong tin the test khong hop le'], 400);
+        }
+        if ($cardNumber === '4000000000000002') {
+            jsonResponse(['success' => false, 'message' => 'The test bi tu choi thanh toan'], 400);
+        }
+        if ($cardNumber === '4000000000009995') {
+            jsonResponse(['success' => false, 'message' => 'The test khong du so du'], 400);
+        }
+        if ($cardNumber !== '4111111111111111' && !$isNapas) {
+            jsonResponse(['success' => false, 'message' => 'Chi chap nhan the test Visa hoac the NAPAS mo phong'], 400);
+        }
     }
 
-    // ── BƯỚC 7: Xác minh OTP trước khi tạo đơn (chỉ với bank_transfer / card) ──
+    // OTP bat buoc voi the test va vi dien tu. Chuyen khoan QR cho admin xac nhan sau.
     // verifyOrderOtp() trong otp.php sẽ:
     //   - Kiểm tra mã trong DB: đúng user, đúng mã, chưa dùng, còn hạn
     //   - Nếu sai → gọi jsonResponse(400) và dừng luồng tại đây
     //   - Nếu đúng → đánh dấu used_at = NOW() và trả về bình thường
-    if (in_array($paymentMethod, ['bank_transfer', 'card'], true)) {
+    if (in_array($paymentMethod, ['card', 'wallet'], true)) {
         require_once __DIR__ . '/otp.php';
-        verifyOrderOtp($user['id'], $input['otp_code'] ?? '');
+        verifyOrderOtp($user['id'], $input['otp_code'] ?? '', $paymentMethod);
     }
     // ── Từ đây trở xuống: OTP đã được xác minh, tiếp tục tạo đơn hàng ────────
 
@@ -171,7 +204,7 @@ function createOrder($user) {
         'coupon_id' => $coupon['id'] ?? null,
         'coupon_code' => $coupon['code'] ?? null,
         'status' => 'pending',
-        'payment_status' => $paymentMethod === 'wallet' ? 'paid' : 'pending',
+        'payment_status' => in_array($paymentMethod, ['card', 'wallet'], true) ? 'paid' : 'pending',
         'payment_method' => $paymentMethod,
         'shipping_method' => $shippingMethod,
         'customer_note' => $input['customer_note'] ?? null,
@@ -184,6 +217,29 @@ function createOrder($user) {
     $pdo->beginTransaction();
     try {
         $orderId = insertRow('orders', $orderData);
+        if (tableExists('payments')) {
+            $databaseTime = queryOne("SELECT NOW() AS db_now, DATE_ADD(NOW(), INTERVAL 15 MINUTE) AS expires_at");
+            $paymentGateway = match ($paymentMethod) {
+                'bank_transfer' => 'bank_transfer',
+                'card' => 'card_test',
+                'wallet' => 'wallet',
+                default => 'cod',
+            };
+            $paymentStatus = in_array($paymentMethod, ['card', 'wallet'], true) ? 'paid' : 'pending';
+            $paymentId = insertRow('payments', [
+                'order_id' => $orderId,
+                'user_id' => $user['id'],
+                'gateway' => $paymentGateway,
+                'amount' => $orderData['total_amount'],
+                'currency' => 'VND',
+                'authority' => $paymentMethod === 'bank_transfer' ? $orderData['order_number'] : null,
+                'transaction_id' => in_array($paymentMethod, ['card', 'wallet'], true) ? strtoupper($paymentGateway) . '-' . uniqid() : null,
+                'status' => $paymentStatus,
+                'expires_at' => $paymentMethod === 'bank_transfer' ? $databaseTime['expires_at'] : null,
+                'verified_at' => $paymentStatus === 'paid' ? $databaseTime['db_now'] : null,
+                'gateway_response' => json_encode(['source' => 'checkout'], JSON_UNESCAPED_UNICODE),
+            ]);
+        }
         if ($paymentMethod === 'wallet') {
             if (!debitWallet($user['id'], $orderData['total_amount'], 'Thanh toan don hang ' . $orderData['order_number'], 'order', $orderId)) {
                 throw new Exception('So du vi khong du de thanh toan don hang');
@@ -242,10 +298,51 @@ function createOrder($user) {
         jsonResponse(['success' => false, 'message' => 'Không thể tạo đơn hàng: ' . $e->getMessage()], 500);
     }
 
-    jsonResponse(['success' => true, 'message' => 'Đã tạo đơn hàng', 'data' => queryOne("SELECT * FROM orders WHERE id = ?", [$orderId])], 201);
+    $createdOrder = queryOne("SELECT * FROM orders WHERE id = ?", [$orderId]);
+    if (tableExists('payments')) {
+        $createdOrder['payment'] = queryOne(
+            "SELECT *, UNIX_TIMESTAMP(expires_at) AS expires_at_unix, UNIX_TIMESTAMP(verified_at) AS verified_at_unix
+             FROM payments WHERE order_id = ? ORDER BY id DESC LIMIT 1",
+            [$orderId]
+        );
+    }
+    jsonResponse(['success' => true, 'message' => 'Đã tạo đơn hàng', 'data' => $createdOrder], 201);
+}
+
+function expirePendingBankTransfers() {
+    if (!tableExists('payments') || !tableHasColumn('payments', 'expires_at')) {
+        return;
+    }
+
+    executeSql(
+        "UPDATE payments p
+         JOIN orders o ON o.id = p.order_id
+         SET p.expires_at = DATE_ADD(p.created_at, INTERVAL 15 MINUTE),
+             p.status = 'pending',
+             o.payment_status = 'pending'
+         WHERE p.gateway = 'bank_transfer'
+           AND p.expires_at IS NOT NULL
+           AND p.expires_at <= p.created_at
+           AND p.status IN ('pending', 'expired')
+           AND o.payment_status IN ('pending', 'expired')"
+    );
+
+    executeSql(
+        "UPDATE payments p
+         JOIN orders o ON o.id = p.order_id
+         SET p.status = 'expired',
+             o.payment_status = 'expired',
+             o.status = 'cancelled',
+             o.admin_note = COALESCE(o.admin_note, 'Tu dong huy: QR thanh toan da het han')
+         WHERE p.gateway = 'bank_transfer'
+           AND p.status = 'pending'
+           AND p.expires_at IS NOT NULL
+           AND p.expires_at <= NOW()"
+    );
 }
 
 function listOrders($user) {
+    expirePendingBankTransfers();
     $page = max(1, (int)($_GET['page'] ?? 1));
     $limit = min(50, max(1, (int)($_GET['limit'] ?? 10)));
     $offset = ($page - 1) * $limit;
@@ -256,7 +353,7 @@ function listOrders($user) {
         $params[] = $_GET['status'];
     }
     $paymentStatus = $_GET['payment_status'] ?? '';
-    if (in_array($paymentStatus, ['pending', 'paid', 'failed', 'cancelled', 'refunded'], true)) {
+    if (in_array($paymentStatus, ['pending', 'paid', 'failed', 'expired', 'cancelled', 'refunded'], true)) {
         $where .= " AND payment_status = ?";
         $params[] = $paymentStatus;
     }
@@ -278,21 +375,51 @@ function listOrders($user) {
         ? ", (SELECT rr.status FROM return_requests rr WHERE rr.order_id = orders.id ORDER BY rr.created_at DESC LIMIT 1) AS return_status,
              (SELECT rr.type FROM return_requests rr WHERE rr.order_id = orders.id ORDER BY rr.created_at DESC LIMIT 1) AS return_type"
         : ", NULL AS return_status, NULL AS return_type";
-    $orders = queryAll("SELECT orders.*{$returnSelect} FROM orders WHERE {$where} ORDER BY created_at DESC LIMIT ? OFFSET ?", array_merge($params, [$limit, $offset]));
+    $reviewHasOrder = tableExists('reviews') && tableHasColumn('reviews', 'order_id');
+    $reviewJoin = $reviewHasOrder
+        ? "r.product_id = oi.product_id AND r.user_id = orders.user_id AND r.order_id = orders.id"
+        : "r.product_id = oi.product_id AND r.user_id = orders.user_id";
+    $reviewSelect = tableExists('reviews')
+        ? ", (SELECT COUNT(DISTINCT oi.product_id)
+              FROM order_items oi
+              WHERE oi.order_id = orders.id AND oi.product_id IS NOT NULL) AS reviewable_items_count,
+             (SELECT COUNT(DISTINCT oi.product_id)
+              FROM order_items oi
+              JOIN reviews r ON {$reviewJoin}
+              WHERE oi.order_id = orders.id AND oi.product_id IS NOT NULL) AS reviewed_items_count"
+        : ", 0 AS reviewable_items_count, 0 AS reviewed_items_count";
+    $orders = queryAll("SELECT orders.*{$returnSelect}{$reviewSelect} FROM orders WHERE {$where} ORDER BY created_at DESC LIMIT ? OFFSET ?", array_merge($params, [$limit, $offset]));
     jsonResponse(['success' => true, 'data' => ['orders' => $orders, 'pagination' => ['page' => $page, 'limit' => $limit, 'totalItems' => $count, 'totalPages' => (int)ceil($count / $limit)]]]);
 }
 
 function getOrder($user, $id) {
+    expirePendingBankTransfers();
     $order = queryOne("SELECT * FROM orders WHERE id = ? AND user_id = ?", [$id, $user['id']]);
     if (!$order) jsonResponse(['success' => false, 'message' => 'Không tìm thấy đơn hàng'], 404);
-    $order['items'] = queryAll("SELECT * FROM order_items WHERE order_id = ?", [$id]);
+    $reviewHasOrder = tableExists('reviews') && tableHasColumn('reviews', 'order_id');
+    $reviewWhere = $reviewHasOrder
+        ? "r.product_id = order_items.product_id AND r.user_id = ? AND r.order_id = order_items.order_id"
+        : "r.product_id = order_items.product_id AND r.user_id = ?";
+    $reviewSelect = tableExists('reviews')
+        ? ", EXISTS(SELECT 1 FROM reviews r WHERE {$reviewWhere}) AS already_reviewed"
+        : ", 0 AS already_reviewed";
+    $reviewParams = tableExists('reviews') ? [$user['id'], $id] : [$id];
+    $order['items'] = queryAll("SELECT order_items.*{$reviewSelect} FROM order_items WHERE order_id = ?", $reviewParams);
     $order['return_request'] = tableExists('return_requests')
         ? queryOne("SELECT * FROM return_requests WHERE order_id = ? ORDER BY created_at DESC LIMIT 1", [$id])
+        : null;
+    $order['payment'] = tableExists('payments')
+        ? queryOne(
+            "SELECT *, UNIX_TIMESTAMP(expires_at) AS expires_at_unix, UNIX_TIMESTAMP(verified_at) AS verified_at_unix
+             FROM payments WHERE order_id = ? ORDER BY id DESC LIMIT 1",
+            [$id]
+        )
         : null;
     jsonResponse(['success' => true, 'data' => $order]);
 }
 
 function trackOrder($user, $id) {
+    expirePendingBankTransfers();
     $shippingProviderSelect = tableHasColumn('orders', 'shipping_provider') ? ', shipping_provider' : '';
     $order = queryOne("SELECT id, order_number, status, payment_status, shipping_method, tracking_code, shipped_at, delivered_at, created_at{$shippingProviderSelect} FROM orders WHERE id = ? AND user_id = ?", [$id, $user['id']]);
     if (!$order) jsonResponse(['success' => false, 'message' => 'Không tìm thấy đơn hàng'], 404);
@@ -317,6 +444,10 @@ function cancelOrder($user, $id) {
         $updateData['payment_status'] = 'cancelled';
     }
     updateRow('orders', $id, $updateData);
+    if (tableExists('payments')) {
+        $paymentStatus = $updateData['payment_status'] === 'refunded' ? 'refunded' : 'failed';
+        executeSql("UPDATE payments SET status = ?, updated_at = NOW() WHERE order_id = ?", [$paymentStatus, $id]);
+    }
     jsonResponse(['success' => true, 'message' => 'Đã hủy đơn hàng']);
 }
 
@@ -341,7 +472,7 @@ function confirmReceived($user, $id) {
 
 function requestReturnOrder($user, $id) {
     if (!tableExists('return_requests')) {
-        jsonResponse(['success' => false, 'message' => 'Chua tao bang return_requests. Vui long chay file migrate_order_workflow.sql'], 500);
+        jsonResponse(['success' => false, 'message' => 'Chua tao bang return_requests. Vui long chay file migrate_all_features.sql'], 500);
     }
 
     $input = requestJson();

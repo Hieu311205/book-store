@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS `orders` (
   `coupon_id` int DEFAULT NULL,
   `coupon_code` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `status` enum('pending','confirmed','processing','shipped','delivered','cancelled','refunded') COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
-  `payment_status` enum('pending','paid','failed','cancelled','refunded') COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
+  `payment_status` enum('pending','paid','failed','expired','cancelled','refunded') COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
   `payment_method` enum('cod','bank_transfer','card','wallet') COLLATE utf8mb4_unicode_ci DEFAULT 'cod',
   `shipping_method` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `shipping_provider` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -226,19 +226,23 @@ CREATE TABLE IF NOT EXISTS `payments` (
   `id` int NOT NULL AUTO_INCREMENT,
   `order_id` int DEFAULT NULL,
   `user_id` int DEFAULT NULL,
-  `gateway` enum('zarinpal','stripe','bank_transfer') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `gateway` enum('cod','bank_transfer','card_test','wallet','zarinpal','stripe') COLLATE utf8mb4_unicode_ci NOT NULL,
   `amount` decimal(12,0) NOT NULL,
-  `currency` varchar(3) COLLATE utf8mb4_unicode_ci DEFAULT 'USD',
+  `currency` varchar(3) COLLATE utf8mb4_unicode_ci DEFAULT 'VND',
   `authority` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `ref_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `transaction_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `status` enum('pending','success','failed') COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
+  `status` enum('pending','paid','failed','expired','refunded') COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
+  `expires_at` datetime DEFAULT NULL,
   `gateway_response` text COLLATE utf8mb4_unicode_ci,
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   `verified_at` datetime DEFAULT NULL,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `fk_payments_order` (`order_id`),
   KEY `fk_payments_user` (`user_id`),
+  KEY `idx_payments_status` (`status`),
+  KEY `idx_payments_expires` (`expires_at`),
   CONSTRAINT `fk_payments_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_payments_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -365,6 +369,18 @@ CREATE TABLE IF NOT EXISTS `product_images` (
   CONSTRAINT `fk_product_images_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=87 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `product_preview_images` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `product_id` int NOT NULL,
+  `image_url` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `alt_text` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `sort_order` int DEFAULT '0',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_product_preview_product` (`product_id`),
+  CONSTRAINT `fk_product_preview_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Dumping data for table bookstore.product_images: ~56 rows (approximately)
 INSERT INTO `product_images` (`id`, `product_id`, `image_url`, `alt_text`, `sort_order`, `is_primary`) VALUES
 	(1, 1, 'https://picsum.photos/200/300?1', NULL, 0, 1),
@@ -457,6 +473,7 @@ INSERT INTO `publishers` (`id`, `name`, `name_en`, `slug`, `logo_url`, `website`
 CREATE TABLE IF NOT EXISTS `reviews` (
   `id` int NOT NULL AUTO_INCREMENT,
   `product_id` int DEFAULT NULL,
+  `order_id` int DEFAULT NULL,
   `user_id` int DEFAULT NULL,
   `rating` int DEFAULT NULL,
   `title` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -469,13 +486,28 @@ CREATE TABLE IF NOT EXISTS `reviews` (
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `fk_reviews_product` (`product_id`),
+  KEY `idx_reviews_order_product_user` (`order_id`,`product_id`,`user_id`),
   KEY `fk_reviews_user` (`user_id`),
+  CONSTRAINT `fk_reviews_order` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_reviews_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_reviews_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `reviews_chk_1` CHECK (((`rating` >= 1) and (`rating` <= 5)))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Dumping data for table bookstore.reviews: ~0 rows (approximately)
+
+CREATE TABLE IF NOT EXISTS `review_helpful_votes` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `review_id` int NOT NULL,
+  `user_id` int NOT NULL,
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_review_helpful_user` (`review_id`,`user_id`),
+  KEY `idx_review_helpful_review` (`review_id`),
+  KEY `idx_review_helpful_user` (`user_id`),
+  CONSTRAINT `fk_review_helpful_review` FOREIGN KEY (`review_id`) REFERENCES `reviews` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_review_helpful_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Dumping structure for table bookstore.settings
 CREATE TABLE IF NOT EXISTS `settings` (
@@ -523,7 +555,7 @@ CREATE TABLE orders (
   coupon_id INT NULL,
   coupon_code VARCHAR(50),
   status ENUM('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded') DEFAULT 'pending',
-  payment_status ENUM('pending', 'paid', 'failed', 'cancelled', 'refunded') DEFAULT 'pending',
+  payment_status ENUM('pending', 'paid', 'failed', 'expired', 'cancelled', 'refunded') DEFAULT 'pending',
   payment_method ENUM('cod', 'bank_transfer', 'card', 'wallet') DEFAULT 'cod',
   shipping_method VARCHAR(50),
   shipping_provider VARCHAR(50),

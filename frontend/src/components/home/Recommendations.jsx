@@ -26,7 +26,7 @@ const Recommendations = () => {
   return (
     <section className="store-section">
       <div className="store-section-heading">
-        <span className="store-section-kicker">AI gợi ý cho bạn</span>
+
         <h2>Có thể bạn sẽ thích</h2>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">

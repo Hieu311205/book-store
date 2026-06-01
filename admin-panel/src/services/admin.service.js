@@ -8,10 +8,12 @@ export const adminService = {
 
   // Dashboard
   getDashboardStats: () => api.get('/admin/dashboard/stats'),
-  getSalesReport: (period) => api.get('/admin/dashboard/sales', { params: { period } }),
+  getSalesReport: (params = {}) => api.get('/admin/dashboard/sales', {
+    params: typeof params === 'string' ? { period: params } : params,
+  }),
   getRecentOrders: () => api.get('/admin/dashboard/recent-orders'),
   getNotifications: () => api.get('/admin/dashboard/notifications'),
-  getInventoryReport: () => api.get('/admin/dashboard/inventory'),
+  getInventoryReport: (params = {}) => api.get('/admin/dashboard/inventory', { params }),
   getContactMessages: () => api.get('/admin/contact-messages'),
   markContactMessageRead: (id) => api.put(`/admin/contact-messages/${id}/read`),
   deleteContactMessage: (id) => api.delete(`/admin/contact-messages/${id}`),
@@ -22,6 +24,11 @@ export const adminService = {
   updateProduct: (id, data) => api.put(`/admin/products/${id}`, data),
   deleteProduct: (id) => api.delete(`/admin/products/${id}`),
   updateProductStock: (id, stock) => api.put(`/admin/products/${id}/stock`, { stock }),
+  uploadProductPreviews: (id, data) => api.post(`/admin/products/${id}/previews`, data, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  updateProductPreview: (productId, previewId, data) => api.put(`/admin/products/${productId}/previews/${previewId}`, data),
+  deleteProductPreview: (productId, previewId) => api.delete(`/admin/products/${productId}/previews/${previewId}`),
   uploadProductCover: (data) => api.post('/admin/products/cover', data, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }),
@@ -45,6 +52,10 @@ export const adminService = {
   updatePaymentStatus: (id, data) => api.put(`/admin/orders/${id}/payment-status`, data),
   addTrackingCode: (id, data) => api.put(`/admin/orders/${id}/tracking`, data),
   updateReturnRequest: (id, data) => api.put(`/admin/return-requests/${id}`, data),
+
+  // Payment simulation
+  getPayments: (params) => api.get('/admin/payments', { params }),
+  simulatePaymentWebhook: (id, status) => api.post(`/admin/payments/${id}/simulate`, { status }),
 
   // Wallets
   getWalletTransactions: (params) => api.get('/admin/wallets', { params }),
@@ -72,5 +83,8 @@ export const adminService = {
   getSettings: () => api.get('/admin/settings'),
   createSetting: (data) => api.post('/admin/settings', data),
   updateSetting: (id, data) => api.put(`/admin/settings/${id}`, data),
+  uploadBankQr: (data) => api.post('/admin/settings/qr', data, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
   deleteSetting: (id) => api.delete(`/admin/settings/${id}`),
 }

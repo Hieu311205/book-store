@@ -16,6 +16,8 @@ function handleAdmin($method, $pathParts) {
         handleAdminReturnRequests($method, $pathParts, $user);
     } elseif ($section === 'wallets') {
         handleAdminWallets($method, $pathParts, $user);
+    } elseif ($section === 'payments') {
+        handleAdminPayments($method, $pathParts);
     } elseif ($section === 'users') {
         requireSuperAdmin($user);
         handleAdminUsers($method, $pathParts, $user);
@@ -70,6 +72,21 @@ function handleAdminDashboard($method, $pathParts) {
     }
 
     if ($action === 'sales') {
+        $year = (int)($_GET['year'] ?? 0);
+        $month = (int)($_GET['month'] ?? 0);
+        if ($year >= 2000 && $month >= 1 && $month <= 12) {
+            $startDate = sprintf('%04d-%02d-01 00:00:00', $year, $month);
+            $endDate = date('Y-m-d H:i:s', strtotime($startDate . ' +1 month'));
+            jsonResponse(['success' => true, 'data' => queryAll(
+                "SELECT DATE(created_at) AS date, SUM(total_amount) AS total, COUNT(id) AS orders
+                 FROM orders
+                 WHERE payment_status = 'paid' AND created_at >= ? AND created_at < ?
+                 GROUP BY DATE(created_at)
+                 ORDER BY date",
+                [$startDate, $endDate]
+            )]);
+        }
+
         $period = $_GET['period'] ?? '7days';
         $days = $period === '90days' ? 90 : ($period === '30days' ? 30 : 7);
         jsonResponse(['success' => true, 'data' => queryAll(
@@ -228,27 +245,39 @@ function handleAdminDashboard($method, $pathParts) {
              LIMIT 50"
         );
 
-        // Tổng doanh thu và lợi nhuận (doanh thu sau khi trừ chi phí vận chuyển)
+        $year = (int)($_GET['year'] ?? date('Y'));
+        $month = (int)($_GET['month'] ?? date('n'));
+        if ($year < 2000 || $month < 1 || $month > 12) {
+            $year = (int)date('Y');
+            $month = (int)date('n');
+        }
+        $startDate = sprintf('%04d-%02d-01 00:00:00', $year, $month);
+        $endDate = date('Y-m-d H:i:s', strtotime($startDate . ' +1 month'));
+        $prevStartDate = date('Y-m-d H:i:s', strtotime($startDate . ' -1 month'));
+
+        // Doanh thu theo thang da chon. Chua co gia von nen khong tinh loi nhuan rong.
         $revenue = queryOne(
             "SELECT
-                SUM(total_amount)                              AS total_revenue,
-                SUM(total_amount - IFNULL(shipping_cost, 0))  AS net_profit
+                SUM(total_amount) AS total_revenue,
+                SUM(subtotal - IFNULL(discount_amount, 0)) AS product_revenue,
+                SUM(total_amount - IFNULL(shipping_cost, 0)) AS revenue_after_shipping
              FROM orders
-             WHERE payment_status = 'paid'"
+             WHERE payment_status = 'paid' AND created_at >= ? AND created_at < ?",
+            [$startDate, $endDate]
         );
 
-        // Tăng trưởng doanh thu so với tháng trước
+        // Tang truong tong tien thu so voi thang lien truoc cua thang dang chon
         $thisMonth = (float)(queryOne(
             "SELECT SUM(total_amount) AS total FROM orders
              WHERE payment_status = 'paid'
-               AND YEAR(created_at)  = YEAR(CURDATE())
-               AND MONTH(created_at) = MONTH(CURDATE())"
+               AND created_at >= ? AND created_at < ?",
+            [$startDate, $endDate]
         )['total'] ?? 0);
         $lastMonth = (float)(queryOne(
             "SELECT SUM(total_amount) AS total FROM orders
              WHERE payment_status = 'paid'
-               AND YEAR(created_at)  = YEAR(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))
-               AND MONTH(created_at) = MONTH(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))"
+               AND created_at >= ? AND created_at < ?",
+            [$prevStartDate, $startDate]
         )['total'] ?? 0);
         $revenueGrowth = $lastMonth > 0
             ? round((($thisMonth - $lastMonth) / $lastMonth) * 100, 2)
@@ -267,14 +296,135 @@ function handleAdminDashboard($method, $pathParts) {
             'topProducts'   => array_map(fn($r) => [
                 'id'              => (int)$r['id'],
                 'title'           => $r['title'],
+                'category_name'   => $r['category_name'],
                 'stock'           => (int)$r['stock'],
                 'price'           => (float)$r['price'],
                 'inventory_value' => (float)$r['inventory_value'],
             ], $topProducts),
-            'totalRevenue'  => (float)($revenue['total_revenue'] ?? 0),
-            'netProfit'     => (float)($revenue['net_profit']    ?? 0),
-            'revenueGrowth' => $revenueGrowth,
+            'totalRevenue'         => (float)($revenue['total_revenue'] ?? 0),
+            'productRevenue'       => (float)($revenue['product_revenue'] ?? 0),
+            'revenueAfterShipping' => (float)($revenue['revenue_after_shipping'] ?? 0),
+            'netProfit'            => null,
+            'revenueGrowth'        => $revenueGrowth,
         ]]);
+    }
+
+    jsonResponse(['success' => false, 'message' => 'Khong tim thay thao tac'], 404);
+}
+
+function handleAdminPayments($method, $pathParts) {
+    global $config;
+    if (!tableExists('payments')) {
+        jsonResponse(['success' => false, 'message' => 'Chua tao bang payments. Vui long chay migrate_all_features.sql'], 500);
+    }
+
+    executeSql(
+        "UPDATE payments p
+         JOIN orders o ON o.id = p.order_id
+         SET p.expires_at = DATE_ADD(p.created_at, INTERVAL 15 MINUTE),
+             p.status = 'pending',
+             o.payment_status = 'pending'
+         WHERE p.gateway = 'bank_transfer'
+           AND p.expires_at IS NOT NULL
+           AND p.expires_at <= p.created_at
+           AND p.status IN ('pending', 'expired')
+           AND o.payment_status IN ('pending', 'expired')"
+    );
+
+    executeSql(
+        "UPDATE payments p
+         JOIN orders o ON o.id = p.order_id
+         SET p.status = CASE
+               WHEN o.payment_status = 'cancelled' THEN 'failed'
+               ELSE o.payment_status
+             END,
+             p.verified_at = CASE
+               WHEN o.payment_status = 'paid' THEN COALESCE(p.verified_at, NOW())
+               ELSE p.verified_at
+             END
+         WHERE o.payment_status IN ('paid', 'failed', 'expired', 'cancelled', 'refunded')
+           AND p.status <> CASE
+             WHEN o.payment_status = 'cancelled' THEN 'failed'
+             ELSE o.payment_status
+           END"
+    );
+
+    executeSql(
+        "UPDATE payments p
+         JOIN orders o ON o.id = p.order_id
+         SET p.status = 'expired',
+             o.payment_status = 'expired',
+             o.status = 'cancelled',
+             o.admin_note = COALESCE(o.admin_note, 'Tu dong huy: QR thanh toan da het han'),
+             o.updated_at = NOW()
+         WHERE p.gateway = 'bank_transfer' AND p.status = 'pending' AND p.expires_at IS NOT NULL AND p.expires_at <= NOW()"
+    );
+
+    $id = $pathParts[2] ?? null;
+    if ($method === 'GET' && !$id) {
+        $params = [];
+        $where = '1=1';
+        if (!empty($_GET['status'])) {
+            $where .= ' AND p.status = ?';
+            $params[] = $_GET['status'];
+        }
+        if (!empty($_GET['gateway'])) {
+            $where .= ' AND p.gateway = ?';
+            $params[] = $_GET['gateway'];
+        }
+        $payments = queryAll(
+            "SELECT p.*,
+                    UNIX_TIMESTAMP(p.created_at) AS created_at_unix,
+                    UNIX_TIMESTAMP(p.verified_at) AS verified_at_unix,
+                    UNIX_TIMESTAMP(p.expires_at) AS expires_at_unix,
+                    o.order_number, o.payment_method, u.email, u.first_name, u.last_name
+             FROM payments p
+             LEFT JOIN orders o ON o.id = p.order_id
+             LEFT JOIN users u ON u.id = p.user_id
+             WHERE {$where}
+             ORDER BY p.created_at DESC
+             LIMIT 200",
+            $params
+        );
+        jsonResponse(['success' => true, 'data' => ['payments' => $payments, 'isDevelopment' => ($config['appEnv'] ?? '') === 'development']]);
+    }
+
+    if ($method === 'POST' && $id && ($pathParts[3] ?? '') === 'simulate') {
+        if (($config['appEnv'] ?? 'production') !== 'development') {
+            jsonResponse(['success' => false, 'message' => 'Mo phong chi dung trong development'], 403);
+        }
+        $payment = queryOne("SELECT * FROM payments WHERE id = ?", [$id]);
+        if (!$payment || ($payment['gateway'] ?? '') !== 'bank_transfer') {
+            jsonResponse(['success' => false, 'message' => 'Chi mo phong webhook cho giao dich chuyen khoan'], 400);
+        }
+        $_POST = [];
+        $input = requestJson();
+        $status = $input['status'] ?? 'paid';
+        if (!in_array($status, ['paid', 'failed'], true)) {
+            jsonResponse(['success' => false, 'message' => 'Trang thai mo phong khong hop le'], 400);
+        }
+        if (($payment['status'] ?? '') !== 'pending') {
+            jsonResponse(['success' => false, 'message' => 'Giao dich khong con cho xu ly'], 400);
+        }
+        $transactionId = 'BANK-DEMO-' . strtoupper(substr(uniqid(), -8));
+        executeSql("UPDATE payments SET status = ?, transaction_id = ?, gateway_response = ?, verified_at = CASE WHEN ? = 'paid' THEN NOW() ELSE NULL END WHERE id = ?", [$status, $transactionId, json_encode(['source' => 'admin-dev-button', 'status' => $status]), $status, $id]);
+        executeSql(
+            "UPDATE orders
+             SET payment_status = ?,
+                 status = CASE
+                   WHEN ? = 'paid' AND status = 'pending' THEN 'confirmed'
+                   WHEN ? = 'failed' THEN 'cancelled'
+                   ELSE status
+                 END,
+                 admin_note = CASE
+                   WHEN ? = 'failed' THEN 'Tu dong huy: thanh toan that bai'
+                   ELSE admin_note
+                 END,
+                 updated_at = NOW()
+             WHERE id = ?",
+            [$status, $status, $status, $status, $payment['order_id']]
+        );
+        jsonResponse(['success' => true, 'message' => 'Da mo phong webhook ngan hang']);
     }
 
     jsonResponse(['success' => false, 'message' => 'Khong tim thay thao tac'], 404);
@@ -301,6 +451,18 @@ function handleContactMessages($method, $pathParts) {
 }
 
 function handleAdminProducts($method, $pathParts) {
+    if ($method === 'POST' && isset($pathParts[2]) && (($pathParts[3] ?? '') === 'previews')) {
+        handleProductPreviewUpload((int)$pathParts[2]);
+    }
+
+    if ($method === 'PUT' && isset($pathParts[2]) && (($pathParts[3] ?? '') === 'previews') && isset($pathParts[4])) {
+        updateProductPreviewImage((int)$pathParts[2], (int)$pathParts[4]);
+    }
+
+    if ($method === 'DELETE' && isset($pathParts[2]) && (($pathParts[3] ?? '') === 'previews') && isset($pathParts[4])) {
+        deleteProductPreviewImage((int)$pathParts[2], (int)$pathParts[4]);
+    }
+
     if ($method === 'GET' && !isset($pathParts[2])) {
         $page = max(1, (int)($_GET['page'] ?? 1));
         $limit = min(100, max(1, (int)($_GET['limit'] ?? 20)));
@@ -389,9 +551,11 @@ function handleAdminProducts($method, $pathParts) {
         $data['ugid'] = guid();
         $data['slug'] = slugifyText($input['title'] ?? 'product') . '-' . substr((string)time(), -4);
         $id = insertRow('products', $data);
+        createProductPreviewFolders($data['slug'], $id);
         savePrimaryProductImage($id, $input['image_url'] ?? null, $data['title']);
         $product = queryOne("SELECT * FROM products WHERE id = ?", [$id]);
         $product['images'] = queryAll("SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order", [$id]);
+        $product['preview_images'] = getProductPreviewImages($id);
         jsonResponse(['success' => true, 'message' => 'Da them sach', 'data' => $product], 201);
     }
 
@@ -411,11 +575,16 @@ function handleAdminProducts($method, $pathParts) {
         $data = cleanProductData(filterInput($input, $allowed));
         $data['updated_at'] = date('Y-m-d H:i:s');
         updateRow('products', $id, $data);
+        $productForFolder = queryOne("SELECT slug FROM products WHERE id = ?", [$id]);
+        if ($productForFolder) {
+            createProductPreviewFolders($productForFolder['slug'], $id);
+        }
         if (array_key_exists('image_url', $input)) {
             savePrimaryProductImage($id, $input['image_url'], $data['title'] ?? null);
         }
         $product = queryOne("SELECT * FROM products WHERE id = ?", [$id]);
         $product['images'] = queryAll("SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order", [$id]);
+        $product['preview_images'] = getProductPreviewImages($id);
         jsonResponse(['success' => true, 'message' => 'Da cap nhat sach', 'data' => $product]);
     }
 
@@ -458,9 +627,12 @@ function attachAdminProductImages($products) {
     $ids = array_column($products, 'id');
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
     $images = queryAll("SELECT * FROM product_images WHERE product_id IN ({$placeholders}) ORDER BY sort_order", $ids);
+    ensureProductPreviewTable();
+    $previews = queryAll("SELECT * FROM product_preview_images WHERE product_id IN ({$placeholders}) ORDER BY sort_order, id", $ids);
 
     foreach ($products as &$product) {
         $product['images'] = array_values(array_filter($images, fn($image) => (int)$image['product_id'] === (int)$product['id']));
+        $product['preview_images'] = array_values(array_filter($previews, fn($image) => (int)$image['product_id'] === (int)$product['id']));
     }
 
     return $products;
@@ -480,6 +652,229 @@ function savePrimaryProductImage($productId, $imageUrl, $title = null) {
         'alt_text' => $title ?: 'Book cover',
         'sort_order' => 0,
         'is_primary' => 1,
+    ]);
+}
+
+function ensureProductPreviewTable() {
+    if (tableExists('product_preview_images')) {
+        return;
+    }
+
+    executeSql(
+        "CREATE TABLE IF NOT EXISTS product_preview_images (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            product_id INT NOT NULL,
+            image_url VARCHAR(255) NOT NULL,
+            alt_text VARCHAR(255) NULL,
+            sort_order INT DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_product_preview_product (product_id),
+            CONSTRAINT fk_product_preview_product
+                FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+}
+
+function getProductPreviewImages($productId) {
+    ensureProductPreviewTable();
+
+    return queryAll(
+        "SELECT * FROM product_preview_images WHERE product_id = ? ORDER BY sort_order, id",
+        [$productId]
+    );
+}
+
+function createProductPreviewFolders($slug, $productId = null) {
+    $folderName = preg_replace('/[^a-z0-9-]/', '', strtolower((string)$slug));
+    $folderName = trim($folderName, '-');
+    if ($folderName === '') {
+        $folderName = 'product';
+    }
+    if ($productId) {
+        $folderName .= '-' . (int)$productId;
+    }
+
+    $root = dirname(__DIR__, 4);
+    $relativePath = 'images/previews/' . $folderName;
+    $targets = [
+        $root . DIRECTORY_SEPARATOR . 'admin-panel' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath),
+        $root . DIRECTORY_SEPARATOR . 'frontend' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath),
+    ];
+
+    foreach ($targets as $target) {
+        if (!is_dir($target)) {
+            @mkdir($target, 0775, true);
+        }
+        if (is_dir($target)) {
+            $keepFile = $target . DIRECTORY_SEPARATOR . '.gitkeep';
+            if (!file_exists($keepFile)) {
+                @file_put_contents($keepFile, '');
+            }
+        }
+    }
+
+    return '/' . str_replace('\\', '/', $relativePath) . '/';
+}
+
+function normalizeUploadFiles($field) {
+    if (empty($_FILES[$field])) {
+        return [];
+    }
+
+    $raw = $_FILES[$field];
+    if (!is_array($raw['name'])) {
+        return [$raw];
+    }
+
+    $files = [];
+    foreach ($raw['name'] as $index => $name) {
+        $files[] = [
+            'name' => $name,
+            'type' => $raw['type'][$index] ?? '',
+            'tmp_name' => $raw['tmp_name'][$index] ?? '',
+            'error' => $raw['error'][$index] ?? UPLOAD_ERR_NO_FILE,
+            'size' => $raw['size'][$index] ?? 0,
+        ];
+    }
+    return $files;
+}
+
+function validatePreviewUploadFile($file) {
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) {
+        jsonResponse(['success' => false, 'message' => 'Vui long chon anh doc thu hop le'], 400);
+    }
+
+    $maxSize = 8 * 1024 * 1024;
+    if (($file['size'] ?? 0) > $maxSize) {
+        jsonResponse(['success' => false, 'message' => 'Moi anh doc thu khong duoc vuot qua 8MB'], 400);
+    }
+
+    $extension = strtolower(pathinfo($file['name'] ?? '', PATHINFO_EXTENSION));
+    if (!in_array($extension, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+        jsonResponse(['success' => false, 'message' => 'Anh doc thu chi ho tro JPG, PNG hoac WEBP'], 400);
+    }
+
+    $imageInfo = @getimagesize($file['tmp_name']);
+    if (!$imageInfo || !str_starts_with((string)$imageInfo['mime'], 'image/')) {
+        jsonResponse(['success' => false, 'message' => 'File doc thu khong phai anh hop le'], 400);
+    }
+
+    return $extension;
+}
+
+function handleProductPreviewUpload($productId) {
+    ensureProductPreviewTable();
+
+    $product = queryOne("SELECT id, title, slug FROM products WHERE id = ?", [$productId]);
+    if (!$product) {
+        jsonResponse(['success' => false, 'message' => 'Khong tim thay sach'], 404);
+    }
+
+    $files = normalizeUploadFiles('preview_images');
+    if (!$files) {
+        jsonResponse(['success' => false, 'message' => 'Vui long chon anh doc thu'], 400);
+    }
+
+    $folderUrl = createProductPreviewFolders($product['slug'], $productId);
+    $relativeDir = trim($folderUrl, '/');
+    $root = dirname(__DIR__, 4);
+    $adminDir = $root . DIRECTORY_SEPARATOR . 'admin-panel' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativeDir);
+    $frontendDir = $root . DIRECTORY_SEPARATOR . 'frontend' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativeDir);
+    $currentMax = (int)(queryOne("SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM product_preview_images WHERE product_id = ?", [$productId])['max_order'] ?? 0);
+    $saved = [];
+
+    foreach ($files as $index => $file) {
+        $extension = validatePreviewUploadFile($file);
+        $baseName = slugifyText(pathinfo($file['name'], PATHINFO_FILENAME));
+        if ($baseName === '') {
+            $baseName = 'preview';
+        }
+        $fileName = $baseName . '-' . date('YmdHis') . '-' . ($index + 1) . '.' . $extension;
+        $adminTarget = $adminDir . DIRECTORY_SEPARATOR . $fileName;
+        $frontendTarget = $frontendDir . DIRECTORY_SEPARATOR . $fileName;
+
+        if (!move_uploaded_file($file['tmp_name'], $adminTarget)) {
+            jsonResponse(['success' => false, 'message' => 'Khong the luu anh doc thu'], 500);
+        }
+
+        if (!@copy($adminTarget, $frontendTarget)) {
+            @unlink($adminTarget);
+            jsonResponse(['success' => false, 'message' => 'Khong the dong bo anh doc thu sang frontend'], 500);
+        }
+
+        $imageUrl = '/' . str_replace('\\', '/', $relativeDir . '/' . $fileName);
+        $previewId = insertRow('product_preview_images', [
+            'product_id' => $productId,
+            'image_url' => $imageUrl,
+            'alt_text' => 'Doc thu ' . $product['title'],
+            'sort_order' => $currentMax + $index + 1,
+        ]);
+        $saved[] = queryOne("SELECT * FROM product_preview_images WHERE id = ?", [$previewId]);
+    }
+
+    jsonResponse([
+        'success' => true,
+        'message' => 'Da tai anh doc thu',
+        'data' => [
+            'preview_images' => getProductPreviewImages($productId),
+            'uploaded' => $saved,
+            'folder' => $folderUrl,
+        ],
+    ]);
+}
+
+function updateProductPreviewImage($productId, $previewId) {
+    ensureProductPreviewTable();
+
+    $preview = queryOne("SELECT * FROM product_preview_images WHERE id = ? AND product_id = ?", [$previewId, $productId]);
+    if (!$preview) {
+        jsonResponse(['success' => false, 'message' => 'Khong tim thay anh doc thu'], 404);
+    }
+
+    $input = requestJson();
+    $data = filterInput($input, ['alt_text', 'sort_order']);
+    if (array_key_exists('sort_order', $data)) {
+        $data['sort_order'] = (int)$data['sort_order'];
+    }
+    updateRow('product_preview_images', $previewId, $data);
+
+    jsonResponse([
+        'success' => true,
+        'message' => 'Da cap nhat anh doc thu',
+        'data' => [
+            'preview_images' => getProductPreviewImages($productId),
+        ],
+    ]);
+}
+
+function deleteProductPreviewImage($productId, $previewId) {
+    ensureProductPreviewTable();
+
+    $preview = queryOne("SELECT * FROM product_preview_images WHERE id = ? AND product_id = ?", [$previewId, $productId]);
+    if (!$preview) {
+        jsonResponse(['success' => false, 'message' => 'Khong tim thay anh doc thu'], 404);
+    }
+
+    executeSql("DELETE FROM product_preview_images WHERE id = ? AND product_id = ?", [$previewId, $productId]);
+
+    $root = dirname(__DIR__, 4);
+    $relativePath = ltrim((string)$preview['image_url'], '/');
+    $targets = [
+        $root . DIRECTORY_SEPARATOR . 'admin-panel' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath),
+        $root . DIRECTORY_SEPARATOR . 'frontend' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath),
+    ];
+    foreach ($targets as $target) {
+        if (is_file($target)) {
+            @unlink($target);
+        }
+    }
+
+    jsonResponse([
+        'success' => true,
+        'message' => 'Da xoa anh doc thu',
+        'data' => [
+            'preview_images' => getProductPreviewImages($productId),
+        ],
     ]);
 }
 
@@ -752,6 +1147,13 @@ function handleAdminOrders($method, $pathParts) {
             $updateData['delivered_at'] = date('Y-m-d H:i:s');
         }
         updateRow('orders', $id, $updateData);
+        if (tableExists('payments') && isset($updateData['payment_status'])) {
+            $historyPaymentStatus = $updateData['payment_status'] === 'cancelled' ? 'failed' : $updateData['payment_status'];
+            executeSql(
+                "UPDATE payments SET status = ?, verified_at = CASE WHEN ? = 'paid' THEN NOW() ELSE verified_at END WHERE order_id = ?",
+                [$historyPaymentStatus, $historyPaymentStatus, $id]
+            );
+        }
         if (in_array($newStatus, ['cancelled', 'refunded'], true) && ($order['payment_status'] ?? 'pending') === 'paid') {
             creditWallet($order['user_id'], (float)$order['total_amount'], 'Hoan tien don ' . $order['order_number'], 'order_refund', $id);
         }
@@ -777,6 +1179,12 @@ function handleAdminOrders($method, $pathParts) {
             $updateData['status'] = 'refunded';
         }
         updateRow('orders', $id, $updateData);
+        if (tableExists('payments')) {
+            executeSql(
+                "UPDATE payments SET status = ?, verified_at = CASE WHEN ? = 'paid' THEN NOW() ELSE verified_at END WHERE order_id = ?",
+                [$newPaymentStatus, $newPaymentStatus, $id]
+            );
+        }
         if ($newPaymentStatus === 'refunded' && ($order['payment_status'] ?? 'pending') === 'paid') {
             creditWallet($order['user_id'], (float)$order['total_amount'], 'Hoan tien don ' . $order['order_number'], 'payment_refund', $id);
         }
@@ -822,7 +1230,7 @@ function handleAdminOrders($method, $pathParts) {
 
 function handleAdminReturnRequests($method, $pathParts, $currentUser) {
     if (!tableExists('return_requests')) {
-        jsonResponse(['success' => false, 'message' => 'Chua tao bang return_requests. Vui long chay file migrate_order_workflow.sql'], 500);
+        jsonResponse(['success' => false, 'message' => 'Chua tao bang return_requests. Vui long chay file migrate_all_features.sql'], 500);
     }
 
     $id = $pathParts[2] ?? null;
@@ -911,7 +1319,7 @@ function handleAdminReturnRequests($method, $pathParts, $currentUser) {
 
 function handleAdminWallets($method, $pathParts, $currentUser) {
     if (!tableExists('wallets') || !tableExists('wallet_transactions') || !tableExists('user_bank_accounts')) {
-        jsonResponse(['success' => false, 'message' => 'Chua tao bang vi dien tu. Vui long chay migrate_order_workflow.sql'], 500);
+        jsonResponse(['success' => false, 'message' => 'Chua tao bang vi dien tu. Vui long chay migrate_all_features.sql'], 500);
     }
 
     $resource = $pathParts[2] ?? '';
@@ -925,9 +1333,16 @@ function handleAdminWallets($method, $pathParts, $currentUser) {
         $type = $_GET['type'] ?? '';
         $status = $_GET['status'] ?? '';
         $sort = $_GET['sort'] ?? 'newest';
+        $dateFrom = trim((string)($_GET['date_from'] ?? ''));
+        $dateTo = trim((string)($_GET['date_to'] ?? ''));
+        $userId = (int)($_GET['user_id'] ?? 0);
 
         $where = '1=1';
         $params = [];
+        $isSuperAdmin = (($currentUser['role'] ?? '') === 'super_admin');
+        if (!$isSuperAdmin) {
+            $where .= " AND u.role = 'customer'";
+        }
         if ($search !== '') {
             $where .= " AND (
                 u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ?
@@ -943,6 +1358,32 @@ function handleAdminWallets($method, $pathParts, $currentUser) {
         if (in_array($status, ['pending', 'completed', 'rejected'], true)) {
             $where .= ' AND wt.status = ?';
             $params[] = $status;
+        }
+        if ($userId > 0) {
+            $where .= ' AND wt.user_id = ?';
+            $params[] = $userId;
+        }
+        if (($dateFrom !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom))
+            || ($dateTo !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo))) {
+            jsonResponse(['success' => false, 'message' => 'Khoang thoi gian loc khong hop le'], 400);
+        }
+        if ($dateFrom !== '' && $dateTo !== '') {
+            $fromTs = strtotime($dateFrom);
+            $toTs = strtotime($dateTo);
+            if ($fromTs > $toTs) {
+                jsonResponse(['success' => false, 'message' => 'Ngay bat dau khong duoc lon hon ngay ket thuc'], 400);
+            }
+            if ($toTs > strtotime('+1 month', $fromTs)) {
+                jsonResponse(['success' => false, 'message' => 'Chi duoc loc toi da trong khoang 1 thang'], 400);
+            }
+        }
+        if ($dateFrom !== '') {
+            $where .= ' AND DATE(wt.created_at) >= ?';
+            $params[] = $dateFrom;
+        }
+        if ($dateTo !== '') {
+            $where .= ' AND DATE(wt.created_at) <= ?';
+            $params[] = $dateTo;
         }
 
         $orderBy = match ($sort) {
@@ -977,12 +1418,36 @@ function handleAdminWallets($method, $pathParts, $currentUser) {
             $params
         );
 
+        $walletRoleWhere = $isSuperAdmin ? '' : "WHERE u.role = 'customer'";
+        $wallets = queryAll(
+            "SELECT source.user_id,
+                    COALESCE(w.balance, 0) AS balance,
+                    u.first_name, u.last_name, u.email, u.role
+             FROM (
+                 SELECT user_id FROM wallets
+                 UNION
+                 SELECT user_id FROM wallet_transactions
+             ) source
+             LEFT JOIN wallets w ON w.user_id = source.user_id
+             LEFT JOIN users u ON u.id = source.user_id
+             {$walletRoleWhere}
+             ORDER BY u.first_name ASC, u.last_name ASC, u.email ASC"
+        );
+
+        $statUserClause = $userId > 0 ? ' AND user_id = ?' : '';
+        $statUserParams = $userId > 0 ? [$userId] : [];
+        $statRoleClause = $isSuperAdmin ? '' : " AND user_id IN (SELECT id FROM users WHERE role = 'customer')";
+        $balanceSql = $userId > 0
+            ? "SELECT balance AS total FROM wallets WHERE user_id = ?{$statRoleClause}"
+            : "SELECT SUM(balance) AS total FROM wallets WHERE 1=1{$statRoleClause}";
+        $balanceParams = $userId > 0 ? [$userId] : [];
+
         $stats = [
-            'totalBalance' => (float)(queryOne("SELECT SUM(balance) AS total FROM wallets")['total'] ?? 0),
-            'pendingWithdrawals' => (int)(queryOne("SELECT COUNT(*) AS count FROM wallet_transactions WHERE type = 'debit'  AND status = 'pending' AND reference_type = 'wallet_withdraw'")['count'] ?? 0),
-            'pendingWithdrawAmount' => (float)(queryOne("SELECT SUM(amount) AS total FROM wallet_transactions WHERE type = 'debit'  AND status = 'pending' AND reference_type = 'wallet_withdraw'")['total'] ?? 0),
-            'pendingDeposits' => (int)(queryOne("SELECT COUNT(*) AS count FROM wallet_transactions WHERE type = 'credit' AND status = 'pending' AND reference_type = 'wallet_deposit'")['count'] ?? 0),
-            'pendingDepositAmount' => (float)(queryOne("SELECT SUM(amount) AS total FROM wallet_transactions WHERE type = 'credit' AND status = 'pending' AND reference_type = 'wallet_deposit'")['total'] ?? 0),
+            'totalBalance' => (float)(queryOne($balanceSql, $balanceParams)['total'] ?? 0),
+            'pendingWithdrawals' => (int)(queryOne("SELECT COUNT(*) AS count FROM wallet_transactions WHERE type = 'debit'  AND status = 'pending' AND reference_type = 'wallet_withdraw'{$statUserClause}{$statRoleClause}", $statUserParams)['count'] ?? 0),
+            'pendingWithdrawAmount' => (float)(queryOne("SELECT SUM(amount) AS total FROM wallet_transactions WHERE type = 'debit'  AND status = 'pending' AND reference_type = 'wallet_withdraw'{$statUserClause}{$statRoleClause}", $statUserParams)['total'] ?? 0),
+            'pendingDeposits' => (int)(queryOne("SELECT COUNT(*) AS count FROM wallet_transactions WHERE type = 'credit' AND status = 'pending' AND reference_type = 'wallet_deposit'{$statUserClause}{$statRoleClause}", $statUserParams)['count'] ?? 0),
+            'pendingDepositAmount' => (float)(queryOne("SELECT SUM(amount) AS total FROM wallet_transactions WHERE type = 'credit' AND status = 'pending' AND reference_type = 'wallet_deposit'{$statUserClause}{$statRoleClause}", $statUserParams)['total'] ?? 0),
             'linkedBanks' => tableExists('user_bank_accounts')
                 ? (int)(queryOne("SELECT COUNT(*) AS count FROM user_bank_accounts WHERE is_active = 1")['count'] ?? 0)
                 : 0,
@@ -991,6 +1456,7 @@ function handleAdminWallets($method, $pathParts, $currentUser) {
         jsonResponse(['success' => true, 'data' => [
             'transactions' => $transactions,
             'stats' => $stats,
+            'wallets' => $wallets,
             'pagination' => [
                 'page' => $page,
                 'limit' => $limit,
@@ -1311,6 +1777,10 @@ function handleSettings($method, $pathParts) {
     $id = $pathParts[2] ?? null;
     $allowed = ['key_name', 'value', 'type', 'group_name'];
 
+    if ($method === 'POST' && $id === 'qr') {
+        handleBankQrUpload();
+    }
+
     if ($method === 'GET') {
         jsonResponse(['success' => true, 'data' => queryAll("SELECT * FROM settings ORDER BY group_name, key_name")]);
     }
@@ -1336,6 +1806,72 @@ function handleSettings($method, $pathParts) {
     }
 
     jsonResponse(['success' => false, 'message' => 'Khong tim thay thao tac'], 404);
+}
+
+function handleBankQrUpload() {
+    if (empty($_FILES['qr_image']) || !is_uploaded_file($_FILES['qr_image']['tmp_name'])) {
+        jsonResponse(['success' => false, 'message' => 'Vui long chon anh ma QR'], 400);
+    }
+
+    $file = $_FILES['qr_image'];
+    $maxSize = 5 * 1024 * 1024;
+    if (($file['size'] ?? 0) > $maxSize) {
+        jsonResponse(['success' => false, 'message' => 'Anh ma QR khong duoc vuot qua 5MB'], 400);
+    }
+
+    $extension = strtolower(pathinfo($file['name'] ?? '', PATHINFO_EXTENSION));
+    $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+    if (!in_array($extension, $allowedExtensions, true)) {
+        jsonResponse(['success' => false, 'message' => 'Chi ho tro anh JPG, PNG hoac WEBP'], 400);
+    }
+
+    $imageInfo = @getimagesize($file['tmp_name']);
+    if (!$imageInfo || !str_starts_with((string)$imageInfo['mime'], 'image/')) {
+        jsonResponse(['success' => false, 'message' => 'File tai len khong phai anh hop le'], 400);
+    }
+
+    $root = dirname(__DIR__, 4);
+    $relativeDir = 'images/payment';
+    $targets = [
+        $root . DIRECTORY_SEPARATOR . 'admin-panel' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . $relativeDir,
+        $root . DIRECTORY_SEPARATOR . 'frontend' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . $relativeDir,
+    ];
+
+    foreach ($targets as $targetDir) {
+        if (!is_dir($targetDir) && !@mkdir($targetDir, 0775, true)) {
+            jsonResponse(['success' => false, 'message' => 'Khong the tao thu muc luu anh QR'], 500);
+        }
+    }
+
+    $fileName = 'bank-qr-' . date('YmdHis') . '.' . $extension;
+    $adminTarget = $targets[0] . DIRECTORY_SEPARATOR . $fileName;
+    $frontendTarget = $targets[1] . DIRECTORY_SEPARATOR . $fileName;
+
+    if (!move_uploaded_file($file['tmp_name'], $adminTarget)) {
+        jsonResponse(['success' => false, 'message' => 'Khong the luu anh QR'], 500);
+    }
+
+    if (!@copy($adminTarget, $frontendTarget)) {
+        @unlink($adminTarget);
+        jsonResponse(['success' => false, 'message' => 'Khong the dong bo anh QR sang frontend'], 500);
+    }
+
+    $imageUrl = '/' . str_replace('\\', '/', $relativeDir . '/' . $fileName);
+    executeSql(
+        "INSERT INTO settings (key_name, value, type, group_name)
+         VALUES ('bank_qr_image', ?, 'string', 'payment')
+         ON DUPLICATE KEY UPDATE value = VALUES(value), type = VALUES(type), group_name = VALUES(group_name)",
+        [$imageUrl]
+    );
+
+    jsonResponse([
+        'success' => true,
+        'message' => 'Da tai anh ma QR',
+        'data' => [
+            'image_url' => $imageUrl,
+            'setting' => queryOne("SELECT * FROM settings WHERE key_name = 'bank_qr_image'"),
+        ],
+    ]);
 }
 
 function guid() {

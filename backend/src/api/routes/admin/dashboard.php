@@ -18,6 +18,21 @@ function handleAdminDashboard($method, $pathParts) {
     }
 
     if ($action === 'sales') {
+        $year = (int)($_GET['year'] ?? 0);
+        $month = (int)($_GET['month'] ?? 0);
+        if ($year >= 2000 && $month >= 1 && $month <= 12) {
+            $startDate = sprintf('%04d-%02d-01 00:00:00', $year, $month);
+            $endDate = date('Y-m-d H:i:s', strtotime($startDate . ' +1 month'));
+            jsonResponse(['success' => true, 'data' => queryAll(
+                "SELECT DATE(created_at) AS date, SUM(total_amount) AS total, COUNT(id) AS orders
+                 FROM orders
+                 WHERE payment_status = 'paid' AND created_at >= ? AND created_at < ?
+                 GROUP BY DATE(created_at)
+                 ORDER BY date",
+                [$startDate, $endDate]
+            )]);
+        }
+
         $period = $_GET['period'] ?? '7days';
         $days = $period === '90days' ? 90 : ($period === '30days' ? 30 : 7);
         jsonResponse(['success' => true, 'data' => queryAll(

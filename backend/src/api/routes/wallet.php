@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/otp.php';
 /**
  * VÍ ĐIỆN TỬ & NGÂN HÀNG LIÊN KẾT — src/api/routes/wallet.php
  *
@@ -43,7 +44,7 @@ function handleWallet($method, $pathParts) {
     $user = requireUser();
     // Kiểm tra schema trước mọi thao tác để tránh SQL error nếu chưa chạy migration
     if (!tableExists('wallets') || !tableExists('wallet_transactions')) {
-        jsonResponse(['success' => false, 'message' => 'Chua tao bang vi dien tu. Vui long chay migrate_order_workflow.sql'], 500);
+        jsonResponse(['success' => false, 'message' => 'Chua tao bang vi dien tu. Vui long chay migrate_all_features.sql'], 500);
     }
 
     $action = $pathParts[1] ?? '';
@@ -141,7 +142,7 @@ function getWalletSummary($user) {
  */
 function linkBankAccount($user) {
     if (!tableExists('user_bank_accounts')) {
-        jsonResponse(['success' => false, 'message' => 'Chua tao bang tai khoan ngan hang. Vui long chay migrate_order_workflow.sql'], 500);
+        jsonResponse(['success' => false, 'message' => 'Chua tao bang tai khoan ngan hang. Vui long chay migrate_all_features.sql'], 500);
     }
 
     $input = requestJson();
@@ -207,6 +208,7 @@ function depositWallet($user) {
     if (!$bankAccount) {
         jsonResponse(['success' => false, 'message' => 'Vui long lien ket tai khoan ngan hang truoc khi nap tien'], 400);
     }
+    verifyOrderOtp((int)$user['id'], trim((string)($input['otp_code'] ?? '')), 'wallet_deposit');
 
     // Tạo yêu cầu nạp tiền ở trạng thái pending
     // Số dư chỉ được cộng sau khi admin duyệt — tránh user tự credit tuỳ ý
@@ -250,6 +252,7 @@ function withdrawWallet($user) {
     if (!$bankAccount) {
         jsonResponse(['success' => false, 'message' => 'Vui long lien ket tai khoan ngan hang truoc khi rut tien'], 400);
     }
+    verifyOrderOtp((int)$user['id'], trim((string)($input['otp_code'] ?? '')), 'wallet_withdraw');
 
     // debitWallet() xử lý race condition bên trong bằng transaction + SELECT FOR UPDATE
     // status = 'pending' vì admin vẫn cần xử lý chuyển tiền thực ra ngân hàng

@@ -243,7 +243,7 @@ function handleAdminOrders($method, $pathParts) {
 
 function handleAdminReturnRequests($method, $pathParts, $currentUser) {
     if (!tableExists('return_requests')) {
-        jsonResponse(['success' => false, 'message' => 'Chua tao bang return_requests. Vui long chay file migrate_order_workflow.sql'], 500);
+        jsonResponse(['success' => false, 'message' => 'Chua tao bang return_requests. Vui long chay file migrate_all_features.sql'], 500);
     }
 
     $id = $pathParts[2] ?? null;

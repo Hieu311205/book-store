@@ -71,9 +71,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
   min-height: 31rem;
+  border: 0;
   border-radius: 0.35rem;
   background: #fff;
+  cursor: zoom-in;
+  position: relative;
+  padding-inline: 3.75rem;
 }
 
 /* Ảnh chính — được điều khiển bởi .store-detail-zoom-img (xem bên dưới) */
@@ -81,6 +86,42 @@
   max-width: 82%;
   max-height: 29rem;
   object-fit: contain;
+}
+
+.store-detail-gallery-arrow {
+  position: absolute;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 999px;
+  border: 1px solid #d8dde6;
+  background: #fff;
+  color: #111827;
+  transform: translateY(-50%);
+  transition: background 160ms ease, transform 160ms ease;
+}
+
+.store-detail-gallery-arrow:hover {
+  border-color: var(--store-red);
+  background: var(--store-red);
+  color: #fff;
+  transform: translateY(-50%) scale(1.04);
+}
+
+.store-detail-gallery-arrow svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.store-detail-gallery-arrow.is-prev {
+  left: 0.75rem;
+}
+
+.store-detail-gallery-arrow.is-next {
+  right: 0.75rem;
 }
 
 .store-detail-thumbs {
@@ -100,6 +141,7 @@
   border-radius: 0.25rem;
   background: #fff;
   padding: 0;
+  position: relative;
 }
 
 .store-detail-thumb.is-active {
@@ -111,6 +153,25 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.store-detail-thumb-more::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(17, 17, 17, 0.72);
+}
+
+.store-detail-thumb-more span {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: 900;
 }
 
 .store-detail-price-row {
@@ -520,6 +581,126 @@
   font-weight: 900;
 }
 
+.store-gallery-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  background: rgba(0, 0, 0, 0.96);
+}
+
+.store-gallery-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 1.5rem 5.5rem 8.8rem;
+  position: relative;
+}
+
+.store-gallery-stage img {
+  max-width: min(100%, 52rem);
+  max-height: calc(100vh - 12rem);
+  object-fit: contain;
+}
+
+.store-gallery-caption {
+  position: absolute;
+  left: 50%;
+  bottom: 8.8rem;
+  min-width: min(34rem, 80vw);
+  transform: translateX(-50%);
+  background: rgba(17, 24, 39, 0.56);
+  color: #fff;
+  padding: 0.55rem 1rem;
+  text-align: center;
+  font-weight: 700;
+}
+
+.store-gallery-close {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 102;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0.35rem;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  padding: 0.55rem 0.8rem;
+  font-weight: 900;
+}
+
+.store-gallery-nav {
+  position: fixed;
+  top: 48%;
+  z-index: 101;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.25rem;
+  height: 4.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+  transform: translateY(-50%);
+  transition: background 160ms ease, color 160ms ease, opacity 160ms ease;
+}
+
+.store-gallery-nav:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.store-gallery-nav svg {
+  width: 2rem;
+  height: 2rem;
+}
+
+.store-gallery-nav.is-prev {
+  left: 2rem;
+}
+
+.store-gallery-nav.is-next {
+  right: 2rem;
+}
+
+.store-gallery-strip {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 101;
+  display: flex;
+  gap: 0.45rem;
+  overflow-x: auto;
+  background: rgba(0, 0, 0, 0.82);
+  padding: 0.75rem;
+}
+
+.store-gallery-strip-item {
+  width: 7.8rem;
+  height: 5.9rem;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 2px solid #fff;
+  border-radius: 0.3rem;
+  background: #fff;
+  opacity: 0.86;
+}
+
+.store-gallery-strip-item.is-active {
+  border-color: var(--store-red);
+  opacity: 1;
+}
+
+.store-gallery-strip-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 @media (max-width: 1024px) {
   .store-detail-shell {
     grid-template-columns: 1fr;
@@ -543,6 +724,7 @@
 
   .store-detail-main-image {
     min-height: 23rem;
+    padding-inline: 3rem;
   }
 
   .store-detail-main-image img {
@@ -559,5 +741,17 @@
   .store-detail-quantity-row {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .store-gallery-stage {
+    padding-inline: 3.5rem;
+  }
+
+  .store-gallery-nav.is-prev {
+    left: 0.75rem;
+  }
+
+  .store-gallery-nav.is-next {
+    right: 0.75rem;
   }
 }

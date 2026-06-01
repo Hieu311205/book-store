@@ -19,9 +19,24 @@ const paymentStatusText = {
   pending: 'Chờ thanh toán',
   paid: 'Đã thanh toán',
   failed: 'Thất bại',
+  expired: 'Đã hết hạn',
   cancelled: 'Đã hủy',
   refunded: 'Đã hoàn tiền',
 }
+
+const orderStatusText = {
+  pending: 'Chờ xác nhận',
+  confirmed: 'Đã xác nhận',
+  paid: 'Đã xác nhận',
+  processing: 'Đang chuẩn bị hàng',
+  shipped: 'Đang giao hàng',
+  delivered: 'Đã giao hàng',
+  cancelled: 'Đã hủy',
+  refunded: 'Đã hoàn tiền',
+}
+
+const progressStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered']
+const progressLabels = ['Chờ xác nhận', 'Đã xác nhận', 'Chuẩn bị hàng', 'Đang giao', 'Đã giao']
 
 const addDays = (date, days) => {
   const result = new Date(date)
@@ -37,22 +52,23 @@ const getDaysSince = (date) => {
 }
 
 const TrackingProgress = ({ status }) => {
-  const activeIndex = status === 'delivered' ? 2 : 1
-  const steps = ['Đã vận chuyển', 'Đang giao hàng', 'Đã giao hàng']
+  const normalizedStatus = status === 'paid' ? 'confirmed' : status
+  const activeIndex = Math.max(0, progressStatuses.indexOf(normalizedStatus))
+  const isStopped = ['cancelled', 'refunded'].includes(status)
 
   return (
-    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-      {steps.map((label, index) => {
-        const active = index <= activeIndex
+    <div className="grid grid-cols-5 gap-1 text-center text-xs">
+      {progressLabels.map((label, index) => {
+        const active = !isStopped && index <= activeIndex
         return (
           <div key={label} className="relative">
-            {index < steps.length - 1 && (
+            {index < progressLabels.length - 1 && (
               <div className={`absolute top-4 left-1/2 w-full h-0.5 ${index < activeIndex ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
             )}
             <div className={`relative z-10 mx-auto w-8 h-8 rounded-full flex items-center justify-center border-2 ${
               active ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-white dark:bg-gray-800 border-gray-300 text-gray-400'
             }`}>
-              {index === 0 ? '1' : index === 1 ? '2' : '3'}
+              {index + 1}
             </div>
             <p className={`mt-2 ${active ? 'text-emerald-600 font-semibold' : 'text-gray-400'}`}>{label}</p>
           </div>
@@ -68,21 +84,39 @@ const ShippingTracker = ({ order, onConfirmReceived, confirmPending }) => {
   const estimateStart = shippedAt ? addDays(shippedAt, 2) : null
   const estimateEnd = shippedAt ? addDays(shippedAt, 4) : null
   const daysSinceShipped = getDaysSince(shippedAt)
+  const isStopped = ['cancelled', 'refunded'].includes(order.status)
+  const events = [
+    { status: 'pending', label: 'Đơn hàng đã được tạo', time: order.created_at },
+    { status: 'confirmed', label: 'Shop đã xác nhận đơn hàng', time: null },
+    { status: 'processing', label: 'Đơn hàng đang được chuẩn bị', time: null },
+    { status: 'shipped', label: 'Đơn vị vận chuyển đã lấy hàng', time: order.shipped_at },
+    { status: 'delivered', label: 'Đơn hàng đã giao thành công', time: order.delivered_at },
+  ]
+  const currentProgressIndex = progressStatuses.indexOf(order.status === 'paid' ? 'confirmed' : order.status)
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm text-gray-500">Đơn {order.order_number}</p>
-          <h1 className="text-2xl font-bold mt-1">{order.status === 'delivered' ? 'Đã giao hàng' : 'Đang giao hàng'}</h1>
-          <p className="text-emerald-600 font-semibold mt-3">
-            Ngày giao hàng dự kiến: {estimateStart && estimateEnd ? `${shortDate(estimateStart)} - ${shortDate(estimateEnd)}` : 'Đang cập nhật'}
-          </p>
+          <h1 className="text-2xl font-bold mt-1">{orderStatusText[order.status] || order.status}</h1>
+          {!isStopped && (
+            <p className="text-emerald-600 font-semibold mt-3">
+              Ngày giao hàng dự kiến: {estimateStart && estimateEnd ? `${shortDate(estimateStart)} - ${shortDate(estimateEnd)}` : 'Đang cập nhật'}
+            </p>
+          )}
         </div>
         <Link to="/profile/orders" className="btn btn-outline btn-sm">Quay lại đơn hàng</Link>
       </div>
 
       <TrackingProgress status={order.status} />
+
+      {isStopped && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+          <p className="font-semibold">{order.status === 'refunded' ? 'Đơn hàng đã hoàn tiền' : 'Đơn hàng đã bị hủy'}</p>
+          {order.admin_note && <p className="mt-1">{order.admin_note}</p>}
+        </div>
+      )}
 
       {order.status === 'shipped' && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
@@ -118,29 +152,21 @@ const ShippingTracker = ({ order, onConfirmReceived, confirmPending }) => {
       </div>
 
       <div className="rounded-xl border dark:border-gray-700 p-4 space-y-4">
-        <div className="flex gap-3">
-          <div className="flex flex-col items-center">
-            <span className="w-3 h-3 rounded-full bg-emerald-500 mt-1" />
-            <span className="w-0.5 flex-1 bg-emerald-200 dark:bg-emerald-900" />
-          </div>
-          <div>
-            <p className="font-semibold text-emerald-600">Đơn vị vận chuyển lấy hàng thành công</p>
-            <p className="text-sm text-gray-500">{shippedAt ? new Date(shippedAt).toLocaleString('vi-VN') : 'Đang cập nhật'}</p>
-          </div>
-        </div>
-        <div className="flex gap-3">
-          <div className="flex flex-col items-center">
-            <span className={`w-3 h-3 rounded-full mt-1 ${order.status === 'delivered' ? 'bg-emerald-500' : 'bg-gray-300'}`} />
-          </div>
-          <div>
-            <p className={order.status === 'delivered' ? 'font-semibold text-emerald-600' : 'font-semibold text-gray-500'}>
-              Đơn hàng đã giao thành công
-            </p>
-            <p className="text-sm text-gray-500">
-              {order.delivered_at ? new Date(order.delivered_at).toLocaleString('vi-VN') : 'Chờ người mua xác nhận'}
-            </p>
-          </div>
-        </div>
+        {events.map((event, index) => {
+          const reached = !isStopped && index <= currentProgressIndex
+          return (
+            <div key={event.status} className="flex gap-3">
+              <div className="flex flex-col items-center">
+                <span className={`w-3 h-3 rounded-full mt-1 ${reached ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+                {index < events.length - 1 && <span className={`w-0.5 flex-1 min-h-8 ${reached ? 'bg-emerald-200 dark:bg-emerald-900' : 'bg-gray-200 dark:bg-gray-700'}`} />}
+              </div>
+              <div>
+                <p className={reached ? 'font-semibold text-emerald-600' : 'font-semibold text-gray-500'}>{event.label}</p>
+                <p className="text-sm text-gray-500">{event.time ? new Date(event.time).toLocaleString('vi-VN') : 'Chưa cập nhật'}</p>
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       <div className="grid md:grid-cols-3 gap-3 text-sm border-t dark:border-gray-700 pt-4">
@@ -167,6 +193,8 @@ const Shipping = () => {
     queryKey: ['my-orders', 'shipping'],
     queryFn: () => orderService.getOrders({ page: 1, limit: 100 }),
     select: (res) => res.data,
+    refetchInterval: 5000,
+    refetchIntervalInBackground: false,
   })
 
   const confirmMutation = useMutation({
@@ -180,7 +208,7 @@ const Shipping = () => {
   })
 
   const trackableOrders = useMemo(
-    () => data?.orders?.filter((order) => ['shipped', 'delivered'].includes(order.status)) || [],
+    () => data?.orders || [],
     [data],
   )
   const selectedOrder = trackableOrders.find((order) => String(order.id) === String(selectedOrderId))
@@ -200,14 +228,14 @@ const Shipping = () => {
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="bg-white dark:bg-gray-800 rounded-2xl p-6">
         <h1 className="text-2xl font-bold">Theo dõi đơn hàng</h1>
-        <p className="text-gray-500 mt-2">Chọn đơn đang giao hoặc đã giao để xem thông tin vận chuyển.</p>
+        <p className="text-gray-500 mt-2">Chọn đơn hàng để xem toàn bộ tiến trình xử lý và vận chuyển.</p>
 
         <div className="mt-4">
           <select className="input w-full" value={selectedOrderId} onChange={(event) => chooseOrder(event.target.value)}>
             <option value="">-- Chọn đơn hàng --</option>
             {trackableOrders.map((order) => (
               <option key={order.id} value={order.id}>
-                {order.order_number} - {formatPrice(order.total_amount)} đ - {order.status === 'delivered' ? 'Đã giao' : 'Đang giao'}
+                {order.order_number} - {formatPrice(order.total_amount)} đ - {orderStatusText[order.status] || order.status}
               </option>
             ))}
           </select>
@@ -224,7 +252,7 @@ const Shipping = () => {
         />
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 text-center text-gray-500">
-          {trackableOrders.length ? 'Vui lòng chọn một đơn hàng để theo dõi.' : 'Bạn chưa có đơn hàng đang giao.'}
+          {trackableOrders.length ? 'Vui lòng chọn một đơn hàng để theo dõi.' : 'Bạn chưa có đơn hàng.'}
         </div>
       )}
     </div>

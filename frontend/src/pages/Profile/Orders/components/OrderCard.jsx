@@ -43,9 +43,14 @@ const OrderCard = ({
         <button onClick={() => onCancel(order.id)} disabled={cancelPending} className="text-sm text-red-500 hover:text-red-600 disabled:opacity-50">Hủy đơn</button>
       )}
       {order.status === 'delivered' && (
-        <button onClick={() => onReview(order.id)} className="text-sm text-primary-600 hover:underline font-medium">
-          ⭐ Đánh giá
-        </button>
+        Number(order.reviewable_items_count || 0) > 0
+          && Number(order.reviewed_items_count || 0) >= Number(order.reviewable_items_count || 0) ? (
+            <span className="text-sm text-green-600 font-medium">Đã đánh giá</span>
+          ) : (
+            <button onClick={() => onReview(order.id)} className="text-sm text-primary-600 hover:underline font-medium">
+              ⭐ Đánh giá
+            </button>
+          )
       )}
       {order.status === 'delivered' && !['pending', 'approved', 'completed'].includes(order.return_status || '') && (
         <button onClick={() => onReturn(order)} className="text-sm text-orange-600 hover:text-orange-700">Yêu cầu đổi trả</button>

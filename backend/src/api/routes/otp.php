@@ -50,6 +50,13 @@ function ensureOtpTable(): void {
 // ─── BƯỚC 2-3: Tạo và gửi OTP ────────────────────────────────────────────────
 function sendOtpEmail(array $user): void {
     ensureOtpTable();
+    $input = requestJson();
+    $purpose = $input['purpose'] ?? 'card';
+    if (!in_array($purpose, ['card', 'wallet', 'wallet_deposit', 'wallet_withdraw'], true)) {
+        jsonResponse(['success' => false, 'message' => 'Muc dich OTP khong hop le'], 400);
+    }
+
+    executeSql("DELETE FROM order_otps WHERE expires_at <= NOW() OR used_at IS NOT NULL");
 
     // Giới hạn tốc độ: tối đa 3 lần gửi trong 10 phút
     // Ngăn người dùng spam endpoint để brute-force mã
@@ -74,8 +81,8 @@ function sendOtpEmail(array $user): void {
     // vì PHP chạy UTC còn MySQL chạy UTC+7 → lệch 7 tiếng → OTP bị coi là hết hạn ngay.
     executeSql(
         "INSERT INTO order_otps (user_id, otp_code, purpose, expires_at)
-         VALUES (?, ?, 'bank_transfer', DATE_ADD(NOW(), INTERVAL 5 MINUTE))",
-        [$user['id'], $otp]
+         VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL 5 MINUTE))",
+        [$user['id'], $otp, $purpose]
     );
 
     // Chuẩn bị nội dung email
@@ -83,9 +90,16 @@ function sendOtpEmail(array $user): void {
     $toName  = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
     if (!$toName) $toName = $toEmail;
 
-    $subject = 'Mã xác nhận thanh toán - Book Store';
+    $purposeLabels = [
+        'card' => 'thanh toan bang the',
+        'wallet' => 'thanh toan bang vi',
+        'wallet_deposit' => 'nap tien vao vi',
+        'wallet_withdraw' => 'rut tien tu vi',
+    ];
+    $purposeLabel = $purposeLabels[$purpose] ?? 'giao dich';
+    $subject = 'Ma OTP xac nhan ' . $purposeLabel . ' - Book Store';
     $body    = "Xin chào {$toName},\r\n\r\n"
-             . "Mã OTP xác nhận thanh toán của bạn là:\r\n\r\n"
+             . "Ma OTP xac nhan {$purposeLabel} cua ban la:\r\n\r\n"
              . "    {$otp}\r\n\r\n"
              . "Mã có hiệu lực trong 5 phút. Vui lòng không chia sẻ mã này với bất kỳ ai.\r\n\r\n"
              . "Nếu bạn không thực hiện giao dịch này, hãy bỏ qua email này.\r\n\r\n"
@@ -131,7 +145,7 @@ function sendOtpEmail(array $user): void {
 // ─── BƯỚC 7: Xác minh OTP khi tạo đơn hàng ───────────────────────────────────
 // Được gọi BỞI orders.php (không phải từ router), ngay trước khi INSERT đơn hàng.
 // Nếu mã sai hoặc hết hạn → jsonResponse 400 → dừng luồng, đơn hàng KHÔNG được tạo.
-function verifyOrderOtp(int $userId, string $otpCode): void {
+function verifyOrderOtp(int $userId, string $otpCode, string $purpose): void {
     // Không có mã trong request → từ chối ngay
     if (!$otpCode) {
         jsonResponse(['success' => false, 'message' => 'Vui lòng nhập mã OTP xác nhận thanh toán'], 400);
@@ -148,10 +162,11 @@ function verifyOrderOtp(int $userId, string $otpCode): void {
         "SELECT * FROM order_otps
          WHERE user_id  = ?
            AND otp_code = ?
+           AND purpose  = ?
            AND used_at  IS NULL
            AND expires_at > NOW()
          ORDER BY id DESC LIMIT 1",
-        [$userId, $otpCode]
+        [$userId, $otpCode, $purpose]
     );
 
     if (!$record) {
@@ -159,8 +174,8 @@ function verifyOrderOtp(int $userId, string $otpCode): void {
         jsonResponse(['success' => false, 'message' => 'Mã OTP không đúng hoặc đã hết hạn'], 400);
     }
 
-    // BƯỚC 8a: Đánh dấu mã đã được sử dụng → không thể dùng lại
-    executeSql("UPDATE order_otps SET used_at = NOW() WHERE id = ?", [$record['id']]);
+    // Xoa ma ngay sau khi xac minh thanh cong de khong luu OTP sau giao dich.
+    executeSql("DELETE FROM order_otps WHERE id = ?", [$record['id']]);
 
     // Hàm kết thúc bình thường (không trả gì) → orders.php tiếp tục tạo đơn hàng (BƯỚC 8b)
 }

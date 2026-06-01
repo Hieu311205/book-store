@@ -1,7 +1,70 @@
+import { useState } from 'react'
 import { FiChevronLeft, FiChevronRight } from 'react-icons/fi'
 import PaginationNumbers from '../../../components/common/PaginationNumbers'
 import { formatPrice } from '../utils/productHelpers'
 import ProductActions from './ProductActions'
+
+const ProductImageCell = ({ product }) => {
+  const images = [
+    product.images?.[0]?.image_url || '/placeholder.jpg',
+    ...(product.preview_images || []).map((preview) => preview.image_url),
+  ].filter(Boolean)
+  const uniqueImages = [...new Set(images)]
+  const [selectedIndex, setSelectedIndex] = useState(0)
+  const selectedImage = uniqueImages[selectedIndex] || '/placeholder.jpg'
+  const previewImages = uniqueImages.slice(1)
+  const visiblePreviews = previewImages.slice(0, 2)
+  const hiddenPreviewCount = Math.max(0, previewImages.length - visiblePreviews.length)
+
+  const cycleHiddenPreview = () => {
+    if (!previewImages.length) return
+    const nextIndex = selectedIndex <= 0 || selectedIndex >= uniqueImages.length - 1 ? 1 : selectedIndex + 1
+    setSelectedIndex(nextIndex >= uniqueImages.length ? 1 : nextIndex)
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <button
+        type="button"
+        onClick={() => uniqueImages.length > 1 && setSelectedIndex((selectedIndex + 1) % uniqueImages.length)}
+        className="w-10 h-14 bg-gray-100 dark:bg-gray-700 rounded overflow-hidden flex-shrink-0"
+        title={uniqueImages.length > 1 ? 'Bam de chuyen anh' : 'Anh bia'}
+      >
+        <img src={selectedImage} alt="" className="w-full h-full object-cover" />
+      </button>
+      {previewImages.length > 0 && (
+        <div className="flex items-center gap-1">
+          {visiblePreviews.map((imageUrl, index) => {
+            const imageIndex = index + 1
+            return (
+              <button
+                key={imageUrl}
+                type="button"
+                onClick={() => setSelectedIndex(imageIndex)}
+                title="Xem anh doc thu"
+                className={`block h-7 w-5 overflow-hidden rounded border bg-gray-100 ${
+                  selectedIndex === imageIndex ? 'border-primary-500 ring-1 ring-primary-500' : 'border-gray-200 dark:border-gray-600'
+                }`}
+              >
+                <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+              </button>
+            )
+          })}
+          {hiddenPreviewCount > 0 && (
+            <button
+              type="button"
+              onClick={cycleHiddenPreview}
+              className="inline-flex h-7 w-7 items-center justify-center rounded bg-gray-700 text-[10px] font-bold text-white hover:bg-primary-600"
+              title="Chuyen anh doc thu tiep theo"
+            >
+              +{hiddenPreviewCount}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const ProductTable = ({
   products,
@@ -46,9 +109,7 @@ const ProductTable = ({
           ) : products.map((product) => (
             <tr key={product.id}>
               <td>
-                <div className="w-10 h-14 bg-gray-100 dark:bg-gray-700 rounded overflow-hidden flex-shrink-0">
-                  <img src={product.images?.[0]?.image_url || '/placeholder.jpg'} alt="" className="w-full h-full object-cover" />
-                </div>
+                <ProductImageCell product={product} />
               </td>
               <td>
                 <p className="font-medium text-sm leading-snug">{product.title}</p>

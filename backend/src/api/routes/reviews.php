@@ -56,6 +56,11 @@ function getProductReviews($productId) {
 
     $where  = 'r.product_id = ? AND r.is_approved = 1'; // chỉ hiện review đã duyệt
     $params = [(int)$productId];
+    $viewer = currentUser();
+    $hasHelpfulVotes = tableExists('review_helpful_votes');
+    $helpedSelect = $viewer && $hasHelpfulVotes
+        ? ", EXISTS(SELECT 1 FROM review_helpful_votes rhv WHERE rhv.review_id = r.id AND rhv.user_id = ?) AS has_helped"
+        : ", 0 AS has_helped";
 
     if ($rating) {
         $where   .= ' AND r.rating = ?';
@@ -77,14 +82,14 @@ function getProductReviews($productId) {
 
     $reviews = queryAll(
         "SELECT r.id, r.rating, r.title, r.comment, r.pros, r.cons,
-                r.is_verified_purchase, r.helpful_count, r.created_at,
+                r.is_verified_purchase, r.helpful_count, r.created_at{$helpedSelect},
                 u.first_name, u.last_name, u.avatar_url
          FROM reviews r
          LEFT JOIN users u ON r.user_id = u.id
          WHERE {$where}
          ORDER BY {$orderBy}
          LIMIT ? OFFSET ?",
-        array_merge($params, [$limit, $offset])
+        array_merge($viewer && $hasHelpfulVotes ? [$viewer['id']] : [], $params, [$limit, $offset])
     );
 
     // Ẩn họ đầy đủ — chỉ giữ chữ cái đầu (vd: "Nguyễn" → "N.") để bảo vệ quyền riêng tư
@@ -135,25 +140,43 @@ function checkCanReview($user, $productId) {
         jsonResponse(['success' => false, 'message' => 'Thiếu product_id'], 400);
     }
 
-    // Chỉ cho phép đánh giá nếu đã mua và đã nhận hàng (tránh review "ảo")
-    $purchased = queryOne(
-        "SELECT oi.id FROM order_items oi
-         JOIN orders o ON oi.order_id = o.id
-         WHERE o.user_id = ? AND oi.product_id = ? AND o.status = 'delivered'
-         LIMIT 1",
-        [$user['id'], (int)$productId]
-    );
-
-    // Kiểm tra user đã từng đánh giá sản phẩm này chưa (kể cả chưa duyệt)
-    $reviewed = queryOne(
-        "SELECT id FROM reviews WHERE user_id = ? AND product_id = ?",
-        [$user['id'], (int)$productId]
-    );
+    $hasOrderReview = tableHasColumn('reviews', 'order_id');
+    if ($hasOrderReview) {
+        $purchased = queryOne(
+            "SELECT oi.id, oi.order_id FROM order_items oi
+             JOIN orders o ON oi.order_id = o.id
+             WHERE o.user_id = ? AND oi.product_id = ? AND o.status = 'delivered'
+             LIMIT 1",
+            [$user['id'], (int)$productId]
+        );
+        $available = queryOne(
+            "SELECT oi.id, oi.order_id FROM order_items oi
+             JOIN orders o ON oi.order_id = o.id
+             LEFT JOIN reviews r ON r.order_id = o.id AND r.product_id = oi.product_id AND r.user_id = o.user_id
+             WHERE o.user_id = ? AND oi.product_id = ? AND o.status = 'delivered' AND r.id IS NULL
+             LIMIT 1",
+            [$user['id'], (int)$productId]
+        );
+        $reviewed = $purchased && !$available;
+    } else {
+        $purchased = queryOne(
+            "SELECT oi.id FROM order_items oi
+             JOIN orders o ON oi.order_id = o.id
+             WHERE o.user_id = ? AND oi.product_id = ? AND o.status = 'delivered'
+             LIMIT 1",
+            [$user['id'], (int)$productId]
+        );
+        $reviewed = queryOne(
+            "SELECT id FROM reviews WHERE user_id = ? AND product_id = ?",
+            [$user['id'], (int)$productId]
+        );
+        $available = $purchased && !$reviewed;
+    }
 
     jsonResponse([
         'success' => true,
         'data'    => [
-            'can_review'       => (bool)$purchased && !$reviewed,
+            'can_review'       => (bool)$available,
             'has_purchased'    => (bool)$purchased,
             'already_reviewed' => (bool)$reviewed,
         ],
@@ -181,6 +204,7 @@ function getMyReviews($user) {
 function submitReview($user) {
     $input     = requestJson();
     $productId = (int)($input['product_id'] ?? 0);
+    $orderId   = (int)($input['order_id'] ?? 0);
     $rating    = (int)($input['rating'] ?? 0);
 
     if ($productId <= 0) {
@@ -190,25 +214,42 @@ function submitReview($user) {
         jsonResponse(['success' => false, 'message' => 'Điểm đánh giá phải từ 1 đến 5 sao'], 400);
     }
 
-    // Xác minh mua hàng — chỉ review sau khi nhận hàng thực tế
-    $purchased = queryOne(
-        "SELECT oi.id FROM order_items oi
-         JOIN orders o ON oi.order_id = o.id
-         WHERE o.user_id = ? AND oi.product_id = ? AND o.status = 'delivered'
-         LIMIT 1",
-        [$user['id'], $productId]
-    );
+    $hasOrderReview = tableHasColumn('reviews', 'order_id');
+    if ($hasOrderReview) {
+        $purchaseWhere = "o.user_id = ? AND oi.product_id = ? AND o.status = 'delivered'";
+        $purchaseParams = [$user['id'], $productId];
+        if ($orderId > 0) {
+            $purchaseWhere .= " AND o.id = ?";
+            $purchaseParams[] = $orderId;
+        }
+        $purchased = queryOne(
+            "SELECT oi.id, oi.order_id FROM order_items oi
+             JOIN orders o ON oi.order_id = o.id
+             LEFT JOIN reviews r ON r.order_id = o.id AND r.product_id = oi.product_id AND r.user_id = o.user_id
+             WHERE {$purchaseWhere} AND r.id IS NULL
+             ORDER BY o.delivered_at ASC, o.id ASC
+             LIMIT 1",
+            $purchaseParams
+        );
+        $orderId = (int)($purchased['order_id'] ?? $orderId);
+    } else {
+        $purchased = queryOne(
+            "SELECT oi.id FROM order_items oi
+             JOIN orders o ON oi.order_id = o.id
+             WHERE o.user_id = ? AND oi.product_id = ? AND o.status = 'delivered'
+             LIMIT 1",
+            [$user['id'], $productId]
+        );
+    }
     if (!$purchased) {
-        jsonResponse(['success' => false, 'message' => 'Bạn chỉ có thể đánh giá sản phẩm đã mua và đã nhận hàng'], 403);
+        jsonResponse(['success' => false, 'message' => 'Bạn chỉ có thể đánh giá sách đã mua, đã nhận và chưa đánh giá trong đơn này'], 403);
     }
 
-    // Mỗi user chỉ được gửi 1 review cho mỗi sản phẩm
-    $existing = queryOne(
-        "SELECT id FROM reviews WHERE user_id = ? AND product_id = ?",
-        [$user['id'], $productId]
-    );
+    $existing = $hasOrderReview
+        ? queryOne("SELECT id FROM reviews WHERE user_id = ? AND product_id = ? AND order_id = ?", [$user['id'], $productId, $orderId])
+        : queryOne("SELECT id FROM reviews WHERE user_id = ? AND product_id = ?", [$user['id'], $productId]);
     if ($existing) {
-        jsonResponse(['success' => false, 'message' => 'Bạn đã đánh giá sản phẩm này rồi'], 400);
+        jsonResponse(['success' => false, 'message' => 'Bạn đã đánh giá sách này trong đơn hàng này rồi'], 400);
     }
 
     $comment = trim((string)($input['comment'] ?? ''));
@@ -216,7 +257,7 @@ function submitReview($user) {
         jsonResponse(['success' => false, 'message' => 'Nội dung đánh giá phải có ít nhất 10 ký tự'], 400);
     }
 
-    $id = insertRow('reviews', [
+    $reviewData = [
         'product_id'           => $productId,
         'user_id'              => $user['id'],
         'rating'               => $rating,
@@ -226,7 +267,11 @@ function submitReview($user) {
         'cons'                 => mb_substr(trim((string)($input['cons'] ?? '')), 0, 500) ?: null,
         'is_verified_purchase' => 1,
         'is_approved'          => 1, // Tự động duyệt; đổi thành 0 nếu muốn quy trình admin duyệt thủ công
-    ]);
+    ];
+    if ($hasOrderReview) {
+        $reviewData['order_id'] = $orderId;
+    }
+    $id = insertRow('reviews', $reviewData);
 
     // Cập nhật rating_avg và rating_count trên bảng products ngay sau khi insert
     recalcProductRating($productId);
@@ -235,15 +280,50 @@ function submitReview($user) {
 }
 
 // ─── Đánh dấu một review là "hữu ích" ────────────────────────────────────────
-// Tăng helpful_count — dùng để sort review theo mức độ hữu ích (sort=helpful)
-// Không giới hạn số lần vote trên cùng 1 user (thiết kế đơn giản cho MVP)
 function markHelpful($user, $reviewId) {
-    $review = queryOne("SELECT id FROM reviews WHERE id = ?", [$reviewId]);
+    if (!tableExists('review_helpful_votes')) {
+        jsonResponse(['success' => false, 'message' => 'Chua tao bang review_helpful_votes. Vui long chay migrate_all_features.sql'], 500);
+    }
+
+    $review = queryOne("SELECT id, user_id FROM reviews WHERE id = ?", [$reviewId]);
     if (!$review) {
         jsonResponse(['success' => false, 'message' => 'Không tìm thấy đánh giá'], 404);
     }
-    executeSql("UPDATE reviews SET helpful_count = helpful_count + 1 WHERE id = ?", [$reviewId]);
-    jsonResponse(['success' => true, 'message' => 'Đã đánh dấu hữu ích']);
+    if ((int)$review['user_id'] === (int)$user['id']) {
+        jsonResponse(['success' => false, 'message' => 'Khong the tu danh dau review cua minh la huu ich'], 400);
+    }
+
+    $existing = queryOne(
+        "SELECT id FROM review_helpful_votes WHERE review_id = ? AND user_id = ?",
+        [$reviewId, $user['id']]
+    );
+
+    if ($existing) {
+        executeSql("DELETE FROM review_helpful_votes WHERE id = ?", [$existing['id']]);
+        executeSql("UPDATE reviews SET helpful_count = GREATEST(COALESCE(helpful_count, 0) - 1, 0) WHERE id = ?", [$reviewId]);
+        $count = (int)(queryOne("SELECT helpful_count FROM reviews WHERE id = ?", [$reviewId])['helpful_count'] ?? 0);
+        jsonResponse([
+            'success' => true,
+            'message' => 'Đã hủy hữu ích',
+            'helped' => false,
+            'helpful_count' => $count,
+            'data' => ['helped' => false, 'helpful_count' => $count],
+        ]);
+    }
+
+    insertRow('review_helpful_votes', [
+        'review_id' => $reviewId,
+        'user_id' => $user['id'],
+    ]);
+    executeSql("UPDATE reviews SET helpful_count = COALESCE(helpful_count, 0) + 1 WHERE id = ?", [$reviewId]);
+    $count = (int)(queryOne("SELECT helpful_count FROM reviews WHERE id = ?", [$reviewId])['helpful_count'] ?? 0);
+    jsonResponse([
+        'success' => true,
+        'message' => 'Đã đánh dấu hữu ích',
+        'helped' => true,
+        'helpful_count' => $count,
+        'data' => ['helped' => true, 'helpful_count' => $count],
+    ]);
 }
 
 // ─── Cập nhật rating tổng hợp của sản phẩm ───────────────────────────────────

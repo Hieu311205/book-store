@@ -44,5 +44,5 @@ export const orderService = {
   // Bước đầu tiên trong OTP flow trước khi đặt hàng:
   // Backend tạo mã OTP ngẫu nhiên, lưu vào DB có TTL, gửi qua GmailSmtp đến email user.
   // Mã OTP sau đó được user nhập và gửi kèm trong createOrder() để xác minh thanh toán.
-  sendOtp: () => api.post('/otp/send'),
+  sendOtp: (purpose) => api.post('/otp/send', { purpose }),
 }

@@ -36,11 +36,19 @@ function ProductReviewForm({ item, onDone }) {
 
   const mutation = useMutation({
     mutationFn: () => reviewService.submitReview({
-      product_id: item.product_id, rating, title, comment, pros, cons,
+      product_id: item.product_id,
+      order_id: item.order_id,
+      rating,
+      title,
+      comment,
+      pros,
+      cons,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries(['reviews', item.product_id])
       queryClient.invalidateQueries(['product'])
+      queryClient.invalidateQueries({ queryKey: ['my-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['order-detail'] })
       toast.success(`Đã đánh giá "${item.product_title}"!`)
       onDone()
     },
@@ -133,8 +141,8 @@ const ReviewOrderModal = ({ orderId, onClose }) => {
     select: (res) => res.data,
   })
 
-  const handleDone = (itemId, productId) => {
-    setDoneItems((prev) => new Set([...prev, productId]))
+  const handleDone = (itemId) => {
+    setDoneItems((prev) => new Set([...prev, itemId]))
     setActiveItemId(null)
   }
 
@@ -149,7 +157,7 @@ const ReviewOrderModal = ({ orderId, onClose }) => {
         {isLoading && <p style={{ color: '#9ca3af', textAlign: 'center', padding: '2rem' }}>Đang tải...</p>}
 
         {order?.items?.map((item) => {
-          const isDone    = doneItems.has(item.product_id)
+          const isDone    = doneItems.has(item.id) || Boolean(Number(item.already_reviewed))
           const isActive  = activeItemId === item.id
           return (
             <div key={item.id} style={{ borderBottom: '1px solid #f3f4f6', paddingBottom: '1rem', marginBottom: '1rem' }}>
@@ -181,7 +189,7 @@ const ReviewOrderModal = ({ orderId, onClose }) => {
               {isActive && !isDone && (
                 <ProductReviewForm
                   item={item}
-                  onDone={() => handleDone(item.id, item.product_id)}
+                  onDone={() => handleDone(item.id)}
                 />
               )}
             </div>

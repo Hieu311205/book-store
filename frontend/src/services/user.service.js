@@ -19,4 +19,5 @@ export const userService = {
   deleteBankAccount: (id) => api.delete(`/wallet/bank-accounts/${id}`),
   depositWallet: (data) => api.post('/wallet/deposit', data),
   withdrawWallet: (data) => api.post('/wallet/withdraw', data),
+  sendWalletOtp: (purpose) => api.post('/otp/send', { purpose }),
 }
