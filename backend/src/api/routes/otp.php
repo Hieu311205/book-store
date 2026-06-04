@@ -129,14 +129,22 @@ function sendOtpEmail(array $user): void {
     // Luôn ghi log để dev có thể kiểm tra OTP qua error_log khi email chưa cấu hình
     error_log("[OTP] user={$user['id']} email={$toEmail} otp={$otp} sent=" . ($emailSent ? 'yes' : 'no'));
 
-    // Trả về kết quả cho frontend (BƯỚC 3 → 4)
-    // dev_otp chỉ trả về khi email gửi thất bại để tester có thể nhập thủ công
+    // Lấy thời gian còn lại chính xác từ DB (tính bằng giây, dùng đồng hồ MySQL)
+    // Trả về frontend để đồng bộ countdown — tránh lệch do latency mạng
+    $remaining = queryOne(
+        "SELECT GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), expires_at)) AS secs
+         FROM order_otps WHERE user_id = ? AND used_at IS NULL ORDER BY id DESC LIMIT 1",
+        [$user['id']]
+    );
+    $expiresIn = (int)($remaining['secs'] ?? 300);
+
     jsonResponse([
         'success'    => true,
         'message'    => $emailSent
             ? "Mã OTP đã được gửi đến {$toEmail}"
             : "Gửi email thất bại — xem mã trong hộp màu vàng (dev mode)",
         'email_sent' => $emailSent,
+        'expires_in' => $expiresIn,   // giây còn lại chính xác theo đồng hồ MySQL
         'dev_otp'    => (!$emailSent ? $otp : null),
         'dev_error'  => (!$emailSent ? $errorMsg : null),
     ]);

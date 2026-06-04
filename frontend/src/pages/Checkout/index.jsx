@@ -80,12 +80,13 @@ const isCardExpiryValid = (value) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // BƯỚC 4: OTP Modal — hiển thị sau khi backend gửi email thành công
 // ═══════════════════════════════════════════════════════════════════════════════
-const OtpModal = ({ email, devOtp, purpose, verifying, onVerify, onClose }) => {
-  const [code, setCode]         = useState('')       // chuỗi 6 chữ số đang nhập
-  const [seconds, setSeconds]   = useState(300)      // đếm ngược 5 phút (đồng hồ phía client)
-  const [cooldown, setCooldown] = useState(60)       // chờ 60s trước khi cho phép gửi lại
-  const [sending, setSending]   = useState(false)    // đang gọi API gửi lại
-  const inputsRef               = useRef([])         // ref mảng 6 ô input để điều hướng focus
+const OtpModal = ({ email, devOtp, purpose, expiresIn, verifying, onVerify, onClose }) => {
+  // expiresIn đến từ server (giây chính xác theo đồng hồ MySQL), fallback 300s
+  const [code, setCode]         = useState('')
+  const [seconds, setSeconds]   = useState(expiresIn ?? 300)
+  const [cooldown, setCooldown] = useState(60)
+  const [sending, setSending]   = useState(false)
+  const inputsRef               = useRef([])
 
   // Đếm ngược thời gian hiệu lực — reset về 0 khi hết, không âm
   useEffect(() => {
@@ -128,17 +129,17 @@ const OtpModal = ({ email, devOtp, purpose, verifying, onVerify, onClose }) => {
     e.preventDefault()
   }
 
-  // Gửi lại OTP: gọi lại POST /api/v1/otp/send → backend xóa mã cũ, tạo mã mới, gửi email
+  // Gửi lại OTP: reset countdown theo expires_in trả về từ server
   const resend = useCallback(async () => {
     if (cooldown > 0 || sending) return
     setSending(true)
     try {
       const res = await orderService.sendOtp(purpose)
       toast.success('Đã gửi lại mã OTP')
-      setSeconds(300)    // reset đồng hồ 5 phút
-      setCooldown(60)    // khóa nút gửi lại 60s
-      setCode('')        // xóa mã cũ đang nhập
-      // Nếu email chưa cấu hình → dev_otp trả về trong response để test
+      // Dùng expires_in từ server để đồng bộ countdown chính xác
+      setSeconds(res.data?.expires_in ?? 300)
+      setCooldown(60)
+      setCode('')
       if (res.data?.dev_otp) toast(`Dev OTP: ${res.data.dev_otp}`, { icon: '🔑' })
     } catch (err) {
       toast.error(err.message || 'Không thể gửi lại OTP')
@@ -185,19 +186,19 @@ const OtpModal = ({ email, devOtp, purpose, verifying, onVerify, onClose }) => {
           ))}
         </div>
 
-        {/* Đồng hồ đếm ngược — chỉ phía client, không đồng bộ với server */}
+        {/* Đồng hồ đếm ngược — đồng bộ từ server, chỉ mang tính tham khảo */}
         <div className="otp-timer">
           {seconds > 0 ? (
             <span>Mã hết hạn sau <strong>{fmt(seconds)}</strong></span>
           ) : (
-            <span className="expired">Mã đã hết hạn</span>
+            <span className="expired">⚠️ Có thể đã hết hạn — thử gửi lại nếu bị từ chối</span>
           )}
         </div>
 
-        {/* BƯỚC 5: Xác nhận → gọi handleOtpVerify(code) ở Checkout */}
+        {/* BƯỚC 5: Không chặn submit khi seconds === 0 — backend là nguồn xác thực chính xác */}
         <button
           className="otp-submit"
-          disabled={code.length < 6 || seconds === 0 || verifying}  // cần đủ 6 số và còn trong hạn
+          disabled={code.length < 6 || verifying}
           onClick={() => onVerify(code)}
         >
           {verifying ? 'Đang xác minh...' : 'Xác nhận & Đặt hàng'}
@@ -393,13 +394,13 @@ const Checkout = () => {
       try {
         // Gọi POST /api/v1/otp/send → backend tạo mã, lưu DB, gửi Gmail
         const res = await orderService.sendOtp(paymentMethod)
-        const { email_sent, dev_otp } = res.data || {}
+        const { email_sent, dev_otp, expires_in } = res.data || {}
 
         // Nếu email chưa cấu hình → hiện toast kèm mã để test
         if (!email_sent) toast(`Dev OTP: ${dev_otp}`, { icon: '🔑', duration: 30000 })
 
-        // Mở OtpModal (BƯỚC 4) — luồng tiếp theo do người dùng nhập mã
-        setOtpModal({ email: user?.email || 'email của bạn', devOtp: dev_otp || null, purpose: paymentMethod })
+        // Dùng expires_in từ server để countdown đồng bộ chính xác
+        setOtpModal({ email: user?.email || 'email của bạn', devOtp: dev_otp || null, purpose: paymentMethod, expiresIn: expires_in ?? 300 })
       } catch (err) {
         toast.error(err.message || 'Không thể gửi mã OTP')
       }
@@ -434,6 +435,7 @@ const Checkout = () => {
           email={otpModal.email}
           devOtp={otpModal.devOtp}
           purpose={otpModal.purpose}
+          expiresIn={otpModal.expiresIn}
           verifying={createMutation.isPending}
           onVerify={handleOtpVerify}
           onClose={() => setOtpModal(null)}
