@@ -1,5 +1,8 @@
 import { NavLink } from 'react-router-dom'
 import {
+  FiBook,
+  FiBookOpen,
+  FiBox,
   FiHome,
   FiPackage,
   FiFolder,
@@ -19,6 +22,9 @@ import { adminService } from '../../services/admin.service'
 const menuItems = [
   { to: '/', icon: FiHome, label: 'Tổng quan', end: true },
   { to: '/products', icon: FiPackage, label: 'Sách' },
+  { to: '/authors', icon: FiBook, label: 'Tác giả' },
+  { to: '/publishers', icon: FiBookOpen, label: 'Nhà xuất bản' },
+  { to: '/inventory', icon: FiBox, label: 'Quản lý kho' },
   { to: '/categories', icon: FiFolder, label: 'Danh mục' },
   { to: '/orders', icon: FiShoppingCart, label: 'Đơn hàng' },
   { to: '/wallets', icon: FiCreditCard, label: 'Ví điện tử' },

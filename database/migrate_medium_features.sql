@@ -44,3 +44,18 @@ CREATE TABLE IF NOT EXISTS `combo_items` (
   CONSTRAINT `fk_ci_combo`   FOREIGN KEY (`combo_id`)   REFERENCES `combos`   (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_ci_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── 3. Lịch sử nhập hàng ─────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `stock_imports` (
+  `id`          int          NOT NULL AUTO_INCREMENT,
+  `product_id`  int          NOT NULL,
+  `quantity`    int          NOT NULL,
+  `note`        text,
+  `imported_by` int          NOT NULL,
+  `created_at`  datetime     DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_si_product` (`product_id`),
+  KEY `idx_si_user`    (`imported_by`),
+  CONSTRAINT `fk_si_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_si_user`    FOREIGN KEY (`imported_by`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

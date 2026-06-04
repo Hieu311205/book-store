@@ -8,6 +8,9 @@ import Orders from './pages/Orders'
 import Wallets from './pages/Wallets'
 import Payments from './pages/Payments'
 import Users from './pages/Users'
+import Authors from './pages/Authors'
+import Publishers from './pages/Publishers'
+import Inventory from './pages/Inventory'
 import Combos from './pages/Combos'
 import Coupons from './pages/Coupons'
 import Settings from './pages/Settings'
@@ -41,6 +44,9 @@ const App = () => {
         <Route path="wallets" element={<Wallets />} />
         <Route path="payments" element={<Payments />} />
         <Route path="users" element={<SuperAdminRoute><Users /></SuperAdminRoute>} />
+        <Route path="authors" element={<Authors />} />
+        <Route path="publishers" element={<Publishers />} />
+        <Route path="inventory" element={<Inventory />} />
         <Route path="combos" element={<Combos />} />
         <Route path="coupons" element={<SuperAdminRoute><Coupons /></SuperAdminRoute>} />
         <Route path="settings" element={<SuperAdminRoute><Settings /></SuperAdminRoute>} />

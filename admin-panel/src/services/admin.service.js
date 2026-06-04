@@ -39,11 +39,29 @@ export const adminService = {
   updateCategory: (id, data) => api.put(`/admin/categories/${id}`, data),
   deleteCategory: (id) => api.delete(`/admin/categories/${id}`),
 
-  // Authors
-  getAuthors: () => api.get('/authors'),
+  // Authors (public list for dropdowns)
+  getAuthors: (params) => api.get('/authors', { params }),
 
-  // Publishers
-  getPublishers: () => api.get('/publishers'),
+  // Authors admin CRUD
+  getAdminAuthors: (params) => api.get('/admin/authors', { params }),
+  createAuthor: (data) => api.post('/admin/authors', data),
+  updateAuthor: (id, data) => api.put(`/admin/authors/${id}`, data),
+  deleteAuthor: (id) => api.delete(`/admin/authors/${id}`),
+
+  // Publishers (public list for dropdowns)
+  getPublishers: (params) => api.get('/publishers', { params }),
+
+  // Publishers admin CRUD
+  getAdminPublishers: (params) => api.get('/admin/publishers', { params }),
+  createPublisher: (data) => api.post('/admin/publishers', data),
+  updatePublisher: (id, data) => api.put(`/admin/publishers/${id}`, data),
+  deletePublisher: (id) => api.delete(`/admin/publishers/${id}`),
+
+  // Inventory
+  getInventory: (params) => api.get('/admin/inventory', { params }),
+  bulkUpdateStock: (items) => api.put('/admin/inventory/bulk', { items }),
+  importStock: (data) => api.post('/admin/inventory/import', data),
+  getImportHistory: (params) => api.get('/admin/inventory/history', { params }),
 
   // Orders
   getOrders: (params) => api.get('/admin/orders', { params }),

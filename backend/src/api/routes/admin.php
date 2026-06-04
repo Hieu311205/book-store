@@ -38,6 +38,12 @@ function handleAdmin($method, $pathParts) {
         handleContactMessages($method, $pathParts);
     } elseif ($section === 'combos') {
         handleAdminCombos($method, $pathParts);
+    } elseif ($section === 'authors') {
+        handleAdminAuthors($method, $pathParts);
+    } elseif ($section === 'publishers') {
+        handleAdminPublishers($method, $pathParts);
+    } elseif ($section === 'inventory') {
+        handleAdminInventory($method, $pathParts, $user);
     } else {
         jsonResponse(['success' => false, 'message' => 'Khong tim thay thao tac'], 404);
     }
@@ -1894,6 +1900,257 @@ function guid() {
         mt_rand(0, 0x3fff) | 0x8000,
         mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
     );
+}
+
+// ── Admin: Quản lý Tác giả ───────────────────────────────────────────────────
+function handleAdminAuthors($method, $pathParts) {
+    $id = isset($pathParts[2]) ? (int)$pathParts[2] : null;
+
+    if ($method === 'GET' && !$id) {
+        $search = trim($_GET['search'] ?? '');
+        $page   = max(1, (int)($_GET['page'] ?? 1));
+        $limit  = min(100, max(1, (int)($_GET['limit'] ?? 20)));
+        $offset = ($page - 1) * $limit;
+        $where  = '1=1';
+        $params = [];
+        if ($search) {
+            $like   = '%' . $search . '%';
+            $where .= ' AND (a.name LIKE ? OR a.name_en LIKE ?)';
+            $params[] = $like; $params[] = $like;
+        }
+        $count = (int)(queryOne("SELECT COUNT(*) AS c FROM authors a WHERE {$where}", $params)['c'] ?? 0);
+        $authors = queryAll(
+            "SELECT a.*, (SELECT COUNT(*) FROM products p WHERE p.author_id = a.id) AS product_count
+             FROM authors a WHERE {$where} ORDER BY a.name LIMIT ? OFFSET ?",
+            array_merge($params, [$limit, $offset])
+        );
+        jsonResponse(['success' => true, 'data' => ['authors' => $authors, 'pagination' => ['page' => $page, 'limit' => $limit, 'totalItems' => $count, 'totalPages' => (int)ceil($count / $limit)]]]);
+    }
+
+    if ($method === 'GET' && $id) {
+        $a = queryOne("SELECT * FROM authors WHERE id = ?", [$id]);
+        if (!$a) jsonResponse(['success' => false, 'message' => 'Không tìm thấy'], 404);
+        jsonResponse(['success' => true, 'data' => $a]);
+    }
+
+    if ($method === 'POST') {
+        $input = requestJson();
+        if (empty($input['name'])) jsonResponse(['success' => false, 'message' => 'Thiếu tên tác giả'], 400);
+        $slug = slugifyText($input['name']) . '-' . substr((string)time(), -4);
+        $newId = insertRow('authors', [
+            'name'       => $input['name'],
+            'name_en'    => $input['name_en'] ?? null,
+            'slug'       => $slug,
+            'bio'        => $input['bio'] ?? null,
+            'image_url'  => $input['image_url'] ?? null,
+        ]);
+        jsonResponse(['success' => true, 'message' => 'Đã thêm tác giả', 'data' => queryOne("SELECT * FROM authors WHERE id = ?", [$newId])], 201);
+    }
+
+    if ($method === 'PUT' && $id) {
+        $input  = requestJson();
+        $update = array_filter(['name' => $input['name'] ?? null, 'name_en' => $input['name_en'] ?? null, 'bio' => $input['bio'] ?? null, 'image_url' => $input['image_url'] ?? null], fn($v) => $v !== null);
+        if ($update) updateRow('authors', $id, $update);
+        jsonResponse(['success' => true, 'message' => 'Đã cập nhật', 'data' => queryOne("SELECT * FROM authors WHERE id = ?", [$id])]);
+    }
+
+    if ($method === 'DELETE' && $id) {
+        $used = (int)(queryOne("SELECT COUNT(*) AS c FROM products WHERE author_id = ?", [$id])['c'] ?? 0);
+        if ($used > 0) jsonResponse(['success' => false, 'message' => "Không thể xóa — tác giả đang dùng cho {$used} sách"], 409);
+        executeSql("DELETE FROM authors WHERE id = ?", [$id]);
+        jsonResponse(['success' => true, 'message' => 'Đã xóa tác giả']);
+    }
+
+    jsonResponse(['success' => false, 'message' => 'Không tìm thấy thao tác'], 404);
+}
+
+// ── Admin: Quản lý Nhà xuất bản ──────────────────────────────────────────────
+function handleAdminPublishers($method, $pathParts) {
+    $id = isset($pathParts[2]) ? (int)$pathParts[2] : null;
+
+    if ($method === 'GET' && !$id) {
+        $search = trim($_GET['search'] ?? '');
+        $page   = max(1, (int)($_GET['page'] ?? 1));
+        $limit  = min(100, max(1, (int)($_GET['limit'] ?? 20)));
+        $offset = ($page - 1) * $limit;
+        $where  = '1=1';
+        $params = [];
+        if ($search) {
+            $like   = '%' . $search . '%';
+            $where .= ' AND (pub.name LIKE ? OR pub.name_en LIKE ?)';
+            $params[] = $like; $params[] = $like;
+        }
+        $count = (int)(queryOne("SELECT COUNT(*) AS c FROM publishers pub WHERE {$where}", $params)['c'] ?? 0);
+        $pubs = queryAll(
+            "SELECT pub.*, (SELECT COUNT(*) FROM products p WHERE p.publisher_id = pub.id) AS product_count
+             FROM publishers pub WHERE {$where} ORDER BY pub.name LIMIT ? OFFSET ?",
+            array_merge($params, [$limit, $offset])
+        );
+        jsonResponse(['success' => true, 'data' => ['publishers' => $pubs, 'pagination' => ['page' => $page, 'limit' => $limit, 'totalItems' => $count, 'totalPages' => (int)ceil($count / $limit)]]]);
+    }
+
+    if ($method === 'GET' && $id) {
+        $pub = queryOne("SELECT * FROM publishers WHERE id = ?", [$id]);
+        if (!$pub) jsonResponse(['success' => false, 'message' => 'Không tìm thấy'], 404);
+        jsonResponse(['success' => true, 'data' => $pub]);
+    }
+
+    if ($method === 'POST') {
+        $input = requestJson();
+        if (empty($input['name'])) jsonResponse(['success' => false, 'message' => 'Thiếu tên nhà xuất bản'], 400);
+        $slug  = slugifyText($input['name']) . '-' . substr((string)time(), -4);
+        $newId = insertRow('publishers', [
+            'name'      => $input['name'],
+            'name_en'   => $input['name_en'] ?? null,
+            'slug'      => $slug,
+            'logo_url'  => $input['logo_url'] ?? null,
+            'website'   => $input['website'] ?? null,
+        ]);
+        jsonResponse(['success' => true, 'message' => 'Đã thêm nhà xuất bản', 'data' => queryOne("SELECT * FROM publishers WHERE id = ?", [$newId])], 201);
+    }
+
+    if ($method === 'PUT' && $id) {
+        $input  = requestJson();
+        $update = array_filter(['name' => $input['name'] ?? null, 'name_en' => $input['name_en'] ?? null, 'logo_url' => $input['logo_url'] ?? null, 'website' => $input['website'] ?? null], fn($v) => $v !== null);
+        if ($update) updateRow('publishers', $id, $update);
+        jsonResponse(['success' => true, 'message' => 'Đã cập nhật', 'data' => queryOne("SELECT * FROM publishers WHERE id = ?", [$id])]);
+    }
+
+    if ($method === 'DELETE' && $id) {
+        $used = (int)(queryOne("SELECT COUNT(*) AS c FROM products WHERE publisher_id = ?", [$id])['c'] ?? 0);
+        if ($used > 0) jsonResponse(['success' => false, 'message' => "Không thể xóa — NXB đang dùng cho {$used} sách"], 409);
+        executeSql("DELETE FROM publishers WHERE id = ?", [$id]);
+        jsonResponse(['success' => true, 'message' => 'Đã xóa nhà xuất bản']);
+    }
+
+    jsonResponse(['success' => false, 'message' => 'Không tìm thấy thao tác'], 404);
+}
+
+// ── Admin: Quản lý Kho hàng ──────────────────────────────────────────────────
+function handleAdminInventory($method, $pathParts, $user) {
+    $action = $pathParts[2] ?? '';
+
+    // GET /admin/inventory — danh sách tất cả sản phẩm kèm stock để bulk edit
+    if ($method === 'GET' && !$action) {
+        $search  = trim($_GET['search'] ?? '');
+        $lowOnly = !empty($_GET['low_stock']);
+        $page    = max(1, (int)($_GET['page'] ?? 1));
+        $limit   = min(200, max(1, (int)($_GET['limit'] ?? 50)));
+        $offset  = ($page - 1) * $limit;
+        $where   = ['1=1'];
+        $params  = [];
+        if ($search) {
+            $like    = '%' . $search . '%';
+            $where[] = '(p.title LIKE ? OR p.sku LIKE ? OR p.isbn LIKE ?)';
+            $params  = array_merge($params, [$like, $like, $like]);
+        }
+        if ($lowOnly) {
+            $where[] = 'p.stock < 10';
+        }
+        $w = implode(' AND ', $where);
+        $count = (int)(queryOne("SELECT COUNT(*) AS c FROM products p WHERE {$w}", $params)['c'] ?? 0);
+        $products = queryAll(
+            "SELECT p.id, p.title, p.sku, p.isbn, p.stock,
+                    c.name AS category_name, a.name AS author_name,
+                    (SELECT image_url FROM product_images WHERE product_id=p.id AND is_primary=1 LIMIT 1) AS image_url
+             FROM products p
+             LEFT JOIN categories c ON p.category_id = c.id
+             LEFT JOIN authors a ON p.author_id = a.id
+             WHERE {$w}
+             ORDER BY p.stock ASC, p.title ASC
+             LIMIT ? OFFSET ?",
+            array_merge($params, [$limit, $offset])
+        );
+        jsonResponse(['success' => true, 'data' => ['products' => $products, 'pagination' => ['page' => $page, 'limit' => $limit, 'totalItems' => $count, 'totalPages' => (int)ceil($count / $limit)]]]);
+    }
+
+    // PUT /admin/inventory/bulk — cập nhật stock nhiều sản phẩm cùng lúc
+    if ($method === 'PUT' && $action === 'bulk') {
+        $items = requestJson()['items'] ?? [];
+        if (!is_array($items) || empty($items)) {
+            jsonResponse(['success' => false, 'message' => 'Không có dữ liệu'], 400);
+        }
+        $updated = 0;
+        foreach ($items as $item) {
+            $pid = (int)($item['product_id'] ?? 0);
+            if ($pid <= 0 || !isset($item['stock'])) continue;
+            $oldStock = (int)(queryOne("SELECT stock FROM products WHERE id = ?", [$pid])['stock'] ?? 0);
+            $newStock = max(0, (int)$item['stock']);
+            updateRow('products', $pid, ['stock' => $newStock, 'updated_at' => date('Y-m-d H:i:s')]);
+            if ($oldStock === 0 && $newStock > 0) {
+                sendBackInStockNotifications($pid);
+            }
+            $updated++;
+        }
+        jsonResponse(['success' => true, 'message' => "Đã cập nhật {$updated} sản phẩm"]);
+    }
+
+    // POST /admin/inventory/import — nhập hàng: tăng stock + ghi log
+    if ($method === 'POST' && $action === 'import') {
+        $input = requestJson();
+        $items = $input['items'] ?? [];
+        $note  = trim($input['note'] ?? '');
+        if (!is_array($items) || empty($items)) {
+            jsonResponse(['success' => false, 'message' => 'Không có sản phẩm nào'], 400);
+        }
+
+        global $pdo;
+        $pdo->beginTransaction();
+        try {
+            $imported = 0;
+            foreach ($items as $item) {
+                $pid = (int)($item['product_id'] ?? 0);
+                $qty = max(1, (int)($item['quantity'] ?? 0));
+                if ($pid <= 0 || $qty <= 0) continue;
+
+                $oldStock = (int)(queryOne("SELECT stock FROM products WHERE id = ?", [$pid])['stock'] ?? 0);
+                executeSql("UPDATE products SET stock = stock + ?, updated_at = NOW() WHERE id = ?", [$qty, $pid]);
+
+                if (tableExists('stock_imports')) {
+                    insertRow('stock_imports', [
+                        'product_id'  => $pid,
+                        'quantity'    => $qty,
+                        'note'        => $note ?: null,
+                        'imported_by' => $user['id'],
+                    ]);
+                }
+
+                if ($oldStock === 0) {
+                    sendBackInStockNotifications($pid);
+                }
+                $imported++;
+            }
+            $pdo->commit();
+            jsonResponse(['success' => true, 'message' => "Đã nhập hàng cho {$imported} sản phẩm"]);
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            jsonResponse(['success' => false, 'message' => 'Lỗi khi nhập hàng: ' . $e->getMessage()], 500);
+        }
+    }
+
+    // GET /admin/inventory/history — lịch sử nhập hàng
+    if ($method === 'GET' && $action === 'history') {
+        if (!tableExists('stock_imports')) {
+            jsonResponse(['success' => true, 'data' => []]);
+        }
+        $page   = max(1, (int)($_GET['page'] ?? 1));
+        $limit  = min(100, max(1, (int)($_GET['limit'] ?? 20)));
+        $offset = ($page - 1) * $limit;
+        $history = queryAll(
+            "SELECT si.*, p.title AS product_title, p.sku,
+                    u.first_name, u.last_name, u.email AS admin_email
+             FROM stock_imports si
+             JOIN products p ON si.product_id = p.id
+             JOIN users u ON si.imported_by = u.id
+             ORDER BY si.created_at DESC
+             LIMIT ? OFFSET ?",
+            [$limit, $offset]
+        );
+        $total = (int)(queryOne("SELECT COUNT(*) AS c FROM stock_imports")['c'] ?? 0);
+        jsonResponse(['success' => true, 'data' => ['imports' => $history, 'pagination' => ['page' => $page, 'limit' => $limit, 'totalItems' => $total, 'totalPages' => (int)ceil($total / $limit)]]]);
+    }
+
+    jsonResponse(['success' => false, 'message' => 'Không tìm thấy thao tác'], 404);
 }
 
 // ── Admin: Quản lý Combo khuyến mãi ──────────────────────────────────────────
