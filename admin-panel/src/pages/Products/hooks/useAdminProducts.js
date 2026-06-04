@@ -1,17 +1,19 @@
 import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { adminService } from '../../../services/admin.service'
 import { buildPayload, emptyForm } from '../utils/productHelpers'
 
 export const useAdminProducts = () => {
   const queryClient = useQueryClient()
+  const [searchParams] = useSearchParams()
 
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
   const [author, setAuthor] = useState('')
   const [publisher, setPublisher] = useState('')
-  const [status, setStatus] = useState('')
+  const [status, setStatus] = useState(searchParams.get('status') || '')
   const [sort, setSort] = useState('newest')
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
@@ -71,14 +73,14 @@ export const useAdminProducts = () => {
 
   const { data: authors = [] } = useQuery({
     queryKey: ['admin-authors'],
-    queryFn: adminService.getAuthors,
-    select: (res) => res.data,
+    queryFn: () => adminService.getAdminAuthors({ limit: 100, status: 'active', sort: 'name_asc' }),
+    select: (res) => res.data?.authors || [],
   })
 
   const { data: publishers = [] } = useQuery({
     queryKey: ['admin-publishers'],
-    queryFn: adminService.getPublishers,
-    select: (res) => res.data,
+    queryFn: () => adminService.getAdminPublishers({ limit: 100, status: 'active', sort: 'name_asc' }),
+    select: (res) => res.data?.publishers || [],
   })
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin-products'] })

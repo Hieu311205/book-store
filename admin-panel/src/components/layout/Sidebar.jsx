@@ -1,35 +1,62 @@
 import { NavLink } from 'react-router-dom'
 import {
-  FiHome,
-  FiPackage,
-  FiFolder,
-  FiShoppingCart,
-  FiCreditCard,
   FiActivity,
-  FiUsers,
-  FiTag,
-  FiSettings,
+  FiArchive,
+  FiBookOpen,
+  FiCreditCard,
+  FiEdit3,
+  FiFolder,
+  FiHome,
   FiLogOut,
+  FiPackage,
+  FiSettings,
+  FiShoppingCart,
+  FiTag,
+  FiUsers,
 } from 'react-icons/fi'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../context/AuthContext'
 import { adminService } from '../../services/admin.service'
+import { ROLE_GROUPS } from '../../config/permissions'
+
+const fullAdminRoles = ROLE_GROUPS.fullAdmin
+const productRoles = ROLE_GROUPS.productView
+const contentRoles = ROLE_GROUPS.contentManage
+const warehouseRoles = ROLE_GROUPS.warehouseManage
 
 const menuItems = [
   { to: '/', icon: FiHome, label: 'Tổng quan', end: true },
-  { to: '/products', icon: FiPackage, label: 'Sách' },
-  { to: '/categories', icon: FiFolder, label: 'Danh mục' },
-  { to: '/orders', icon: FiShoppingCart, label: 'Đơn hàng' },
-  { to: '/wallets', icon: FiCreditCard, label: 'Ví điện tử' },
-  { to: '/payments', icon: FiActivity, label: 'Thanh toán' },
+  { to: '/products', icon: FiPackage, label: 'Sách', roles: productRoles },
+  { to: '/categories', icon: FiFolder, label: 'Danh mục', roles: contentRoles },
+  { to: '/orders', icon: FiShoppingCart, label: 'Đơn hàng', roles: warehouseRoles },
+  { to: '/wallets', icon: FiCreditCard, label: 'Ví điện tử', roles: fullAdminRoles },
+  { to: '/payments', icon: FiActivity, label: 'Thanh toán', roles: fullAdminRoles },
   { to: '/users', icon: FiUsers, label: 'Người dùng', superOnly: true },
   { to: '/coupons', icon: FiTag, label: 'Mã giảm giá', superOnly: true },
-  { to: '/settings', icon: FiSettings, label: 'Cài đặt', superOnly: true },
+  { to: '/settings', icon: FiSettings, label: 'Cài đặt' },
 ]
 
+menuItems.splice(
+  3,
+  0,
+  { to: '/authors', icon: FiEdit3, label: 'Tác giả', roles: contentRoles },
+  { to: '/publishers', icon: FiBookOpen, label: 'Nhà xuất bản', roles: contentRoles },
+  { to: '/warehouse', icon: FiArchive, label: 'Kho hàng', roles: warehouseRoles },
+)
+
+menuItems.forEach((item) => {
+  if (item.to === '/settings') {
+    item.superOnly = true
+  }
+})
+
 const Sidebar = () => {
-  const { logout, isSuperAdmin } = useAuth()
-  const visibleItems = menuItems.filter((item) => !item.superOnly || isSuperAdmin)
+  const { logout, isSuperAdmin, user } = useAuth()
+  const visibleItems = menuItems.filter((item) => {
+    if (item.superOnly) return isSuperAdmin
+    if (item.roles) return item.roles.includes(user?.role)
+    return true
+  })
   const { data: settings = {} } = useQuery({
     queryKey: ['admin-public-settings'],
     queryFn: adminService.getPublicSettings,

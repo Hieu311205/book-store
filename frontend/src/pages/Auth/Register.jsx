@@ -9,6 +9,11 @@ import GoogleLoginButton from '../../components/auth/GoogleLoginButton'
 const Register = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [pendingRegistration, setPendingRegistration] = useState(null)
+  const [otpCode, setOtpCode] = useState('')
+  const [devOtp, setDevOtp] = useState(null)
+  const [otpEmailSent, setOtpEmailSent] = useState(false)
+  const [otpDevError, setOtpDevError] = useState(null)
   const navigate = useNavigate()
   const { register: registerUser, loginWithGoogle } = useAuth()
 
@@ -22,12 +27,65 @@ const Register = () => {
     setIsLoading(true)
     try {
       const response = await registerUser(data)
-      if (response.success) {
+      if (response.data?.requires_otp) {
+        setPendingRegistration(data)
+        setOtpCode('')
+        setDevOtp(response.data?.dev_otp || null)
+        setOtpEmailSent(!!response.data?.email_sent)
+        setOtpDevError(response.data?.dev_error || null)
+        if (response.data?.email_sent) {
+          toast.success('Mã OTP đã được gửi đến email')
+        } else {
+          toast.error('Chưa gửi được email OTP, đang dùng mã thử nghiệm')
+        }
+      } else if (response.success) {
         toast.success('Đăng ký thành công')
         navigate('/')
       }
     } catch (error) {
       toast.error(error.message || 'Đăng ký thất bại')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const confirmOtp = async () => {
+    if (!pendingRegistration || !/^\d{6}$/.test(otpCode)) {
+      toast.error('Nhập mã OTP gồm 6 chữ số')
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const response = await registerUser({ ...pendingRegistration, otp_code: otpCode })
+      if (response.success) {
+        toast.success('Đăng ký thành công')
+        setPendingRegistration(null)
+        navigate('/')
+      }
+    } catch (error) {
+      toast.error(error.message || 'Mã OTP không đúng hoặc đã hết hạn')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const resendOtp = async () => {
+    if (!pendingRegistration) return
+
+    setIsLoading(true)
+    try {
+      const response = await registerUser(pendingRegistration)
+      setDevOtp(response.data?.dev_otp || null)
+      setOtpEmailSent(!!response.data?.email_sent)
+      setOtpDevError(response.data?.dev_error || null)
+      if (response.data?.email_sent) {
+        toast.success('Đã gửi lại mã OTP')
+      } else {
+        toast.error('Chưa gửi được email OTP, đang dùng mã thử nghiệm')
+      }
+    } catch (error) {
+      toast.error(error.message || 'Không thể gửi lại OTP')
     } finally {
       setIsLoading(false)
     }
@@ -203,6 +261,78 @@ const Register = () => {
           </p>
         </div>
       </div>
+
+      {pendingRegistration && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-800">
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <h2 className="text-lg font-bold">Xác nhận email</h2>
+              <button
+                type="button"
+                onClick={() => setPendingRegistration(null)}
+                className="text-2xl leading-none text-gray-400 hover:text-gray-700 dark:hover:text-white"
+                aria-label="Đóng"
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-500 dark:text-gray-300">
+              Nhập mã OTP gồm 6 chữ số đã gửi đến{' '}
+              <strong className="text-gray-900 dark:text-white">{pendingRegistration.email}</strong>.
+            </p>
+
+            {!otpEmailSent && (
+              <div className="mt-3 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+                Email OTP chưa gửi được. Vui lòng kiểm tra cấu hình Gmail SMTP.
+                {otpDevError && <div className="mt-1 text-xs">{otpDevError}</div>}
+              </div>
+            )}
+
+            {devOtp && (
+              <div className="mt-3 rounded-lg border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-800">
+                OTP thử nghiệm: <strong>{devOtp}</strong>
+              </div>
+            )}
+
+            <input
+              className="input mt-4 text-center text-xl tracking-[0.4em]"
+              value={otpCode}
+              onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="000000"
+              inputMode="numeric"
+              autoFocus
+            />
+
+            <div className="mt-5 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                className="btn btn-outline"
+                disabled={isLoading}
+                onClick={resendOtp}
+              >
+                Gửi lại OTP
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={isLoading}
+                onClick={() => setPendingRegistration(null)}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={isLoading || otpCode.length < 6}
+                onClick={confirmOtp}
+              >
+                {isLoading ? 'Đang xác minh...' : 'Xác nhận đăng ký'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

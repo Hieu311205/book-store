@@ -12,6 +12,7 @@ import Cart from './pages/Cart'
 import Checkout from './pages/Checkout'
 import Login from './pages/Auth/Login'
 import Register from './pages/Auth/Register'
+import ForgotPassword from './pages/Auth/ForgotPassword'
 import Profile, { ProfileDashboard } from './pages/Profile'
 import ProfileOrders from './pages/Profile/Orders'
 import Wishlist from './pages/Profile/Wishlist'
@@ -46,6 +47,7 @@ const App = () => {
           <Route path="/shipping" element={<Shipping />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/profile" element={<Profile />}>
             <Route index element={<ProfileDashboard />} />
             <Route path="orders" element={<ProfileOrders />} />

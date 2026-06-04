@@ -125,11 +125,11 @@ export const AuthProvider = ({ children }) => {
    * Đăng ký tài khoản mới.
    * Input:  data — { name, email, password, ... }
    * Output: Promise<response>
-   * Side-effect: backend tạo user và trả token ngay → tự động đăng nhập sau khi register
+   * Side-effect: chỉ tự động đăng nhập khi backend trả token + user sau bước xác nhận OTP
    */
   const register = async (data) => {
     const response = await authService.register(data)
-    if (response.success) {
+    if (response.success && response.data?.token && response.data?.user) {
       queryClient.clear()
       localStorage.setItem('token', response.data.token)
       storage.set('user', response.data.user)

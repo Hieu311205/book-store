@@ -27,7 +27,10 @@ CREATE TABLE IF NOT EXISTS `authors` (
   `slug` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `bio` text COLLATE utf8mb4_unicode_ci,
   `image_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `country` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `slug` (`slug`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -450,6 +453,29 @@ CREATE TABLE IF NOT EXISTS `product_tags` (
 
 -- Dumping data for table bookstore.product_tags: ~0 rows (approximately)
 
+-- Dumping structure for table bookstore.stock_movements
+CREATE TABLE IF NOT EXISTS `stock_movements` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `product_id` int NOT NULL,
+  `type` enum('import','export','adjustment') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `quantity` int NOT NULL,
+  `before_stock` int NOT NULL DEFAULT '0',
+  `after_stock` int NOT NULL DEFAULT '0',
+  `unit_cost` decimal(12,0) DEFAULT NULL,
+  `reference_type` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `reference_id` int DEFAULT NULL,
+  `note` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_by` int DEFAULT NULL,
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_stock_movements_product` (`product_id`),
+  KEY `idx_stock_movements_type` (`type`),
+  KEY `idx_stock_movements_created_at` (`created_at`),
+  KEY `fk_stock_movements_user` (`created_by`),
+  CONSTRAINT `fk_stock_movements_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_stock_movements_user` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Dumping structure for table bookstore.publishers
 CREATE TABLE IF NOT EXISTS `publishers` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -458,7 +484,13 @@ CREATE TABLE IF NOT EXISTS `publishers` (
   `slug` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `logo_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `website` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `email` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `phone` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `address` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `contact_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `slug` (`slug`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -582,8 +614,9 @@ CREATE TABLE IF NOT EXISTS `users` (
   `last_name` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `phone` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `avatar_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `role` enum('customer','admin','super_admin') COLLATE utf8mb4_unicode_ci DEFAULT 'customer',
+  `role` enum('customer','admin','super_admin','warehouse_staff','content_editor') COLLATE utf8mb4_unicode_ci DEFAULT 'customer',
   `is_active` tinyint(1) DEFAULT '1',
+  `locked_at` datetime DEFAULT NULL,
   `email_verified` tinyint(1) DEFAULT '0',
   `google_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
@@ -594,12 +627,39 @@ CREATE TABLE IF NOT EXISTS `users` (
 ) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Dumping data for table bookstore.users: ~5 rows (approximately)
-INSERT INTO `users` (`id`, `ugid`, `email`, `password_hash`, `first_name`, `last_name`, `phone`, `avatar_url`, `role`, `is_active`, `email_verified`, `google_id`, `created_at`, `updated_at`) VALUES
-	(1, '2955f64d-43d8-11f1-bf47-0a0027000003', 'admin@gmail.com', '$2y$10$AgTYou/9zaXeWUc4onNnPeih.utP7Pzcc7sFM1hqmsVhbivCQs9Cu', 'Admin', 'System', NULL, NULL, 'admin', 1, 0, NULL, '2026-04-29 21:31:51', '2026-04-29 22:19:36'),
-	(2, '295739b3-43d8-11f1-bf47-0a0027000003', 'user1@gmail.com', '$2y$10$PetLzHds.72chBSwSipc0OWLOK17EQRQNd6abDe96LntglYD8.P9y', 'Nguyen', 'An', NULL, NULL, 'customer', 1, 0, NULL, '2026-04-29 21:31:51', '2026-04-29 22:19:36'),
-	(3, '2957433f-43d8-11f1-bf47-0a0027000003', 'user2@gmail.com', '123456', 'Tran', 'Binh', NULL, NULL, 'customer', 1, 0, NULL, '2026-04-29 21:31:51', '2026-04-29 21:31:51'),
-	(4, 'admin-seed-user-000000000000000000', 'admin@bookstore.com', '$2y$10$Q0A/T.dHK9RAe27poTA.l.R8hZ6kCaJ1MzLdCwzR5VjzU3ZAsWuHK', 'Admin', 'Bookstore', NULL, NULL, 'super_admin', 1, 1, NULL, '2026-04-29 21:37:16', '2026-04-29 22:14:56'),
-	(6, 'customer-seed-user-00000000000000', 'ali@example.com', '$2y$10$kvEJqB2.IlaXkmJK7oMkee0C6ZiPxw6EUoiP8vZLsVqzkiomY/IgW', 'Ali', 'Nguyen', NULL, NULL, 'customer', 1, 1, NULL, '2026-04-29 22:14:56', '2026-04-29 22:14:56');
+INSERT INTO `users` (`id`, `ugid`, `email`, `password_hash`, `first_name`, `last_name`, `phone`, `avatar_url`, `role`, `is_active`, `locked_at`, `email_verified`, `google_id`, `created_at`, `updated_at`) VALUES
+	(1, '2955f64d-43d8-11f1-bf47-0a0027000003', 'admin@gmail.com', '$2y$10$AgTYou/9zaXeWUc4onNnPeih.utP7Pzcc7sFM1hqmsVhbivCQs9Cu', 'Admin', 'System', NULL, NULL, 'admin', 1, NULL, 0, NULL, '2026-04-29 21:31:51', '2026-04-29 22:19:36'),
+	(2, '295739b3-43d8-11f1-bf47-0a0027000003', 'user1@gmail.com', '$2y$10$PetLzHds.72chBSwSipc0OWLOK17EQRQNd6abDe96LntglYD8.P9y', 'Nguyen', 'An', NULL, NULL, 'customer', 1, NULL, 0, NULL, '2026-04-29 21:31:51', '2026-04-29 22:19:36'),
+	(3, '2957433f-43d8-11f1-bf47-0a0027000003', 'user2@gmail.com', '123456', 'Tran', 'Binh', NULL, NULL, 'customer', 1, NULL, 0, NULL, '2026-04-29 21:31:51', '2026-04-29 21:31:51'),
+	(4, 'admin-seed-user-000000000000000000', 'admin@bookstore.com', '$2y$10$Q0A/T.dHK9RAe27poTA.l.R8hZ6kCaJ1MzLdCwzR5VjzU3ZAsWuHK', 'Admin', 'Bookstore', NULL, NULL, 'super_admin', 1, NULL, 1, NULL, '2026-04-29 21:37:16', '2026-04-29 22:14:56'),
+	(6, 'customer-seed-user-00000000000000', 'ali@example.com', '$2y$10$kvEJqB2.IlaXkmJK7oMkee0C6ZiPxw6EUoiP8vZLsVqzkiomY/IgW', 'Ali', 'Nguyen', NULL, NULL, 'customer', 1, NULL, 1, NULL, '2026-04-29 22:14:56', '2026-04-29 22:14:56');
+
+CREATE TABLE IF NOT EXISTS `registration_otps` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `email` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `otp_code` varchar(6) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `expires_at` datetime NOT NULL,
+  `used_at` datetime DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_registration_email` (`email`),
+  KEY `idx_registration_expires` (`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `password_reset_otps` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `email` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `otp_code` varchar(6) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `expires_at` datetime NOT NULL,
+  `used_at` datetime DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_password_reset_user` (`user_id`),
+  KEY `idx_password_reset_email` (`email`),
+  KEY `idx_password_reset_expires` (`expires_at`),
+  CONSTRAINT `fk_password_reset_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Dumping structure for table bookstore.user_addresses
 CREATE TABLE IF NOT EXISTS `user_addresses` (

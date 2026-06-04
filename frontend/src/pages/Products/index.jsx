@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { FiFilter, FiX, FiBookOpen } from 'react-icons/fi'
+import { FiBookOpen, FiChevronDown, FiChevronRight, FiFilter, FiX } from 'react-icons/fi'
 import ProductGrid from '../../components/product/ProductGrid'
 import Pagination from '../../components/common/Pagination'
 import { productService } from '../../services/product.service'
@@ -21,9 +21,25 @@ const flattenCategories = (items = [], depth = 0) =>
     ...flattenCategories(item.children || [], depth + 1),
   ])
 
+const findCategoryPath = (items = [], targetValue) => {
+  if (!targetValue) return []
+  for (const item of items) {
+    const value = item.slug || String(item.id)
+    if (String(item.id) === targetValue || value === targetValue) {
+      return [item.id]
+    }
+    const childPath = findCategoryPath(item.children || [], targetValue)
+    if (childPath.length) {
+      return [item.id, ...childPath]
+    }
+  }
+  return []
+}
+
 const Products = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const [showFilters, setShowFilters] = useState(false)
+  const [expandedCategories, setExpandedCategories] = useState(() => new Set())
 
   // State cục bộ cho price inputs — đồng bộ từ URL, debounce khi gõ
   const [localMin, setLocalMin] = useState(searchParams.get('min_price') || '')
@@ -61,6 +77,19 @@ const Products = () => {
   })
 
   const filterCategories = flattenCategories(categories)
+  const activeCategoryPath = useMemo(
+    () => findCategoryPath(categories, searchParams.get('category') || ''),
+    [categories, searchParams]
+  )
+
+  useEffect(() => {
+    if (activeCategoryPath.length <= 1) return
+    setExpandedCategories((current) => {
+      const next = new Set(current)
+      activeCategoryPath.slice(0, -1).forEach((id) => next.add(id))
+      return next
+    })
+  }, [activeCategoryPath.join('|')])
 
   const updateParam = (key, value) => {
     const newParams = new URLSearchParams(searchParams)
@@ -78,6 +107,72 @@ const Products = () => {
     clearTimeout(priceTimer.current)
     priceTimer.current = setTimeout(() => updateParam(key, value), 600)
   }
+
+  const toggleCategory = (categoryId) => {
+    setExpandedCategories((current) => {
+      const next = new Set(current)
+      if (next.has(categoryId)) next.delete(categoryId)
+      else next.add(categoryId)
+      return next
+    })
+  }
+
+  const selectCategory = (cat) => {
+    const value = cat.slug || String(cat.id)
+    const nextValue = params.category === value ? '' : value
+    updateParam('category', nextValue)
+    if (nextValue && cat.children?.length) {
+      setExpandedCategories((current) => {
+        const next = new Set(current)
+        next.add(cat.id)
+        return next
+      })
+    }
+  }
+
+  const renderCategoryTree = (items = [], depth = 0) => (
+    <div className={depth === 0 ? 'space-y-2' : 'mt-2 space-y-2'}>
+      {items.filter((cat) => Number(cat.is_active) !== 0).map((cat) => {
+        const value = cat.slug || String(cat.id)
+        const children = (cat.children || []).filter((child) => Number(child.is_active) !== 0)
+        const hasChildren = children.length > 0
+        const isExpanded = expandedCategories.has(cat.id)
+        const isChecked = params.category === value
+
+        return (
+          <div key={cat.id}>
+            <div className="flex items-center gap-2" style={{ paddingLeft: `${depth * 14}px` }}>
+              {hasChildren ? (
+                <button
+                  type="button"
+                  onClick={() => toggleCategory(cat.id)}
+                  className="flex h-5 w-5 items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                  aria-label={isExpanded ? 'Thu gọn danh mục' : 'Mở danh mục'}
+                >
+                  {isExpanded ? <FiChevronDown size={14} /> : <FiChevronRight size={14} />}
+                </button>
+              ) : (
+                <span className="h-5 w-5" />
+              )}
+              <label className="flex min-w-0 cursor-pointer items-center gap-2">
+                <input
+                  type="radio"
+                  name="category"
+                  checked={isChecked}
+                  onChange={() => selectCategory(cat)}
+                  className="text-primary-600"
+                />
+                <span className={`truncate text-sm ${isChecked ? 'font-semibold text-primary-600' : ''}`}>
+                  {cat.name}
+                </span>
+              </label>
+            </div>
+            {hasChildren && isExpanded && renderCategoryTree(children, depth + 1)}
+          </div>
+        )
+      })}
+    </div>
+  )
 
   const clearFilters = () => {
     setLocalMin('')
@@ -113,27 +208,7 @@ const Products = () => {
 
       <div>
         <h4 className="font-medium mb-3">Danh mục</h4>
-        <div className="space-y-2">
-          {filterCategories.map((cat) => {
-            const value = cat.slug || String(cat.id)
-            return (
-              <label
-                key={cat.id}
-                className="flex items-center gap-2 cursor-pointer"
-                style={{ paddingLeft: `${cat.depth * 12}px` }}
-              >
-                <input
-                  type="radio"
-                  name="category"
-                  checked={params.category === value}
-                  onChange={() => updateParam('category', params.category === value ? '' : value)}
-                  className="text-primary-600"
-                />
-                <span className="text-sm">{cat.name}</span>
-              </label>
-            )
-          })}
-        </div>
+        {renderCategoryTree(categories)}
       </div>
 
       <div>

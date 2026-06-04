@@ -1,7 +1,9 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { adminService } from '../services/admin.service'
+import { ROLE_GROUPS } from '../config/permissions'
 
 const AuthContext = createContext(null)
+const adminRoles = ROLE_GROUPS.adminPanel
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
@@ -26,7 +28,7 @@ export const AuthProvider = ({ children }) => {
     const response = await adminService.login({ email, password })
     if (response.success) {
       const { user, token } = response.data
-      if (user.role !== 'admin' && user.role !== 'super_admin') {
+      if (!adminRoles.includes(user.role)) {
         throw new Error('Bạn không có quyền truy cập')
       }
       localStorage.setItem('admin_token', token)
@@ -42,14 +44,20 @@ export const AuthProvider = ({ children }) => {
     setUser(null)
   }
 
+  const updateCurrentUser = (nextUser) => {
+    localStorage.setItem('admin_user', JSON.stringify(nextUser))
+    setUser(nextUser)
+  }
+
   const value = {
     user,
     loading,
     isAuthenticated: !!user,
-    isAdmin: user?.role === 'admin' || user?.role === 'super_admin',
+    isAdmin: adminRoles.includes(user?.role),
     isSuperAdmin: user?.role === 'super_admin',
     login,
     logout,
+    updateCurrentUser,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -4,12 +4,19 @@ function handleAdmin($method, $pathParts) {
     requireAdminRole($user);
 
     $section = $pathParts[1] ?? '';
+    requireAdminSectionRole($user, $section);
     if ($section === 'dashboard') {
-        handleAdminDashboard($method, $pathParts);
+        handleAdminDashboard($method, $pathParts, $user);
     } elseif ($section === 'products') {
-        handleAdminProducts($method, $pathParts);
+        handleAdminProducts($method, $pathParts, $user);
     } elseif ($section === 'categories') {
         handleAdminCategories($method, $pathParts);
+    } elseif ($section === 'authors') {
+        handleAdminAuthors($method, $pathParts);
+    } elseif ($section === 'publishers') {
+        handleAdminPublishers($method, $pathParts);
+    } elseif ($section === 'warehouse') {
+        handleAdminWarehouse($method, $pathParts, $user);
     } elseif ($section === 'orders') {
         handleAdminOrders($method, $pathParts);
     } elseif ($section === 'return-requests') {
@@ -30,6 +37,8 @@ function handleAdmin($method, $pathParts) {
     } elseif ($section === 'settings') {
         requireSuperAdmin($user);
         handleSettings($method, $pathParts);
+    } elseif ($section === 'uploads') {
+        handleAdminUploads($method, $pathParts);
     } elseif ($section === 'reviews') {
         require_once __DIR__ . '/reviews.php';
         handleAdminReviews($method, $pathParts);
@@ -42,8 +51,23 @@ function handleAdmin($method, $pathParts) {
 }
 
 function requireAdminRole($user) {
-    if (!in_array($user['role'], ['admin', 'super_admin'], true)) {
+    if (!in_array($user['role'], ['admin', 'super_admin', 'warehouse_staff', 'content_editor'], true)) {
         jsonResponse(['success' => false, 'message' => 'Ban khong co quyen truy cap'], 403);
+    }
+}
+
+function requireAdminSectionRole($user, $section) {
+    $role = $user['role'] ?? '';
+    if (in_array($role, ['admin', 'super_admin'], true)) {
+        return;
+    }
+
+    $allowed = [
+        'warehouse_staff' => ['dashboard', 'products', 'orders', 'return-requests', 'warehouse'],
+        'content_editor' => ['dashboard', 'products', 'categories', 'authors', 'publishers', 'reviews', 'uploads'],
+    ];
+    if (!in_array($section, $allowed[$role] ?? [], true)) {
+        jsonResponse(['success' => false, 'message' => 'Vai tro nay khong duoc phep dung chuc nang nay'], 403);
     }
 }
 
@@ -53,13 +77,128 @@ function requireSuperAdmin($user) {
     }
 }
 
-function handleAdminDashboard($method, $pathParts) {
+function slowMovingProductWhere($alias = 'p') {
+    return "{$alias}.stock > 0 AND {$alias}.is_active = 1 AND NOT EXISTS (
+        SELECT 1
+        FROM order_items oi
+        JOIN orders o ON o.id = oi.order_id
+        WHERE oi.product_id = {$alias}.id
+          AND o.payment_status = 'paid'
+          AND o.created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY)
+    )";
+}
+
+function productLastSoldSql($alias = 'p') {
+    return "(SELECT MAX(o.created_at)
+             FROM order_items oi
+             JOIN orders o ON o.id = oi.order_id
+             WHERE oi.product_id = {$alias}.id
+               AND o.payment_status = 'paid')";
+}
+
+function getCategoryDescendantIds($categoryId) {
+    $categoryId = (int)$categoryId;
+    if ($categoryId <= 0) {
+        return [];
+    }
+
+    $rows = queryAll("SELECT id, parent_id FROM categories");
+    $childrenByParent = [];
+    foreach ($rows as $row) {
+        $parentId = $row['parent_id'] === null ? 0 : (int)$row['parent_id'];
+        $childrenByParent[$parentId][] = (int)$row['id'];
+    }
+
+    $ids = [];
+    $queue = [$categoryId];
+    while ($queue) {
+        $id = array_shift($queue);
+        if (in_array($id, $ids, true)) {
+            continue;
+        }
+        $ids[] = $id;
+        foreach ($childrenByParent[$id] ?? [] as $childId) {
+            $queue[] = $childId;
+        }
+    }
+
+    return $ids;
+}
+
+function addCategoryFilter(&$where, &$params, $categoryId) {
+    $ids = getCategoryDescendantIds($categoryId);
+    if (!$ids) {
+        $where[] = 'p.category_id = ?';
+        $params[] = (int)$categoryId;
+        return;
+    }
+    $where[] = 'p.category_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')';
+    foreach ($ids as $id) {
+        $params[] = $id;
+    }
+}
+
+function getCategoryLevel($categoryId) {
+    if (!$categoryId) {
+        return 0;
+    }
+
+    $level = 0;
+    $currentId = (int)$categoryId;
+    $visited = [];
+    while ($currentId) {
+        if (in_array($currentId, $visited, true) || $level >= 10) {
+            break;
+        }
+        $visited[] = $currentId;
+        $level++;
+        $row = queryOne("SELECT parent_id FROM categories WHERE id = ?", [$currentId]);
+        if (!$row) {
+            break;
+        }
+        $currentId = $row['parent_id'] === null ? 0 : (int)$row['parent_id'];
+    }
+
+    return $level;
+}
+
+function validateCategoryParent($parentId, $editingId = null) {
+    if (!$parentId) {
+        return;
+    }
+
+    $parentId = (int)$parentId;
+    if ($editingId && $parentId === (int)$editingId) {
+        jsonResponse(['success' => false, 'message' => 'Danh muc cha khong duoc trung voi danh muc dang sua'], 400);
+    }
+
+    $level = 0;
+    $currentId = $parentId;
+    while ($currentId) {
+        if ($editingId && $currentId === (int)$editingId) {
+            jsonResponse(['success' => false, 'message' => 'Khong the chon danh muc con lam danh muc cha'], 400);
+        }
+        $level++;
+        $row = queryOne("SELECT parent_id FROM categories WHERE id = ?", [$currentId]);
+        if (!$row) {
+            jsonResponse(['success' => false, 'message' => 'Danh muc cha khong ton tai'], 400);
+        }
+        $currentId = $row['parent_id'] === null ? 0 : (int)$row['parent_id'];
+    }
+
+    if ($level >= 3) {
+        jsonResponse(['success' => false, 'message' => 'He thong chi ho tro toi da 3 tang danh muc'], 400);
+    }
+}
+
+function handleAdminDashboard($method, $pathParts, $user = null) {
     if ($method !== 'GET') {
         jsonResponse(['success' => false, 'message' => 'Phuong thuc khong duoc ho tro'], 405);
     }
 
     $action = $pathParts[2] ?? 'stats';
     if ($action === 'stats') {
+        $slowMovingWhere = slowMovingProductWhere('p');
         jsonResponse(['success' => true, 'data' => [
             'totalSales' => (float)(queryOne("SELECT SUM(total_amount) AS total FROM orders WHERE payment_status = 'paid'")['total'] ?? 0),
             'todaySales' => (float)(queryOne("SELECT SUM(total_amount) AS total FROM orders WHERE payment_status = 'paid' AND DATE(created_at) = CURDATE()")['total'] ?? 0),
@@ -68,6 +207,7 @@ function handleAdminDashboard($method, $pathParts) {
             'totalUsers' => (int)(queryOne("SELECT COUNT(*) AS count FROM users WHERE role = 'customer'")['count'] ?? 0),
             'totalProducts' => (int)(queryOne("SELECT COUNT(*) AS count FROM products")['count'] ?? 0),
             'lowStockProducts' => (int)(queryOne("SELECT COUNT(*) AS count FROM products WHERE stock < 10")['count'] ?? 0),
+            'slowMovingProducts' => (int)(queryOne("SELECT COUNT(*) AS count FROM products p WHERE {$slowMovingWhere}")['count'] ?? 0),
         ]]);
     }
 
@@ -112,6 +252,8 @@ function handleAdminDashboard($method, $pathParts) {
         $pendingOrders = (int)(queryOne("SELECT COUNT(*) AS count FROM orders WHERE status = 'pending'")['count'] ?? 0);
         $shippedOrders = (int)(queryOne("SELECT COUNT(*) AS count FROM orders WHERE status = 'shipped'")['count'] ?? 0);
         $lowStockProducts = (int)(queryOne("SELECT COUNT(*) AS count FROM products WHERE stock < 10")['count'] ?? 0);
+        $slowMovingWhere = slowMovingProductWhere('p');
+        $slowMovingProducts = (int)(queryOne("SELECT COUNT(*) AS count FROM products p WHERE {$slowMovingWhere}")['count'] ?? 0);
         $unreadMessages = tableExists('contact_messages')
             ? (int)(queryOne("SELECT COUNT(*) AS count FROM contact_messages WHERE is_read = 0")['count'] ?? 0)
             : 0;
@@ -192,6 +334,15 @@ function handleAdminDashboard($method, $pathParts) {
                 'to' => '/products?status=low_stock',
             ];
         }
+        if ($slowMovingProducts > 0) {
+            $items[] = [
+                'id' => 'slow-moving',
+                'type' => 'products',
+                'title' => 'Sách tồn kho quá lâu',
+                'message' => "{$slowMovingProducts} sách còn tồn nhưng 60 ngày chưa bán",
+                'to' => '/products?status=slow_moving',
+            ];
+        }
         if ($unreadMessages > 0) {
             $items[] = [
                 'id' => 'unread-messages',
@@ -202,8 +353,38 @@ function handleAdminDashboard($method, $pathParts) {
             ];
         }
 
+        $role = $user['role'] ?? '';
+        if (!in_array($role, ['admin', 'super_admin'], true)) {
+            $allowedPrefixes = [
+                'warehouse_staff' => ['/orders', '/products', '/warehouse'],
+                'content_editor' => ['/products', '/categories', '/authors', '/publishers', '/reviews'],
+            ];
+            $prefixes = $allowedPrefixes[$role] ?? [];
+            $items = array_values(array_filter($items, function ($item) use ($prefixes) {
+                foreach ($prefixes as $prefix) {
+                    if (strpos($item['to'] ?? '', $prefix) === 0) {
+                        return true;
+                    }
+                }
+                return false;
+            }));
+        }
+
+        $countById = [
+            'pending-orders' => $pendingOrders,
+            'shipped-orders' => $shippedOrders,
+            'pending-returns' => $pendingReturns,
+            'approved-returns' => $approvedReturns,
+            'pending-wallet-withdrawals' => $pendingWithdrawals,
+            'pending-wallet-deposits' => $pendingDeposits,
+            'low-stock' => $lowStockProducts,
+            'slow-moving' => $slowMovingProducts,
+            'unread-messages' => $unreadMessages,
+        ];
+        $visibleCount = array_reduce($items, fn($sum, $item) => $sum + ($countById[$item['id']] ?? 0), 0);
+
         jsonResponse(['success' => true, 'data' => [
-            'count' => $pendingOrders + $shippedOrders + $pendingReturns + $approvedReturns + $pendingWithdrawals + $pendingDeposits + $lowStockProducts + $unreadMessages,
+            'count' => $visibleCount,
             'items' => $items,
         ]]);
     }
@@ -234,15 +415,28 @@ function handleAdminDashboard($method, $pathParts) {
         );
 
         // Top sản phẩm tồn kho nhiều nhất (kèm category_name để filter phía client)
+        $lastSoldSql = productLastSoldSql('p');
         $topProducts = queryAll(
             "SELECT p.id, p.title, p.stock, p.price,
                     (p.stock * p.price) AS inventory_value,
-                    c.name AS category_name
+                    c.name AS category_name,
+                    {$lastSoldSql} AS last_sold_at
              FROM products p
              LEFT JOIN categories c ON p.category_id = c.id
              WHERE p.is_active = 1
              ORDER BY p.stock DESC
              LIMIT 50"
+        );
+        $slowMovingProducts = queryAll(
+            "SELECT p.id, p.title, p.stock, p.price,
+                    (p.stock * p.price) AS inventory_value,
+                    c.name AS category_name,
+                    {$lastSoldSql} AS last_sold_at
+             FROM products p
+             LEFT JOIN categories c ON p.category_id = c.id
+             WHERE " . slowMovingProductWhere('p') . "
+             ORDER BY p.stock DESC, p.updated_at ASC
+             LIMIT 20"
         );
 
         $year = (int)($_GET['year'] ?? date('Y'));
@@ -300,7 +494,17 @@ function handleAdminDashboard($method, $pathParts) {
                 'stock'           => (int)$r['stock'],
                 'price'           => (float)$r['price'],
                 'inventory_value' => (float)$r['inventory_value'],
+                'last_sold_at'    => $r['last_sold_at'],
             ], $topProducts),
+            'slowMovingProducts' => array_map(fn($r) => [
+                'id'              => (int)$r['id'],
+                'title'           => $r['title'],
+                'category_name'   => $r['category_name'],
+                'stock'           => (int)$r['stock'],
+                'price'           => (float)$r['price'],
+                'inventory_value' => (float)$r['inventory_value'],
+                'last_sold_at'    => $r['last_sold_at'],
+            ], $slowMovingProducts),
             'totalRevenue'         => (float)($revenue['total_revenue'] ?? 0),
             'productRevenue'       => (float)($revenue['product_revenue'] ?? 0),
             'revenueAfterShipping' => (float)($revenue['revenue_after_shipping'] ?? 0),
@@ -362,31 +566,122 @@ function handleAdminPayments($method, $pathParts) {
 
     $id = $pathParts[2] ?? null;
     if ($method === 'GET' && !$id) {
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $limit = min(100, max(1, (int)($_GET['limit'] ?? 20)));
+        $offset = ($page - 1) * $limit;
+        $search = trim((string)($_GET['search'] ?? ''));
+        $status = $_GET['status'] ?? '';
+        $gateway = $_GET['gateway'] ?? '';
+        $sort = $_GET['sort'] ?? 'newest';
+        $dateFrom = trim((string)($_GET['date_from'] ?? ''));
+        $dateTo = trim((string)($_GET['date_to'] ?? ''));
+
         $params = [];
         $where = '1=1';
-        if (!empty($_GET['status'])) {
+        if ($search !== '') {
+            $where .= " AND (
+                o.order_number LIKE ? OR p.transaction_id LIKE ? OR u.email LIKE ?
+                OR u.first_name LIKE ? OR u.last_name LIKE ?
+            )";
+            $term = "%{$search}%";
+            array_push($params, $term, $term, $term, $term, $term);
+        }
+        if (in_array($status, ['pending', 'paid', 'failed', 'expired', 'refunded'], true)) {
             $where .= ' AND p.status = ?';
-            $params[] = $_GET['status'];
+            $params[] = $status;
         }
-        if (!empty($_GET['gateway'])) {
+        if (in_array($gateway, ['cod', 'bank_transfer', 'card_test', 'wallet'], true)) {
             $where .= ' AND p.gateway = ?';
-            $params[] = $_GET['gateway'];
+            $params[] = $gateway;
         }
+        if (($dateFrom !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom))
+            || ($dateTo !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo))) {
+            jsonResponse(['success' => false, 'message' => 'Khoang thoi gian loc khong hop le'], 400);
+        }
+        if ($dateFrom !== '' && $dateTo !== '') {
+            $fromTs = strtotime($dateFrom);
+            $toTs = strtotime($dateTo);
+            if ($fromTs > $toTs) {
+                jsonResponse(['success' => false, 'message' => 'Ngay bat dau khong duoc lon hon ngay ket thuc'], 400);
+            }
+            if ($toTs > strtotime('+1 month', $fromTs)) {
+                jsonResponse(['success' => false, 'message' => 'Chi duoc loc toi da trong khoang 1 thang'], 400);
+            }
+        }
+        if ($dateFrom !== '') {
+            $where .= ' AND DATE(p.created_at) >= ?';
+            $params[] = $dateFrom;
+        }
+        if ($dateTo !== '') {
+            $where .= ' AND DATE(p.created_at) <= ?';
+            $params[] = $dateTo;
+        }
+
+        $orderBy = match ($sort) {
+            'oldest' => 'p.created_at ASC',
+            'amount_desc' => 'p.amount DESC',
+            'amount_asc' => 'p.amount ASC',
+            default => 'p.created_at DESC',
+        };
+
+        $fromSql = "FROM payments p
+             LEFT JOIN orders o ON o.id = p.order_id
+             LEFT JOIN users u ON u.id = p.user_id
+             WHERE {$where}";
+
+        $count = (int)(queryOne("SELECT COUNT(*) AS count {$fromSql}", $params)['count'] ?? 0);
+
         $payments = queryAll(
             "SELECT p.*,
                     UNIX_TIMESTAMP(p.created_at) AS created_at_unix,
                     UNIX_TIMESTAMP(p.verified_at) AS verified_at_unix,
                     UNIX_TIMESTAMP(p.expires_at) AS expires_at_unix,
                     o.order_number, o.payment_method, u.email, u.first_name, u.last_name
-             FROM payments p
-             LEFT JOIN orders o ON o.id = p.order_id
-             LEFT JOIN users u ON u.id = p.user_id
-             WHERE {$where}
-             ORDER BY p.created_at DESC
-             LIMIT 200",
+             {$fromSql}
+             ORDER BY {$orderBy}
+             LIMIT {$limit} OFFSET {$offset}",
             $params
         );
-        jsonResponse(['success' => true, 'data' => ['payments' => $payments, 'isDevelopment' => ($config['appEnv'] ?? '') === 'development']]);
+
+        $stats = queryOne(
+            "SELECT
+                SUM(CASE WHEN p.status = 'paid' THEN p.amount ELSE 0 END) AS total_paid,
+                SUM(CASE WHEN p.status = 'paid' THEN 1 ELSE 0 END) AS paid_count,
+                SUM(CASE WHEN p.status = 'pending' THEN 1 ELSE 0 END) AS pending_count,
+                SUM(CASE WHEN p.status IN ('failed', 'expired') THEN 1 ELSE 0 END) AS failed_count,
+                SUM(CASE WHEN p.status = 'pending' AND p.gateway = 'bank_transfer' AND p.expires_at IS NOT NULL THEN 1 ELSE 0 END) AS expiring_qr_count
+             {$fromSql}",
+            $params
+        );
+
+        $methodStats = queryAll(
+            "SELECT p.gateway AS method, COUNT(*) AS count
+             {$fromSql}
+             GROUP BY p.gateway",
+            $params
+        );
+
+        jsonResponse(['success' => true, 'data' => [
+            'payments' => $payments,
+            'stats' => [
+                'totalPaid' => (float)($stats['total_paid'] ?? 0),
+                'paidCount' => (int)($stats['paid_count'] ?? 0),
+                'pendingCount' => (int)($stats['pending_count'] ?? 0),
+                'failedCount' => (int)($stats['failed_count'] ?? 0),
+                'expiringQrCount' => (int)($stats['expiring_qr_count'] ?? 0),
+            ],
+            'methodStats' => array_map(fn($row) => [
+                'method' => $row['method'],
+                'count' => (int)$row['count'],
+            ], $methodStats),
+            'pagination' => [
+                'page' => $page,
+                'limit' => $limit,
+                'totalItems' => $count,
+                'totalPages' => (int)ceil($count / $limit),
+            ],
+            'isDevelopment' => ($config['appEnv'] ?? '') === 'development',
+        ]]);
     }
 
     if ($method === 'POST' && $id && ($pathParts[3] ?? '') === 'simulate') {
@@ -450,7 +745,11 @@ function handleContactMessages($method, $pathParts) {
     jsonResponse(['success' => false, 'message' => 'Khong tim thay thao tac'], 404);
 }
 
-function handleAdminProducts($method, $pathParts) {
+function handleAdminProducts($method, $pathParts, $currentUser = null) {
+    if (($currentUser['role'] ?? '') === 'warehouse_staff' && $method !== 'GET') {
+        jsonResponse(['success' => false, 'message' => 'Nhan vien kho chi duoc xem sach. Hay dung Quan ly kho de nhap/xuat ton kho.'], 403);
+    }
+
     if ($method === 'POST' && isset($pathParts[2]) && (($pathParts[3] ?? '') === 'previews')) {
         handleProductPreviewUpload((int)$pathParts[2]);
     }
@@ -476,8 +775,7 @@ function handleAdminProducts($method, $pathParts) {
             array_push($params, $term, $term, $term, $term);
         }
         if (!empty($_GET['category'])) {
-            $where[] = 'p.category_id = ?';
-            $params[] = (int)$_GET['category'];
+            addCategoryFilter($where, $params, (int)$_GET['category']);
         }
         if (!empty($_GET['author'])) {
             $where[] = 'p.author_id = ?';
@@ -499,6 +797,8 @@ function handleAdminProducts($method, $pathParts) {
             $where[] = 'p.stock > 0 AND p.stock < 10';
         } elseif (($_GET['status'] ?? '') === 'out_of_stock') {
             $where[] = 'p.stock = 0';
+        } elseif (($_GET['status'] ?? '') === 'slow_moving') {
+            $where[] = slowMovingProductWhere('p');
         }
         if (!empty($_GET['is_featured'])) {
             $where[] = 'p.is_featured = 1';
@@ -520,10 +820,12 @@ function handleAdminProducts($method, $pathParts) {
         $orderBy = $sortMap[$_GET['sort'] ?? 'newest'] ?? 'p.created_at DESC';
 
         $whereSql = implode(' AND ', $where);
+        $lastSoldSql = productLastSoldSql('p');
         $from = "FROM products p LEFT JOIN categories c ON p.category_id = c.id LEFT JOIN authors a ON p.author_id = a.id LEFT JOIN publishers pub ON p.publisher_id = pub.id";
         $count = (int)(queryOne("SELECT COUNT(*) AS count {$from} WHERE {$whereSql}", $params)['count'] ?? 0);
         $products = queryAll(
-            "SELECT p.*, c.name AS category_name, a.name AS author_name, pub.name AS publisher_name
+            "SELECT p.*, c.name AS category_name, a.name AS author_name, pub.name AS publisher_name,
+                    {$lastSoldSql} AS last_sold_at
              {$from} WHERE {$whereSql}
              ORDER BY {$orderBy} LIMIT ? OFFSET ?",
             array_merge($params, [$limit, $offset])
@@ -903,6 +1205,10 @@ function handleAdminCategories($method, $pathParts) {
             $where .= ' AND c.parent_id IS NULL';
         } elseif (($_GET['parent'] ?? '') === 'child') {
             $where .= ' AND c.parent_id IS NOT NULL';
+        } elseif (($_GET['parent'] ?? '') === 'level_2') {
+            $where .= ' AND c.parent_id IS NOT NULL AND p.parent_id IS NULL';
+        } elseif (($_GET['parent'] ?? '') === 'level_3') {
+            $where .= ' AND p.parent_id IS NOT NULL';
         }
 
         $sortMap = [
@@ -916,9 +1222,21 @@ function handleAdminCategories($method, $pathParts) {
 
         $selectSql = "SELECT c.*,
                              p.name AS parent_name,
+                             gp.name AS grandparent_name,
+                             CASE
+                               WHEN c.parent_id IS NULL THEN 1
+                               WHEN p.parent_id IS NULL THEN 2
+                               ELSE 3
+                             END AS level,
+                             CASE
+                               WHEN c.parent_id IS NULL THEN c.name
+                               WHEN p.parent_id IS NULL THEN CONCAT(p.name, ' > ', c.name)
+                               ELSE CONCAT(gp.name, ' > ', p.name, ' > ', c.name)
+                             END AS category_path,
                              (SELECT COUNT(*) FROM products pr WHERE pr.category_id = c.id) AS product_count
                       FROM categories c
                       LEFT JOIN categories p ON c.parent_id = p.id
+                      LEFT JOIN categories gp ON p.parent_id = gp.id
                       WHERE {$where}
                       ORDER BY {$orderBy}";
 
@@ -930,6 +1248,7 @@ function handleAdminCategories($method, $pathParts) {
             "SELECT COUNT(*) AS count
              FROM categories c
              LEFT JOIN categories p ON c.parent_id = p.id
+             LEFT JOIN categories gp ON p.parent_id = gp.id
              WHERE {$where}",
             $params
         )['count'] ?? 0);
@@ -946,6 +1265,7 @@ function handleAdminCategories($method, $pathParts) {
     if ($method === 'POST') {
         $input = requestJson();
         $data = cleanCategoryData(filterInput($input, $allowed));
+        validateCategoryParent($data['parent_id'] ?? null);
         $data['slug'] = slugifyText($input['name_en'] ?? $input['name'] ?? 'category') . '-' . substr((string)time(), -4);
         $id = insertRow('categories', $data);
         jsonResponse(['success' => true, 'message' => 'Da them danh muc', 'data' => queryOne("SELECT * FROM categories WHERE id = ?", [$id])], 201);
@@ -953,7 +1273,11 @@ function handleAdminCategories($method, $pathParts) {
 
     $id = $pathParts[2] ?? null;
     if ($method === 'PUT' && $id) {
-        updateRow('categories', $id, cleanCategoryData(filterInput(requestJson(), $allowed)));
+        $data = cleanCategoryData(filterInput(requestJson(), $allowed));
+        if (array_key_exists('parent_id', $data)) {
+            validateCategoryParent($data['parent_id'], $id);
+        }
+        updateRow('categories', $id, $data);
         jsonResponse(['success' => true, 'message' => 'Da cap nhat danh muc', 'data' => queryOne("SELECT * FROM categories WHERE id = ?", [$id])]);
     }
     if ($method === 'DELETE' && $id) {
@@ -978,6 +1302,394 @@ function cleanCategoryData($data) {
     }
 
     return $data;
+}
+
+function adminExistingFields($table, $fields) {
+    return array_values(array_filter($fields, fn($field) => tableHasColumn($table, $field)));
+}
+
+function uniqueAdminSlug($table, $source, $ignoreId = null) {
+    $base = slugifyText($source ?: $table);
+    $slug = $base;
+    $suffix = 1;
+
+    while (true) {
+        $params = [$slug];
+        $sql = "SELECT id FROM {$table} WHERE slug = ?";
+        if ($ignoreId) {
+            $sql .= " AND id <> ?";
+            $params[] = (int)$ignoreId;
+        }
+        if (!queryOne($sql, $params)) {
+            return $slug;
+        }
+        $suffix++;
+        $slug = "{$base}-{$suffix}";
+    }
+}
+
+function normalizeCatalogData($table, $input, $fields) {
+    $allowed = adminExistingFields($table, $fields);
+    $data = filterInput($input, $allowed);
+
+    foreach ($allowed as $field) {
+        if (array_key_exists($field, $data) && $data[$field] === '') {
+            $data[$field] = null;
+        }
+    }
+    if (array_key_exists('is_active', $data)) {
+        $data['is_active'] = (int)$data['is_active'];
+    }
+    if (array_key_exists('updated_at', $data)) {
+        unset($data['updated_at']);
+    }
+
+    return $data;
+}
+
+function handleAdminAuthors($method, $pathParts) {
+    $id = $pathParts[2] ?? null;
+    $fields = ['name', 'name_en', 'slug', 'bio', 'image_url', 'country', 'is_active'];
+
+    if ($method === 'GET' && !$id) {
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $limit = min(100, max(1, (int)($_GET['limit'] ?? 20)));
+        $offset = ($page - 1) * $limit;
+        $where = ['1 = 1'];
+        $params = [];
+
+        if (!empty($_GET['search'])) {
+            $term = '%' . $_GET['search'] . '%';
+            $where[] = '(a.name LIKE ? OR a.name_en LIKE ? OR a.bio LIKE ?)';
+            array_push($params, $term, $term, $term);
+        }
+        if (tableHasColumn('authors', 'is_active')) {
+            if (($_GET['status'] ?? '') === 'active') {
+                $where[] = 'a.is_active = 1';
+            } elseif (($_GET['status'] ?? '') === 'inactive') {
+                $where[] = 'a.is_active = 0';
+            }
+        }
+
+        $sortMap = [
+            'newest' => 'a.id DESC',
+            'oldest' => 'a.id ASC',
+            'name_asc' => 'a.name ASC',
+            'books_desc' => 'product_count DESC, a.name ASC',
+        ];
+        $orderBy = $sortMap[$_GET['sort'] ?? 'newest'] ?? 'a.id DESC';
+        $whereSql = implode(' AND ', $where);
+        $count = (int)(queryOne("SELECT COUNT(*) AS count FROM authors a WHERE {$whereSql}", $params)['count'] ?? 0);
+        $authors = queryAll(
+            "SELECT a.*, COUNT(p.id) AS product_count
+             FROM authors a
+             LEFT JOIN products p ON p.author_id = a.id
+             WHERE {$whereSql}
+             GROUP BY a.id
+             ORDER BY {$orderBy}
+             LIMIT ? OFFSET ?",
+            array_merge($params, [$limit, $offset])
+        );
+
+        jsonResponse(['success' => true, 'data' => ['authors' => $authors, 'pagination' => [
+            'page' => $page,
+            'limit' => $limit,
+            'totalItems' => $count,
+            'totalPages' => (int)ceil($count / $limit),
+        ]]]);
+    }
+
+    if ($method === 'POST') {
+        $input = requestJson();
+        if (empty($input['name'])) {
+            jsonResponse(['success' => false, 'message' => 'Thieu ten tac gia'], 400);
+        }
+        $data = normalizeCatalogData('authors', $input, $fields);
+        if (tableHasColumn('authors', 'slug')) {
+            $data['slug'] = !empty($input['slug']) ? uniqueAdminSlug('authors', $input['slug']) : uniqueAdminSlug('authors', $input['name']);
+        }
+        $id = insertRow('authors', $data);
+        jsonResponse(['success' => true, 'message' => 'Da them tac gia', 'data' => queryOne("SELECT * FROM authors WHERE id = ?", [$id])], 201);
+    }
+
+    if ($method === 'PUT' && $id) {
+        $input = requestJson();
+        $data = normalizeCatalogData('authors', $input, $fields);
+        if (array_key_exists('name', $input) && empty($input['name'])) {
+            jsonResponse(['success' => false, 'message' => 'Thieu ten tac gia'], 400);
+        }
+        if (tableHasColumn('authors', 'slug') && array_key_exists('slug', $input)) {
+            $data['slug'] = !empty($input['slug'])
+                ? uniqueAdminSlug('authors', $input['slug'], $id)
+                : uniqueAdminSlug('authors', $input['name'] ?? 'author', $id);
+        }
+        updateRow('authors', $id, $data);
+        jsonResponse(['success' => true, 'message' => 'Da cap nhat tac gia', 'data' => queryOne("SELECT * FROM authors WHERE id = ?", [$id])]);
+    }
+
+    if ($method === 'DELETE' && $id) {
+        executeSql("DELETE FROM authors WHERE id = ?", [$id]);
+        jsonResponse(['success' => true, 'message' => 'Da xoa tac gia']);
+    }
+
+    jsonResponse(['success' => false, 'message' => 'Khong tim thay thao tac'], 404);
+}
+
+function handleAdminPublishers($method, $pathParts) {
+    $id = $pathParts[2] ?? null;
+    $fields = ['name', 'name_en', 'slug', 'logo_url', 'website', 'email', 'phone', 'address', 'contact_name', 'is_active'];
+
+    if ($method === 'GET' && !$id) {
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $limit = min(100, max(1, (int)($_GET['limit'] ?? 20)));
+        $offset = ($page - 1) * $limit;
+        $where = ['1 = 1'];
+        $params = [];
+
+        if (!empty($_GET['search'])) {
+            $term = '%' . $_GET['search'] . '%';
+            $where[] = '(pub.name LIKE ? OR pub.name_en LIKE ? OR pub.website LIKE ?)';
+            array_push($params, $term, $term, $term);
+        }
+        if (tableHasColumn('publishers', 'is_active')) {
+            if (($_GET['status'] ?? '') === 'active') {
+                $where[] = 'pub.is_active = 1';
+            } elseif (($_GET['status'] ?? '') === 'inactive') {
+                $where[] = 'pub.is_active = 0';
+            }
+        }
+
+        $sortMap = [
+            'newest' => 'pub.id DESC',
+            'oldest' => 'pub.id ASC',
+            'name_asc' => 'pub.name ASC',
+            'books_desc' => 'product_count DESC, pub.name ASC',
+        ];
+        $orderBy = $sortMap[$_GET['sort'] ?? 'newest'] ?? 'pub.id DESC';
+        $whereSql = implode(' AND ', $where);
+        $count = (int)(queryOne("SELECT COUNT(*) AS count FROM publishers pub WHERE {$whereSql}", $params)['count'] ?? 0);
+        $publishers = queryAll(
+            "SELECT pub.*, COUNT(p.id) AS product_count
+             FROM publishers pub
+             LEFT JOIN products p ON p.publisher_id = pub.id
+             WHERE {$whereSql}
+             GROUP BY pub.id
+             ORDER BY {$orderBy}
+             LIMIT ? OFFSET ?",
+            array_merge($params, [$limit, $offset])
+        );
+
+        jsonResponse(['success' => true, 'data' => ['publishers' => $publishers, 'pagination' => [
+            'page' => $page,
+            'limit' => $limit,
+            'totalItems' => $count,
+            'totalPages' => (int)ceil($count / $limit),
+        ]]]);
+    }
+
+    if ($method === 'POST') {
+        $input = requestJson();
+        if (empty($input['name'])) {
+            jsonResponse(['success' => false, 'message' => 'Thieu ten nha xuat ban'], 400);
+        }
+        $data = normalizeCatalogData('publishers', $input, $fields);
+        if (tableHasColumn('publishers', 'slug')) {
+            $data['slug'] = !empty($input['slug']) ? uniqueAdminSlug('publishers', $input['slug']) : uniqueAdminSlug('publishers', $input['name']);
+        }
+        $id = insertRow('publishers', $data);
+        jsonResponse(['success' => true, 'message' => 'Da them nha xuat ban', 'data' => queryOne("SELECT * FROM publishers WHERE id = ?", [$id])], 201);
+    }
+
+    if ($method === 'PUT' && $id) {
+        $input = requestJson();
+        $data = normalizeCatalogData('publishers', $input, $fields);
+        if (array_key_exists('name', $input) && empty($input['name'])) {
+            jsonResponse(['success' => false, 'message' => 'Thieu ten nha xuat ban'], 400);
+        }
+        if (tableHasColumn('publishers', 'slug') && array_key_exists('slug', $input)) {
+            $data['slug'] = !empty($input['slug'])
+                ? uniqueAdminSlug('publishers', $input['slug'], $id)
+                : uniqueAdminSlug('publishers', $input['name'] ?? 'publisher', $id);
+        }
+        updateRow('publishers', $id, $data);
+        jsonResponse(['success' => true, 'message' => 'Da cap nhat nha xuat ban', 'data' => queryOne("SELECT * FROM publishers WHERE id = ?", [$id])]);
+    }
+
+    if ($method === 'DELETE' && $id) {
+        executeSql("DELETE FROM publishers WHERE id = ?", [$id]);
+        jsonResponse(['success' => true, 'message' => 'Da xoa nha xuat ban']);
+    }
+
+    jsonResponse(['success' => false, 'message' => 'Khong tim thay thao tac'], 404);
+}
+
+function ensureStockMovementsTable() {
+    if (tableExists('stock_movements')) {
+        return;
+    }
+
+    executeSql(
+        "CREATE TABLE IF NOT EXISTS stock_movements (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            product_id INT NOT NULL,
+            type ENUM('import', 'export', 'adjustment') NOT NULL,
+            quantity INT NOT NULL,
+            before_stock INT NOT NULL DEFAULT 0,
+            after_stock INT NOT NULL DEFAULT 0,
+            unit_cost DECIMAL(12,0) NULL,
+            reference_type VARCHAR(50) NULL,
+            reference_id INT NULL,
+            note VARCHAR(255) NULL,
+            created_by INT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_stock_movements_product (product_id),
+            INDEX idx_stock_movements_type (type),
+            INDEX idx_stock_movements_created_at (created_at),
+            CONSTRAINT fk_stock_movements_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+            CONSTRAINT fk_stock_movements_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+}
+
+function handleAdminWarehouse($method, $pathParts, $currentUser) {
+    ensureStockMovementsTable();
+    $action = $pathParts[2] ?? 'summary';
+
+    if ($method === 'GET' && $action === 'summary') {
+        $summary = [
+            'total_stock' => (int)(queryOne("SELECT COALESCE(SUM(stock), 0) AS value FROM products")['value'] ?? 0),
+            'low_stock' => (int)(queryOne("SELECT COUNT(*) AS value FROM products WHERE stock > 0 AND stock < 10")['value'] ?? 0),
+            'out_of_stock' => (int)(queryOne("SELECT COUNT(*) AS value FROM products WHERE stock = 0")['value'] ?? 0),
+            'imports_30d' => (int)(queryOne("SELECT COALESCE(SUM(quantity), 0) AS value FROM stock_movements WHERE type = 'import' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")['value'] ?? 0),
+            'exports_30d' => (int)(queryOne("SELECT COALESCE(SUM(quantity), 0) AS value FROM stock_movements WHERE type = 'export' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")['value'] ?? 0),
+        ];
+        jsonResponse(['success' => true, 'data' => $summary]);
+    }
+
+    if ($action !== 'movements') {
+        jsonResponse(['success' => false, 'message' => 'Khong tim thay thao tac kho'], 404);
+    }
+
+    if ($method === 'GET') {
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $limit = min(100, max(1, (int)($_GET['limit'] ?? 20)));
+        $offset = ($page - 1) * $limit;
+        $where = ['1 = 1'];
+        $params = [];
+
+        if (!empty($_GET['search'])) {
+            $term = '%' . $_GET['search'] . '%';
+            $where[] = '(p.title LIKE ? OR p.sku LIKE ? OR sm.note LIKE ?)';
+            array_push($params, $term, $term, $term);
+        }
+        if (in_array($_GET['type'] ?? '', ['import', 'export', 'adjustment'], true)) {
+            $where[] = 'sm.type = ?';
+            $params[] = $_GET['type'];
+        }
+        if (!empty($_GET['date_from'])) {
+            $where[] = 'DATE(sm.created_at) >= ?';
+            $params[] = $_GET['date_from'];
+        }
+        if (!empty($_GET['date_to'])) {
+            $where[] = 'DATE(sm.created_at) <= ?';
+            $params[] = $_GET['date_to'];
+        }
+
+        $whereSql = implode(' AND ', $where);
+        $count = (int)(queryOne(
+            "SELECT COUNT(*) AS count
+             FROM stock_movements sm
+             JOIN products p ON p.id = sm.product_id
+             WHERE {$whereSql}",
+            $params
+        )['count'] ?? 0);
+        $movements = queryAll(
+            "SELECT sm.*, p.title AS product_title, p.sku,
+                    CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')) AS created_by_name,
+                    u.email AS created_by_email
+             FROM stock_movements sm
+             JOIN products p ON p.id = sm.product_id
+             LEFT JOIN users u ON u.id = sm.created_by
+             WHERE {$whereSql}
+             ORDER BY sm.created_at DESC, sm.id DESC
+             LIMIT ? OFFSET ?",
+            array_merge($params, [$limit, $offset])
+        );
+
+        jsonResponse(['success' => true, 'data' => ['movements' => $movements, 'pagination' => [
+            'page' => $page,
+            'limit' => $limit,
+            'totalItems' => $count,
+            'totalPages' => (int)ceil($count / $limit),
+        ]]]);
+    }
+
+    if ($method === 'POST') {
+        global $pdo;
+
+        $input = requestJson();
+        $productId = (int)($input['product_id'] ?? 0);
+        $type = $input['type'] ?? '';
+        $quantity = (int)($input['quantity'] ?? 0);
+
+        if (!$productId || !in_array($type, ['import', 'export', 'adjustment'], true)) {
+            jsonResponse(['success' => false, 'message' => 'Thieu san pham hoac loai phieu kho'], 400);
+        }
+        if ($quantity <= 0 && $type !== 'adjustment') {
+            jsonResponse(['success' => false, 'message' => 'So luong phai lon hon 0'], 400);
+        }
+
+        try {
+            $pdo->beginTransaction();
+            $product = queryOne("SELECT id, stock FROM products WHERE id = ? FOR UPDATE", [$productId]);
+            if (!$product) {
+                $pdo->rollBack();
+                jsonResponse(['success' => false, 'message' => 'Khong tim thay sach'], 404);
+            }
+
+            $beforeStock = (int)$product['stock'];
+            if ($type === 'import') {
+                $afterStock = $beforeStock + $quantity;
+            } elseif ($type === 'export') {
+                $afterStock = $beforeStock - $quantity;
+                if ($afterStock < 0) {
+                    $pdo->rollBack();
+                    jsonResponse(['success' => false, 'message' => 'Ton kho khong du de xuat'], 400);
+                }
+            } else {
+                $afterStock = max(0, (int)($input['after_stock'] ?? $beforeStock));
+                $quantity = abs($afterStock - $beforeStock);
+            }
+
+            executeSql("UPDATE products SET stock = ?, updated_at = NOW() WHERE id = ?", [$afterStock, $productId]);
+            $movementId = insertRow('stock_movements', [
+                'product_id' => $productId,
+                'type' => $type,
+                'quantity' => $quantity,
+                'before_stock' => $beforeStock,
+                'after_stock' => $afterStock,
+                'unit_cost' => isset($input['unit_cost']) && $input['unit_cost'] !== '' ? (float)$input['unit_cost'] : null,
+                'reference_type' => $input['reference_type'] ?? 'manual',
+                'reference_id' => !empty($input['reference_id']) ? (int)$input['reference_id'] : null,
+                'note' => $input['note'] ?? null,
+                'created_by' => $currentUser['id'] ?? null,
+            ]);
+            $pdo->commit();
+
+            jsonResponse([
+                'success' => true,
+                'message' => 'Da ghi nhan phieu kho',
+                'data' => queryOne("SELECT * FROM stock_movements WHERE id = ?", [$movementId]),
+            ], 201);
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            jsonResponse(['success' => false, 'message' => 'Khong the cap nhat kho', 'debug' => $e->getMessage()], 500);
+        }
+    }
+
+    jsonResponse(['success' => false, 'message' => 'Phuong thuc khong duoc ho tro'], 405);
 }
 
 function handleAdminOrders($method, $pathParts) {
@@ -1606,7 +2318,7 @@ function handleAdminUsers($method, $pathParts, $currentUser) {
 
         $count = (int)(queryOne("SELECT COUNT(*) AS count FROM users WHERE {$where}", $params)['count'] ?? 0);
         $users = queryAll(
-            "SELECT id, ugid, email, first_name, last_name, phone, role, is_active, created_at
+            "SELECT id, ugid, email, first_name, last_name, phone, role, is_active, locked_at, created_at
              FROM users WHERE {$where}
              ORDER BY {$orderBy} LIMIT ? OFFSET ?",
             array_merge($params, [$limit, $offset])
@@ -1620,7 +2332,7 @@ function handleAdminUsers($method, $pathParts, $currentUser) {
     }
 
     if ($method === 'GET' && $id) {
-        $user = queryOne("SELECT id, ugid, email, first_name, last_name, phone, role, is_active, created_at FROM users WHERE id = ?", [$id]);
+        $user = queryOne("SELECT id, ugid, email, first_name, last_name, phone, role, is_active, locked_at, created_at FROM users WHERE id = ?", [$id]);
         if (!$user) {
             jsonResponse(['success' => false, 'message' => 'Khong tim thay nguoi dung'], 404);
         }
@@ -1632,24 +2344,66 @@ function handleAdminUsers($method, $pathParts, $currentUser) {
         if ((int)$currentUser['id'] === (int)$id) {
             jsonResponse(['success' => false, 'message' => 'Khong the khoa tai khoan cua chinh minh'], 403);
         }
-        $target = queryOne("SELECT id, role FROM users WHERE id = ?", [$id]);
+        $target = queryOne("SELECT id, role, is_active FROM users WHERE id = ?", [$id]);
         if (!$target) {
             jsonResponse(['success' => false, 'message' => 'Khong tim thay nguoi dung'], 404);
         }
         if (($target['role'] ?? '') === 'super_admin') {
             jsonResponse(['success' => false, 'message' => 'Khong the khoa tai khoan super admin'], 403);
         }
-        executeSql("UPDATE users SET is_active = CASE WHEN is_active = 1 THEN 0 ELSE 1 END WHERE id = ?", [$id]);
+        $willLock = (int)$target['is_active'] === 1;
+        executeSql(
+            "UPDATE users SET is_active = ?, locked_at = ? WHERE id = ?",
+            [$willLock ? 0 : 1, $willLock ? date('Y-m-d H:i:s') : null, $id]
+        );
         jsonResponse(['success' => true, 'message' => 'Da cap nhat trang thai nguoi dung']);
     }
 
     if ($method === 'PUT' && $id && (($pathParts[3] ?? '') === 'role')) {
         $role = requestJson()['role'] ?? 'customer';
-        if (!in_array($role, ['customer', 'admin', 'super_admin'], true)) {
+        if (!in_array($role, ['customer', 'admin', 'super_admin', 'warehouse_staff', 'content_editor'], true)) {
             jsonResponse(['success' => false, 'message' => 'Vai tro khong hop le'], 400);
         }
         updateRow('users', $id, ['role' => $role]);
         jsonResponse(['success' => true, 'message' => 'Da cap nhat vai tro nguoi dung']);
+    }
+
+    if ($method === 'DELETE' && $id) {
+        if (($currentUser['role'] ?? '') !== 'super_admin') {
+            jsonResponse(['success' => false, 'message' => 'Chi super admin moi duoc xoa tai khoan'], 403);
+        }
+        if ((int)$currentUser['id'] === (int)$id) {
+            jsonResponse(['success' => false, 'message' => 'Khong the xoa tai khoan cua chinh minh'], 403);
+        }
+
+        $target = queryOne("SELECT id, role, is_active, locked_at FROM users WHERE id = ?", [$id]);
+        if (!$target) {
+            jsonResponse(['success' => false, 'message' => 'Khong tim thay nguoi dung'], 404);
+        }
+        if (($target['role'] ?? '') === 'super_admin') {
+            jsonResponse(['success' => false, 'message' => 'Khong the xoa tai khoan super admin'], 403);
+        }
+        if ((int)$target['is_active'] === 1 || empty($target['locked_at'])) {
+            jsonResponse(['success' => false, 'message' => 'Chi xoa duoc tai khoan dang bi khoa'], 400);
+        }
+
+        $eligible = queryOne(
+            "SELECT TIMESTAMPDIFF(DAY, locked_at, NOW()) AS locked_days
+             FROM users WHERE id = ? AND locked_at <= DATE_SUB(NOW(), INTERVAL 90 DAY)",
+            [$id]
+        );
+        if (!$eligible) {
+            $days = queryOne("SELECT GREATEST(0, TIMESTAMPDIFF(DAY, locked_at, NOW())) AS locked_days FROM users WHERE id = ?", [$id]);
+            jsonResponse([
+                'success' => false,
+                'message' => 'Tai khoan phai bi khoa du 90 ngay moi duoc xoa',
+                'data' => ['locked_days' => (int)($days['locked_days'] ?? 0)],
+            ], 400);
+        }
+
+        executeSql("DELETE FROM coupon_usage WHERE user_id = ?", [$id]);
+        executeSql("DELETE FROM users WHERE id = ?", [$id]);
+        jsonResponse(['success' => true, 'message' => 'Da xoa tai khoan bi khoa qua 90 ngay']);
     }
 
     jsonResponse(['success' => false, 'message' => 'Khong tim thay thao tac'], 404);
@@ -1870,6 +2624,88 @@ function handleBankQrUpload() {
         'data' => [
             'image_url' => $imageUrl,
             'setting' => queryOne("SELECT * FROM settings WHERE key_name = 'bank_qr_image'"),
+        ],
+    ]);
+}
+
+function handleAdminUploads($method, $pathParts) {
+    if ($method !== 'POST') {
+        jsonResponse(['success' => false, 'message' => 'Khong tim thay thao tac upload'], 404);
+    }
+
+    $type = $pathParts[2] ?? '';
+    $folders = [
+        'category' => 'images/categories',
+        'category-icon' => 'images/categories/icons',
+        'author' => 'images/authors',
+        'publisher' => 'images/publishers',
+    ];
+
+    if (!isset($folders[$type])) {
+        jsonResponse(['success' => false, 'message' => 'Loai anh upload khong hop le'], 400);
+    }
+
+    if (empty($_FILES['image']) || !is_uploaded_file($_FILES['image']['tmp_name'])) {
+        jsonResponse(['success' => false, 'message' => 'Vui long chon anh hop le'], 400);
+    }
+
+    $file = $_FILES['image'];
+    $maxSize = 5 * 1024 * 1024;
+    if (($file['size'] ?? 0) > $maxSize) {
+        jsonResponse(['success' => false, 'message' => 'Anh tai len khong duoc vuot qua 5MB'], 400);
+    }
+
+    $extension = strtolower(pathinfo($file['name'] ?? '', PATHINFO_EXTENSION));
+    $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+    if (!in_array($extension, $allowedExtensions, true)) {
+        jsonResponse(['success' => false, 'message' => 'Chi ho tro anh JPG, PNG hoac WEBP'], 400);
+    }
+
+    $imageInfo = @getimagesize($file['tmp_name']);
+    if (!$imageInfo || !str_starts_with((string)$imageInfo['mime'], 'image/')) {
+        jsonResponse(['success' => false, 'message' => 'File tai len khong phai anh hop le'], 400);
+    }
+
+    $root = dirname(__DIR__, 4);
+    $relativeDir = $folders[$type];
+    $targets = [
+        $root . DIRECTORY_SEPARATOR . 'admin-panel' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativeDir),
+        $root . DIRECTORY_SEPARATOR . 'frontend' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativeDir),
+    ];
+
+    foreach ($targets as $targetDir) {
+        if (!is_dir($targetDir) && !@mkdir($targetDir, 0775, true)) {
+            jsonResponse(['success' => false, 'message' => 'Khong the tao thu muc luu anh'], 500);
+        }
+        $keepFile = $targetDir . DIRECTORY_SEPARATOR . '.gitkeep';
+        if (!file_exists($keepFile)) {
+            @file_put_contents($keepFile, '');
+        }
+    }
+
+    $baseName = slugifyText(pathinfo($file['name'] ?? '', PATHINFO_FILENAME));
+    if ($baseName === '') {
+        $baseName = 'image';
+    }
+    $fileName = $type . '-' . $baseName . '-' . date('YmdHis') . '.' . $extension;
+    $adminTarget = $targets[0] . DIRECTORY_SEPARATOR . $fileName;
+    $frontendTarget = $targets[1] . DIRECTORY_SEPARATOR . $fileName;
+
+    if (!move_uploaded_file($file['tmp_name'], $adminTarget)) {
+        jsonResponse(['success' => false, 'message' => 'Khong the luu anh'], 500);
+    }
+
+    if (!@copy($adminTarget, $frontendTarget)) {
+        @unlink($adminTarget);
+        jsonResponse(['success' => false, 'message' => 'Khong the dong bo anh sang frontend'], 500);
+    }
+
+    $imageUrl = '/' . str_replace('\\', '/', $relativeDir . '/' . $fileName);
+    jsonResponse([
+        'success' => true,
+        'message' => 'Da tai anh',
+        'data' => [
+            'image_url' => $imageUrl,
         ],
     ]);
 }

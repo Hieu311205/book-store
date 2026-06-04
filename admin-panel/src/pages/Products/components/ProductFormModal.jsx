@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { FiChevronLeft, FiChevronRight, FiEye, FiTrash2, FiUpload, FiX } from 'react-icons/fi'
+import { getCategoryLabel } from '../utils/productHelpers'
 
 const ProductFormModal = ({
   isOpen,
@@ -58,7 +59,7 @@ const ProductFormModal = ({
                 <span className="text-sm font-medium">Danh muc</span>
                 <select className="input" value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })}>
                   <option value="">Chua chon</option>
-                  {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                  {categories.map((category) => <option key={category.id} value={category.id}>{getCategoryLabel(category)}</option>)}
                 </select>
               </label>
               <label className="space-y-1">

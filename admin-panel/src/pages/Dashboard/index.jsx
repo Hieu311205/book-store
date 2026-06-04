@@ -186,7 +186,7 @@ const Dashboard = () => {
       </div>
 
       {/* ── 2. Alert cards (OLD) ────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="card p-6">
           <div className="flex items-center gap-3 text-orange-600 mb-4">
             <FiAlertCircle size={20} />
@@ -203,6 +203,14 @@ const Dashboard = () => {
           <p className="text-3xl font-bold">{stats?.lowStockProducts || 0}</p>
           <p className="text-gray-500 text-sm mt-1">Sách còn dưới 10 cuốn</p>
         </div>
+        <Link to="/products?status=slow_moving" className="card p-6 hover:border-primary-500 transition-colors">
+          <div className="flex items-center gap-3 text-yellow-600 mb-4">
+            <FiAlertCircle size={20} />
+            <h3 className="font-medium">Tồn kho quá lâu</h3>
+          </div>
+          <p className="text-3xl font-bold">{stats?.slowMovingProducts || 0}</p>
+          <p className="text-gray-500 text-sm mt-1">Sách còn tồn nhưng 60 ngày chưa bán</p>
+        </Link>
       </div>
 
       {/* ── 3. Inventory filters ────────────────────────────────────────── */}

@@ -42,7 +42,7 @@ function handleAdminUsers($method, $pathParts, $currentUser) {
 
         $count = (int)(queryOne("SELECT COUNT(*) AS count FROM users WHERE {$where}", $params)['count'] ?? 0);
         $users = queryAll(
-            "SELECT id, ugid, email, first_name, last_name, phone, role, is_active, created_at
+            "SELECT id, ugid, email, first_name, last_name, phone, role, is_active, locked_at, created_at
              FROM users WHERE {$where}
              ORDER BY {$orderBy} LIMIT ? OFFSET ?",
             array_merge($params, [$limit, $offset])
@@ -56,7 +56,7 @@ function handleAdminUsers($method, $pathParts, $currentUser) {
     }
 
     if ($method === 'GET' && $id) {
-        $user = queryOne("SELECT id, ugid, email, first_name, last_name, phone, role, is_active, created_at FROM users WHERE id = ?", [$id]);
+        $user = queryOne("SELECT id, ugid, email, first_name, last_name, phone, role, is_active, locked_at, created_at FROM users WHERE id = ?", [$id]);
         if (!$user) {
             jsonResponse(['success' => false, 'message' => 'Khong tim thay nguoi dung'], 404);
         }
@@ -68,24 +68,66 @@ function handleAdminUsers($method, $pathParts, $currentUser) {
         if ((int)$currentUser['id'] === (int)$id) {
             jsonResponse(['success' => false, 'message' => 'Khong the khoa tai khoan cua chinh minh'], 403);
         }
-        $target = queryOne("SELECT id, role FROM users WHERE id = ?", [$id]);
+        $target = queryOne("SELECT id, role, is_active FROM users WHERE id = ?", [$id]);
         if (!$target) {
             jsonResponse(['success' => false, 'message' => 'Khong tim thay nguoi dung'], 404);
         }
         if (($target['role'] ?? '') === 'super_admin') {
             jsonResponse(['success' => false, 'message' => 'Khong the khoa tai khoan super admin'], 403);
         }
-        executeSql("UPDATE users SET is_active = CASE WHEN is_active = 1 THEN 0 ELSE 1 END WHERE id = ?", [$id]);
+        $willLock = (int)$target['is_active'] === 1;
+        executeSql(
+            "UPDATE users SET is_active = ?, locked_at = ? WHERE id = ?",
+            [$willLock ? 0 : 1, $willLock ? date('Y-m-d H:i:s') : null, $id]
+        );
         jsonResponse(['success' => true, 'message' => 'Da cap nhat trang thai nguoi dung']);
     }
 
     if ($method === 'PUT' && $id && (($pathParts[3] ?? '') === 'role')) {
         $role = requestJson()['role'] ?? 'customer';
-        if (!in_array($role, ['customer', 'admin', 'super_admin'], true)) {
+        if (!in_array($role, ['customer', 'admin', 'super_admin', 'warehouse_staff', 'content_editor'], true)) {
             jsonResponse(['success' => false, 'message' => 'Vai tro khong hop le'], 400);
         }
         updateRow('users', $id, ['role' => $role]);
         jsonResponse(['success' => true, 'message' => 'Da cap nhat vai tro nguoi dung']);
+    }
+
+    if ($method === 'DELETE' && $id) {
+        if (($currentUser['role'] ?? '') !== 'super_admin') {
+            jsonResponse(['success' => false, 'message' => 'Chi super admin moi duoc xoa tai khoan'], 403);
+        }
+        if ((int)$currentUser['id'] === (int)$id) {
+            jsonResponse(['success' => false, 'message' => 'Khong the xoa tai khoan cua chinh minh'], 403);
+        }
+
+        $target = queryOne("SELECT id, role, is_active, locked_at FROM users WHERE id = ?", [$id]);
+        if (!$target) {
+            jsonResponse(['success' => false, 'message' => 'Khong tim thay nguoi dung'], 404);
+        }
+        if (($target['role'] ?? '') === 'super_admin') {
+            jsonResponse(['success' => false, 'message' => 'Khong the xoa tai khoan super admin'], 403);
+        }
+        if ((int)$target['is_active'] === 1 || empty($target['locked_at'])) {
+            jsonResponse(['success' => false, 'message' => 'Chi xoa duoc tai khoan dang bi khoa'], 400);
+        }
+
+        $eligible = queryOne(
+            "SELECT TIMESTAMPDIFF(DAY, locked_at, NOW()) AS locked_days
+             FROM users WHERE id = ? AND locked_at <= DATE_SUB(NOW(), INTERVAL 90 DAY)",
+            [$id]
+        );
+        if (!$eligible) {
+            $days = queryOne("SELECT GREATEST(0, TIMESTAMPDIFF(DAY, locked_at, NOW())) AS locked_days FROM users WHERE id = ?", [$id]);
+            jsonResponse([
+                'success' => false,
+                'message' => 'Tai khoan phai bi khoa du 90 ngay moi duoc xoa',
+                'data' => ['locked_days' => (int)($days['locked_days'] ?? 0)],
+            ], 400);
+        }
+
+        executeSql("DELETE FROM coupon_usage WHERE user_id = ?", [$id]);
+        executeSql("DELETE FROM users WHERE id = ?", [$id]);
+        jsonResponse(['success' => true, 'message' => 'Da xoa tai khoan bi khoa qua 90 ngay']);
     }
 
     jsonResponse(['success' => false, 'message' => 'Khong tim thay thao tac'], 404);

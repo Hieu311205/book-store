@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { FiChevronLeft, FiChevronRight, FiFilter, FiPlus, FiRefreshCw, FiSearch, FiTrash2, FiX } from 'react-icons/fi'
+import { FiChevronLeft, FiChevronRight, FiEdit2, FiFilter, FiPlus, FiRefreshCw, FiSearch, FiTrash2, FiX } from 'react-icons/fi'
 import { adminService } from '../../services/admin.service'
 import PaginationNumbers from '../../components/common/PaginationNumbers'
 
@@ -64,6 +64,7 @@ const Coupons = () => {
   const [sort, setSort] = useState('newest')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [isFormOpen, setIsFormOpen] = useState(false)
+  const [editingCoupon, setEditingCoupon] = useState(null)
   const [page, setPage] = useState(1)
 
   const hasFilters = !!(search || type || status)
@@ -99,6 +100,7 @@ const Coupons = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-coupons'] })
       setForm(emptyForm)
+      setEditingCoupon(null)
       setIsFormOpen(false)
       toast.success('Đã tạo mã giảm giá')
     },
@@ -109,6 +111,9 @@ const Coupons = () => {
     mutationFn: ({ id, data }) => adminService.updateCoupon(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-coupons'] })
+      setForm(emptyForm)
+      setEditingCoupon(null)
+      setIsFormOpen(false)
       toast.success('Cập nhật mã giảm giá thành công')
     },
     onError: (error) => toast.error(error.message || 'Không thể cập nhật mã'),
@@ -131,16 +136,48 @@ const Coupons = () => {
     })
   }
 
+  const openCreateForm = () => {
+    setForm(emptyForm)
+    setEditingCoupon(null)
+    setIsFormOpen(true)
+  }
+
+  const openEditForm = (item) => {
+    setForm({
+      code: item.code || '',
+      type: item.type || 'percentage',
+      value: item.value ?? '',
+      min_purchase: item.min_purchase ?? 0,
+      max_discount: item.max_discount ?? '',
+      usage_limit: item.usage_limit ?? '',
+      is_active: Number(item.is_active),
+    })
+    setEditingCoupon(item)
+    setIsFormOpen(true)
+  }
+
+  const closeForm = () => {
+    setForm(emptyForm)
+    setEditingCoupon(null)
+    setIsFormOpen(false)
+  }
+
   const submit = (event) => {
     event.preventDefault()
-    createMutation.mutate({
+    const payload = {
       ...form,
       value: Number(form.value),
       min_purchase: Number(form.min_purchase || 0),
       max_discount: form.max_discount ? Number(form.max_discount) : null,
       usage_limit: form.usage_limit ? Number(form.usage_limit) : null,
       is_active: Number(form.is_active),
-    })
+    }
+
+    if (editingCoupon) {
+      updateMutation.mutate({ id: editingCoupon.id, data: payload })
+    } else {
+      createMutation.mutate(payload)
+    }
   }
 
   return (
@@ -150,10 +187,7 @@ const Coupons = () => {
         <button
           type="button"
           className="btn btn-primary"
-          onClick={() => {
-            setForm(emptyForm)
-            setIsFormOpen(true)
-          }}
+          onClick={openCreateForm}
         >
           <FiPlus /> Thêm mã
         </button>
@@ -163,8 +197,8 @@ const Coupons = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <form onSubmit={submit} className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-3xl shadow-2xl">
             <div className="border-b dark:border-gray-700 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Thêm mã giảm giá</h2>
-              <button type="button" onClick={() => setIsFormOpen(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+              <h2 className="text-lg font-semibold">{editingCoupon ? 'Sửa mã giảm giá' : 'Thêm mã giảm giá'}</h2>
+              <button type="button" onClick={closeForm} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
                 <FiX size={18} />
               </button>
             </div>
@@ -207,9 +241,11 @@ const Coupons = () => {
             </div>
 
             <div className="border-t dark:border-gray-700 px-6 py-4 flex justify-end gap-3">
-              <button type="button" onClick={() => setIsFormOpen(false)} className="btn btn-secondary">Hủy</button>
-              <button className="btn btn-primary min-w-28" disabled={createMutation.isPending}>
-                {createMutation.isPending ? 'Đang thêm...' : 'Thêm mã'}
+              <button type="button" onClick={closeForm} className="btn btn-secondary">Hủy</button>
+              <button className="btn btn-primary min-w-28" disabled={createMutation.isPending || updateMutation.isPending}>
+                {editingCoupon
+                  ? (updateMutation.isPending ? 'Đang lưu...' : 'Lưu thay đổi')
+                  : (createMutation.isPending ? 'Đang thêm...' : 'Thêm mã')}
               </button>
             </div>
           </form>
@@ -337,9 +373,19 @@ const Coupons = () => {
                     </button>
                   </td>
                   <td>
-                    <button onClick={() => deleteMutation.mutate(item.id)} disabled={deleteMutation.isPending} className="text-red-500 disabled:opacity-50">
-                      <FiTrash2 />
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => openEditForm(item)}
+                        className="text-primary-500 hover:text-primary-400 disabled:opacity-50"
+                        title="Sửa mã giảm giá"
+                      >
+                        <FiEdit2 />
+                      </button>
+                      <button onClick={() => deleteMutation.mutate(item.id)} disabled={deleteMutation.isPending} className="text-red-500 disabled:opacity-50" title="Xóa mã giảm giá">
+                        <FiTrash2 />
+                      </button>
+                    </div>
                   </td>
                 </tr>
                 )

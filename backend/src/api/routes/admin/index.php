@@ -12,6 +12,7 @@ function handleAdmin($method, $pathParts) {
     requireAdminRole($user);
 
     $section = $pathParts[1] ?? '';
+    requireAdminSectionRole($user, $section);
     if ($section === 'dashboard') {
         handleAdminDashboard($method, $pathParts);
     } elseif ($section === 'products') {
@@ -45,8 +46,23 @@ function handleAdmin($method, $pathParts) {
 }
 
 function requireAdminRole($user) {
-    if (!in_array($user['role'], ['admin', 'super_admin'], true)) {
+    if (!in_array($user['role'], ['admin', 'super_admin', 'warehouse_staff', 'content_editor'], true)) {
         jsonResponse(['success' => false, 'message' => 'Ban khong co quyen truy cap'], 403);
+    }
+}
+
+function requireAdminSectionRole($user, $section) {
+    $role = $user['role'] ?? '';
+    if (in_array($role, ['admin', 'super_admin'], true)) {
+        return;
+    }
+
+    $allowed = [
+        'warehouse_staff' => ['dashboard', 'products', 'orders', 'return-requests'],
+        'content_editor' => ['dashboard', 'products', 'categories', 'reviews'],
+    ];
+    if (!in_array($section, $allowed[$role] ?? [], true)) {
+        jsonResponse(['success' => false, 'message' => 'Vai tro nay khong duoc phep dung chuc nang nay'], 403);
     }
 }
 

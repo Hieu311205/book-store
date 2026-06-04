@@ -24,10 +24,8 @@ function handleCategories($method, $pathParts) {
         getCategoryBySlug($pathParts[2]);
     } elseif (isset($pathParts[2]) && $pathParts[2] === 'subcategories') {
         // Lấy nhanh danh sách con mà không cần gọi hàm riêng
-        jsonResponse(['success' => true, 'data' => queryAll(
-            "SELECT * FROM categories WHERE parent_id = ? AND is_active = 1 ORDER BY sort_order",
-            [$pathParts[1]]
-        )]);
+        $categories = queryAll("SELECT * FROM categories WHERE is_active = 1 ORDER BY sort_order");
+        jsonResponse(['success' => true, 'data' => buildCategoryTree($categories, (int)$pathParts[1])]);
     } elseif (isset($pathParts[1]) && $pathParts[1] !== '') {
         getCategoryById($pathParts[1]);
     } else {
@@ -52,6 +50,38 @@ function buildCategoryTree($items, $parentId = null) {
     return $tree;
 }
 
+function getCategoryDescendantIdsPublic($categoryId) {
+    $rows = queryAll("SELECT id, parent_id FROM categories WHERE is_active = 1");
+    $childrenByParent = [];
+    foreach ($rows as $row) {
+        $parentKey = $row['parent_id'] === null ? 0 : (int)$row['parent_id'];
+        $childrenByParent[$parentKey][] = (int)$row['id'];
+    }
+
+    $ids = [(int)$categoryId];
+    $queue = [(int)$categoryId];
+    while ($queue) {
+        $current = array_shift($queue);
+        foreach ($childrenByParent[$current] ?? [] as $childId) {
+            if (!in_array($childId, $ids, true)) {
+                $ids[] = $childId;
+                $queue[] = $childId;
+            }
+        }
+    }
+
+    return $ids;
+}
+
+function countProductsInCategoryTree($categoryId) {
+    $ids = getCategoryDescendantIdsPublic((int)$categoryId);
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    return (int)(queryOne(
+        "SELECT COUNT(*) AS count FROM products WHERE category_id IN ($placeholders) AND is_active = 1",
+        $ids
+    )['count'] ?? 0);
+}
+
 // ─── Chi tiết danh mục theo ID ───────────────────────────────────────────────
 // Trả thêm product_count để hiển thị "(123 cuốn)" trên trang danh mục
 function getCategoryById($id) {
@@ -59,10 +89,7 @@ function getCategoryById($id) {
     if (!$category) {
         jsonResponse(['success' => false, 'message' => 'Không tìm thấy danh mục'], 404);
     }
-    $category['product_count'] = (int)(queryOne(
-        "SELECT COUNT(*) AS count FROM products WHERE category_id = ? AND is_active = 1",
-        [$id]
-    )['count'] ?? 0);
+    $category['product_count'] = countProductsInCategoryTree((int)$id);
     jsonResponse(['success' => true, 'data' => $category]);
 }
 
@@ -74,14 +101,9 @@ function getCategoryBySlug($slug) {
         jsonResponse(['success' => false, 'message' => 'Không tìm thấy danh mục'], 404);
     }
     // Kèm danh mục con để render tab sub-category filter trên trang listing
-    $category['subcategories'] = queryAll(
-        "SELECT * FROM categories WHERE parent_id = ? AND is_active = 1 ORDER BY sort_order",
-        [$category['id']]
-    );
-    $category['product_count'] = (int)(queryOne(
-        "SELECT COUNT(*) AS count FROM products WHERE category_id = ? AND is_active = 1",
-        [$category['id']]
-    )['count'] ?? 0);
+    $categories = queryAll("SELECT * FROM categories WHERE is_active = 1 ORDER BY sort_order");
+    $category['subcategories'] = buildCategoryTree($categories, (int)$category['id']);
+    $category['product_count'] = countProductsInCategoryTree((int)$category['id']);
     jsonResponse(['success' => true, 'data' => $category]);
 }
 ?>

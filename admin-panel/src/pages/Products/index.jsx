@@ -3,17 +3,21 @@ import ProductFilters from './components/ProductFilters'
 import ProductFormModal from './components/ProductFormModal'
 import ProductTable from './components/ProductTable'
 import { useAdminProducts } from './hooks/useAdminProducts'
+import { useAuth } from '../../context/AuthContext'
+import { ROLE_GROUPS } from '../../config/permissions'
 
 const Products = () => {
   const products = useAdminProducts()
+  const { user } = useAuth()
+  const canManageProducts = ROLE_GROUPS.productManage.includes(user?.role)
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Quản lý sách</h1>
-        <button onClick={products.openCreate} className="btn btn-primary">
+        {canManageProducts && <button onClick={products.openCreate} className="btn btn-primary">
           <FiPlus size={16} /> Thêm sách
-        </button>
+        </button>}
       </div>
 
       <ProductFilters
@@ -43,10 +47,11 @@ const Products = () => {
         totalItems={products.totalItems}
         onEdit={products.openEdit}
         onDelete={products.handleDelete}
+        canManage={canManageProducts}
       />
 
       <ProductFormModal
-        isOpen={products.isFormOpen}
+        isOpen={canManageProducts && products.isFormOpen}
         editingProduct={products.editingProduct}
         form={products.form}
         setForm={products.setForm}

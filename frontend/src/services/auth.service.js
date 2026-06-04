@@ -24,7 +24,7 @@ export const authService = {
   // Đăng nhập bằng Google OAuth — gửi Google credential token lên backend để xác minh
   googleLogin: (data) => api.post('/auth/google', data),
 
-  // Đăng ký tài khoản mới; backend tạo user và trả về token ngay (auto-login sau register)
+  // Đăng ký tài khoản mới; lần đầu gửi OTP, khi có otp_code hợp lệ mới tạo user và trả token
   register: (data) => api.post('/auth/register', data),
 
   // Đăng xuất — backend hủy refresh token / session phía server nếu có
@@ -36,6 +36,10 @@ export const authService = {
 
   // Cập nhật thông tin cá nhân (tên, ảnh đại diện, …); gửi chỉ các trường thay đổi
   updateMe: (data) => api.put('/auth/me', data),
+
+  uploadAvatar: (data) => api.post('/auth/avatar', data, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
 
   // Đổi mật khẩu — yêu cầu gửi kèm mật khẩu cũ để xác minh danh tính
   changePassword: (data) => api.put('/auth/password', data),

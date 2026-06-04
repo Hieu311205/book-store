@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
+import { FiUpload } from 'react-icons/fi'
 import { authService } from '../../services/auth.service'
 import { useAuth } from '../../context/AuthContext'
 
@@ -11,6 +12,7 @@ const emptyPasswordForm = {
 
 const Settings = () => {
   const { user, updateUser } = useAuth()
+  const avatarInputRef = useRef(null)
   const [form, setForm] = useState({
     first_name: user?.first_name || '',
     last_name: user?.last_name || '',
@@ -20,6 +22,7 @@ const Settings = () => {
   const [passwordForm, setPasswordForm] = useState(emptyPasswordForm)
   const [saving, setSaving] = useState(false)
   const [changingPassword, setChangingPassword] = useState(false)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
   useEffect(() => {
     setForm({
@@ -70,15 +73,58 @@ const Settings = () => {
     }
   }
 
+  const uploadAvatar = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    const data = new FormData()
+    data.append('avatar', file)
+    setUploadingAvatar(true)
+    try {
+      const response = await authService.uploadAvatar(data)
+      const imageUrl = response.data?.image_url || ''
+      if (imageUrl) {
+        setForm((current) => ({ ...current, avatar_url: imageUrl }))
+      }
+      if (response.data?.user) {
+        updateUser(response.data.user)
+      }
+      toast.success(response.message || 'Đã tải ảnh đại diện')
+    } catch (error) {
+      toast.error(error.message || 'Không thể tải ảnh đại diện')
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6">
         <h2 className="text-xl font-bold mb-4">Cài đặt tài khoản</h2>
         <form onSubmit={submitProfile} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={uploadAvatar}
+          />
           <input className="input" placeholder="Tên" value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
           <input className="input" placeholder="Họ" value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
           <input className="input" placeholder="Số điện thoại" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-          <input className="input" placeholder="Avatar URL" value={form.avatar_url} onChange={(e) => setForm({ ...form, avatar_url: e.target.value })} />
+          <div className="space-y-2">
+            <button
+              type="button"
+              className="btn btn-outline"
+              disabled={uploadingAvatar}
+              onClick={() => avatarInputRef.current?.click()}
+            >
+              <FiUpload />
+              {uploadingAvatar ? 'Đang tải...' : 'Chọn ảnh đại diện'}
+            </button>
+            <input className="input" placeholder="Avatar URL" value={form.avatar_url} onChange={(e) => setForm({ ...form, avatar_url: e.target.value })} />
+          </div>
           <div className="md:col-span-2">
             <button className="btn btn-primary" disabled={saving}>
               {saving ? 'Đang lưu...' : 'Lưu thay đổi'}

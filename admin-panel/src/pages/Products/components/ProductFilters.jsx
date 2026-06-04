@@ -1,5 +1,5 @@
 import { FiFilter, FiRefreshCw, FiSearch, FiX } from 'react-icons/fi'
-import { sortOptions, statusOptions } from '../utils/productHelpers'
+import { getCategoryLabel, sortOptions, statusOptions } from '../utils/productHelpers'
 
 const ProductFilters = ({
   filters,
@@ -32,7 +32,7 @@ const ProductFilters = ({
 
       <select value={filters.category} onChange={(e) => { setters.setCategory(e.target.value); setters.setPage(1) }} className="input w-auto text-sm">
         <option value="">Tất cả danh mục</option>
-        {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+        {categories.map((category) => <option key={category.id} value={category.id}>{getCategoryLabel(category)}</option>)}
       </select>
 
       <select value={filters.status} onChange={(e) => { setters.setStatus(e.target.value); setters.setPage(1) }} className="input w-auto text-sm">

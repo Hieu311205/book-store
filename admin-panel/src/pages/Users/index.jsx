@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FiChevronLeft, FiChevronRight, FiFilter, FiLock, FiRefreshCw, FiSearch, FiUnlock, FiUser, FiX } from 'react-icons/fi'
+import { FiChevronLeft, FiChevronRight, FiFilter, FiLock, FiRefreshCw, FiSearch, FiTrash2, FiUnlock, FiUser, FiX } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 import { adminService } from '../../services/admin.service'
 import { useAuth } from '../../context/AuthContext'
@@ -9,6 +9,8 @@ import PaginationNumbers from '../../components/common/PaginationNumbers'
 const roleLabels = {
   super_admin: 'Super admin',
   admin: 'Admin',
+  warehouse_staff: 'Nhân viên kho',
+  content_editor: 'Biên tập viên nội dung',
   customer: 'Khách hàng',
 }
 
@@ -16,6 +18,8 @@ const roleOptions = [
   { value: '', label: 'Tất cả vai trò' },
   { value: 'customer', label: 'Khách hàng' },
   { value: 'admin', label: 'Admin' },
+  { value: 'warehouse_staff', label: 'Nhân viên kho' },
+  { value: 'content_editor', label: 'Biên tập viên nội dung' },
   { value: 'super_admin', label: 'Super admin' },
 ]
 
@@ -93,8 +97,38 @@ const Users = () => {
     onError: (error) => toast.error(error.message || 'Có lỗi xảy ra'),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: adminService.deleteUser,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+      toast.success('Da xoa tai khoan')
+    },
+    onError: (error) => toast.error(error.message || 'Khong the xoa tai khoan'),
+  })
+
   const canBlock = (target) =>
     target.role !== 'super_admin' && Number(target.id) !== Number(currentUser?.id)
+
+  const getLockedDays = (target) => {
+    if (!target.locked_at) return 0
+    const lockedTime = new Date(target.locked_at).getTime()
+    if (Number.isNaN(lockedTime)) return 0
+    return Math.max(0, Math.floor((Date.now() - lockedTime) / (1000 * 60 * 60 * 24)))
+  }
+
+  const canDelete = (target) =>
+    target.role !== 'super_admin'
+    && Number(target.id) !== Number(currentUser?.id)
+    && !Number(target.is_active)
+    && getLockedDays(target) >= 90
+
+  const handleDelete = (target) => {
+    if (!canDelete(target)) return
+    const name = `${target.first_name || ''} ${target.last_name || ''}`.trim() || target.email
+    if (window.confirm(`Xoa vinh vien tai khoan "${name}"? Thao tac nay khong the hoan tac.`)) {
+      deleteMutation.mutate(target.id)
+    }
+  }
 
   const totalPages = data?.pagination?.totalPages || 1
   const totalItems = data?.pagination?.totalItems ?? 0
@@ -207,6 +241,7 @@ const Users = () => {
               <tr>
                 <th>Người dùng</th>
                 <th>Email</th>
+                <th>Ngay khoa</th>
                 <th>Số điện thoại</th>
                 <th>Vai trò</th>
                 <th>Trạng thái</th>
@@ -217,13 +252,13 @@ const Users = () => {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-8">
+                  <td colSpan={8} className="text-center py-8">
                     <div className="w-6 h-6 border-2 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto" />
                   </td>
                 </tr>
               ) : data?.users?.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-8 text-gray-500">
+                  <td colSpan={8} className="text-center py-8 text-gray-500">
                     {hasFilters ? 'Không tìm thấy người dùng phù hợp với bộ lọc' : 'Không có người dùng'}
                   </td>
                 </tr>
@@ -239,6 +274,9 @@ const Users = () => {
                       </div>
                     </td>
                     <td>{user.email}</td>
+                    <td className="text-gray-500 text-sm">
+                      {user.locked_at ? `${new Date(user.locked_at).toLocaleDateString('vi-VN')} (${getLockedDays(user)} ngay)` : '-'}
+                    </td>
                     <td>{user.phone || '-'}</td>
                     <td>
                       <select
@@ -249,6 +287,8 @@ const Users = () => {
                       >
                         <option value="customer">Khách hàng</option>
                         <option value="admin">Admin</option>
+                        <option value="warehouse_staff">Nhân viên kho</option>
+                        <option value="content_editor">Biên tập viên nội dung</option>
                         <option value="super_admin">Super admin</option>
                       </select>
                       <p className="text-xs text-gray-500 mt-1">{roleLabels[user.role]}</p>
@@ -271,6 +311,14 @@ const Users = () => {
                         title={user.is_active ? 'Khóa' : 'Kích hoạt'}
                       >
                         {user.is_active ? <FiLock size={16} /> : <FiUnlock size={16} />}
+                      </button>
+                      <button
+                        onClick={() => handleDelete(user)}
+                        disabled={!canDelete(user) || deleteMutation.isPending}
+                        className="p-2 rounded text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                        title={canDelete(user) ? 'Xoa tai khoan' : 'Chi xoa khi tai khoan bi khoa du 90 ngay'}
+                      >
+                        <FiTrash2 size={16} />
                       </button>
                     </td>
                   </tr>

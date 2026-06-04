@@ -4,6 +4,11 @@ export const adminService = {
   // Auth
   login: (data) => api.post('/auth/login', data),
   getMe: () => api.get('/auth/me'),
+  updateMe: (data) => api.put('/auth/me', data),
+  changePassword: (data) => api.put('/auth/password', data),
+  uploadAvatar: (data) => api.post('/auth/avatar', data, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
   getPublicSettings: () => api.get('/settings'),
 
   // Dashboard
@@ -32,6 +37,9 @@ export const adminService = {
   uploadProductCover: (data) => api.post('/admin/products/cover', data, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }),
+  uploadCatalogImage: (type, data) => api.post(`/admin/uploads/${type}`, data, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
 
   // Categories
   getCategories: (params) => api.get('/admin/categories', { params }),
@@ -41,9 +49,17 @@ export const adminService = {
 
   // Authors
   getAuthors: () => api.get('/authors'),
+  getAdminAuthors: (params) => api.get('/admin/authors', { params }),
+  createAuthor: (data) => api.post('/admin/authors', data),
+  updateAuthor: (id, data) => api.put(`/admin/authors/${id}`, data),
+  deleteAuthor: (id) => api.delete(`/admin/authors/${id}`),
 
   // Publishers
   getPublishers: () => api.get('/publishers'),
+  getAdminPublishers: (params) => api.get('/admin/publishers', { params }),
+  createPublisher: (data) => api.post('/admin/publishers', data),
+  updatePublisher: (id, data) => api.put(`/admin/publishers/${id}`, data),
+  deletePublisher: (id) => api.delete(`/admin/publishers/${id}`),
 
   // Orders
   getOrders: (params) => api.get('/admin/orders', { params }),
@@ -61,11 +77,17 @@ export const adminService = {
   getWalletTransactions: (params) => api.get('/admin/wallets', { params }),
   updateWalletTransaction: (id, data) => api.put(`/admin/wallets/transactions/${id}`, data),
 
+  // Warehouse
+  getWarehouseSummary: () => api.get('/admin/warehouse/summary'),
+  getStockMovements: (params) => api.get('/admin/warehouse/movements', { params }),
+  createStockMovement: (data) => api.post('/admin/warehouse/movements', data),
+
   // Users
   getUsers: (params) => api.get('/admin/users', { params }),
   getUserById: (id) => api.get(`/admin/users/${id}`),
   blockUser: (id) => api.put(`/admin/users/${id}/block`),
   updateUserRole: (id, role) => api.put(`/admin/users/${id}/role`, { role }),
+  deleteUser: (id) => api.delete(`/admin/users/${id}`),
 
   // Coupons
   getCoupons: (params) => api.get('/admin/coupons', { params }),

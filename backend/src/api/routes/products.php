@@ -48,6 +48,61 @@ function handleProducts($method, $pathParts) {
     }
 }
 
+function getProductCategoryDescendantIds($categoryId) {
+    $categoryId = (int)$categoryId;
+    if ($categoryId <= 0) {
+        return [];
+    }
+
+    $rows = queryAll("SELECT id, parent_id FROM categories WHERE is_active = 1");
+    $childrenByParent = [];
+    foreach ($rows as $row) {
+        $parentId = $row['parent_id'] === null ? 0 : (int)$row['parent_id'];
+        $childrenByParent[$parentId][] = (int)$row['id'];
+    }
+
+    $ids = [];
+    $queue = [$categoryId];
+    while ($queue) {
+        $id = array_shift($queue);
+        if (in_array($id, $ids, true)) {
+            continue;
+        }
+        $ids[] = $id;
+        foreach ($childrenByParent[$id] ?? [] as $childId) {
+            $queue[] = $childId;
+        }
+    }
+
+    return $ids;
+}
+
+function addProductCategoryFilter(&$where, &$params, $category) {
+    if (ctype_digit((string)$category)) {
+        $ids = getProductCategoryDescendantIds((int)$category);
+        if (!$ids) {
+            $where[] = 'p.category_id = ?';
+            $params[] = (int)$category;
+            return;
+        }
+
+        $where[] = 'p.category_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')';
+        foreach ($ids as $id) {
+            $params[] = $id;
+        }
+        return;
+    }
+
+    $categoryRow = queryOne("SELECT id FROM categories WHERE slug = ? AND is_active = 1", [$category]);
+    if ($categoryRow) {
+        addProductCategoryFilter($where, $params, (int)$categoryRow['id']);
+        return;
+    }
+
+    $where[] = 'c.slug = ?';
+    $params[] = $category;
+}
+
 // ─── Autocomplete: gợi ý sách khi người dùng gõ vào search bar ───────────────
 // Trả tối đa 8 kết quả khớp title/title_en/author, ưu tiên theo sales_count
 // Được gọi bởi SearchBox component (debounce 280ms)
@@ -66,10 +121,10 @@ function suggestProducts() {
          LEFT JOIN authors a  ON p.author_id = a.id
          LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
          WHERE p.is_active = 1
-           AND (p.title LIKE ? OR p.title_en LIKE ? OR a.name LIKE ?)
+           AND (p.title LIKE ? OR p.title_en LIKE ? OR a.name LIKE ? OR p.isbn LIKE ?)
          ORDER BY p.sales_count DESC, p.is_featured DESC
          LIMIT 8",
-        [$like, $like, $like]
+        [$like, $like, $like, $like]
     );
 
     jsonResponse(['success' => true, 'data' => $items]);
@@ -101,13 +156,7 @@ function listProducts($forced = [], $simple = false) {
     // ── Xây dựng WHERE động theo từng filter ────────────────────────────────
     if (!empty($filters['category'])) {
         // Hỗ trợ cả category ID (số nguyên) và category slug (chuỗi)
-        if (ctype_digit((string)$filters['category'])) {
-            $where[]  = 'p.category_id = ?';
-            $params[] = $filters['category'];
-        } else {
-            $where[]  = 'c.slug = ?';
-            $params[] = $filters['category'];
-        }
+        addProductCategoryFilter($where, $params, $filters['category']);
     }
     if (!empty($filters['author'])) {
         $where[]  = 'p.author_id = ?';
@@ -137,9 +186,9 @@ function listProducts($forced = [], $simple = false) {
     }
     if (!empty($filters['search'])) {
         // Tìm full-text trên tiêu đề tiếng Việt, tiếng Anh và tên tác giả
-        $where[]  = '(p.title LIKE ? OR p.title_en LIKE ? OR a.name LIKE ?)';
+        $where[]  = '(p.title LIKE ? OR p.title_en LIKE ? OR a.name LIKE ? OR p.isbn LIKE ?)';
         $term     = '%' . $filters['search'] . '%';
-        array_push($params, $term, $term, $term);
+        array_push($params, $term, $term, $term, $term);
     }
 
     // ── Thứ tự sắp xếp ───────────────────────────────────────────────────────

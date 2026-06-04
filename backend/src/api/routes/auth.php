@@ -53,6 +53,9 @@ function handleAuth($method, $pathParts) {
             } elseif ($action === 'reset-password') {
                 require_once __DIR__ . '/../controllers/auth/auth.controller.php';
                 resetPassword();
+            } elseif ($action === 'avatar') {
+                require_once __DIR__ . '/../controllers/auth/auth.controller.php';
+                uploadAvatar();
             } else {
                 http_response_code(404);
                 echo json_encode(['success' => false, 'message' => 'Không tìm thấy thao tác']);

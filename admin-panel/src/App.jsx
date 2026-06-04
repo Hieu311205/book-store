@@ -4,6 +4,9 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Products from './pages/Products'
 import Categories from './pages/Categories'
+import Authors from './pages/Authors'
+import Publishers from './pages/Publishers'
+import Warehouse from './pages/Warehouse'
 import Orders from './pages/Orders'
 import Wallets from './pages/Wallets'
 import Payments from './pages/Payments'
@@ -12,6 +15,7 @@ import Coupons from './pages/Coupons'
 import Settings from './pages/Settings'
 import ContactMessages from './pages/ContactMessages'
 import { useAuth } from './context/AuthContext'
+import { ROLE_GROUPS } from './config/permissions'
 
 const SuperAdminRoute = ({ children }) => {
   const { isSuperAdmin } = useAuth()
@@ -28,20 +32,38 @@ const SuperAdminRoute = ({ children }) => {
   return children
 }
 
+const RoleRoute = ({ children, roles }) => {
+  const { user } = useAuth()
+
+  if (!roles.includes(user?.role)) {
+    return (
+      <div className="card p-6">
+        <h1 className="text-xl font-bold">Không có quyền truy cập</h1>
+        <p className="text-gray-500 mt-2">Tài khoản hiện tại không được sử dụng chức năng này.</p>
+      </div>
+    )
+  }
+
+  return children
+}
+
 const App = () => {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<Layout />}>
         <Route index element={<Dashboard />} />
-        <Route path="products" element={<Products />} />
-        <Route path="categories" element={<Categories />} />
-        <Route path="orders" element={<Orders />} />
-        <Route path="wallets" element={<Wallets />} />
-        <Route path="payments" element={<Payments />} />
+        <Route path="products" element={<RoleRoute roles={ROLE_GROUPS.productView}><Products /></RoleRoute>} />
+        <Route path="categories" element={<RoleRoute roles={ROLE_GROUPS.contentManage}><Categories /></RoleRoute>} />
+        <Route path="authors" element={<RoleRoute roles={ROLE_GROUPS.contentManage}><Authors /></RoleRoute>} />
+        <Route path="publishers" element={<RoleRoute roles={ROLE_GROUPS.contentManage}><Publishers /></RoleRoute>} />
+        <Route path="warehouse" element={<RoleRoute roles={ROLE_GROUPS.warehouseManage}><Warehouse /></RoleRoute>} />
+        <Route path="orders" element={<RoleRoute roles={ROLE_GROUPS.orderManage}><Orders /></RoleRoute>} />
+        <Route path="wallets" element={<RoleRoute roles={ROLE_GROUPS.fullAdmin}><Wallets /></RoleRoute>} />
+        <Route path="payments" element={<RoleRoute roles={ROLE_GROUPS.fullAdmin}><Payments /></RoleRoute>} />
         <Route path="users" element={<SuperAdminRoute><Users /></SuperAdminRoute>} />
         <Route path="coupons" element={<SuperAdminRoute><Coupons /></SuperAdminRoute>} />
-        <Route path="settings" element={<SuperAdminRoute><Settings /></SuperAdminRoute>} />
+        <Route path="settings" element={<Settings />} />
         <Route path="contact-messages" element={<SuperAdminRoute><ContactMessages /></SuperAdminRoute>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

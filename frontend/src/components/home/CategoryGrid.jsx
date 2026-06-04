@@ -5,6 +5,14 @@ import { categoryService } from '../../services/category.service'
 
 const FEATURED_CATEGORY_LIMIT = 8
 
+const renderCategoryIcon = (icon) => {
+  if (!icon) return <FiBookOpen />
+  if (typeof icon === 'string' && icon.startsWith('/images/')) {
+    return <img src={icon} alt="" className="store-category-icon-img" />
+  }
+  return icon
+}
+
 const CategoryGrid = () => {
   const { data: categories = [], isLoading } = useQuery({
     queryKey: ['categories'],
@@ -44,7 +52,7 @@ const CategoryGrid = () => {
       <div className="store-category-grid">
         {featuredCategories.map((cat) => (
           <Link key={cat.id} to={`/products?category=${cat.slug || cat.id}`} className="store-category-tile">
-            <span className="store-category-icon">{cat.icon || <FiBookOpen />}</span>
+            <span className="store-category-icon">{renderCategoryIcon(cat.icon)}</span>
             <strong>{cat.name}</strong>
           </Link>
         ))}

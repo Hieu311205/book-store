@@ -69,7 +69,46 @@ END$$
 
 DELIMITER ;
 
--- 1. Cau hinh ngan hang cua shop
+-- 1. Role admin nghiep vu va danh muc 3 tang mau
+ALTER TABLE users
+  MODIFY role ENUM('customer', 'admin', 'super_admin', 'warehouse_staff', 'content_editor') DEFAULT 'customer';
+
+CALL add_column_if_missing(
+  'users',
+  'locked_at',
+  'ALTER TABLE users ADD COLUMN locked_at DATETIME NULL AFTER is_active'
+);
+
+UPDATE users
+SET locked_at = COALESCE(locked_at, updated_at, created_at)
+WHERE is_active = 0
+  AND locked_at IS NULL;
+
+INSERT INTO categories (parent_id, name, name_en, slug, description, sort_order, is_active)
+SELECT c.id, 'Văn học Việt Nam', 'Vietnamese Literature', 'van-hoc-viet-nam', 'Nhánh văn học Việt Nam trong Tiểu thuyết', 10, 1
+FROM categories c
+WHERE c.slug = 'tieu-thuyet'
+  AND NOT EXISTS (SELECT 1 FROM categories x WHERE x.slug = 'van-hoc-viet-nam');
+
+INSERT INTO categories (parent_id, name, name_en, slug, description, sort_order, is_active)
+SELECT c.id, 'Truyện dài', 'Long-form Fiction', 'truyen-dai', 'Danh mục cấp 3 cho truyện dài', 10, 1
+FROM categories c
+WHERE c.slug = 'van-hoc-viet-nam'
+  AND NOT EXISTS (SELECT 1 FROM categories x WHERE x.slug = 'truyen-dai');
+
+INSERT INTO categories (parent_id, name, name_en, slug, description, sort_order, is_active)
+SELECT c.id, 'Kỹ năng nghề nghiệp', 'Career Skills', 'ky-nang-nghe-nghiep', 'Nhánh kỹ năng nghề nghiệp', 10, 1
+FROM categories c
+WHERE c.slug = 'ky-nang-song'
+  AND NOT EXISTS (SELECT 1 FROM categories x WHERE x.slug = 'ky-nang-nghe-nghiep');
+
+INSERT INTO categories (parent_id, name, name_en, slug, description, sort_order, is_active)
+SELECT c.id, 'Giao tiếp', 'Communication', 'giao-tiep', 'Danh mục cấp 3 cho sách giao tiếp', 10, 1
+FROM categories c
+WHERE c.slug = 'ky-nang-nghe-nghiep'
+  AND NOT EXISTS (SELECT 1 FROM categories x WHERE x.slug = 'giao-tiep');
+
+-- 2. Cau hinh ngan hang cua shop
 INSERT INTO settings (key_name, value, type, group_name) VALUES
   ('bank_name',           'Vietcombank',  'string', 'payment'),
   ('bank_account_number', '1234567890',   'string', 'payment'),
@@ -288,6 +327,101 @@ CALL add_constraint_if_missing(
   'fk_reviews_order',
   'ALTER TABLE reviews ADD CONSTRAINT fk_reviews_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL'
 );
+
+-- 7. OTP xac nhan dang ky tai khoan
+CREATE TABLE IF NOT EXISTS registration_otps (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(100) NOT NULL,
+  otp_code VARCHAR(6) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  used_at DATETIME NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_registration_email (email),
+  INDEX idx_registration_expires (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 8. OTP dat lai mat khau
+CREATE TABLE IF NOT EXISTS password_reset_otps (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  email VARCHAR(100) NOT NULL,
+  otp_code VARCHAR(6) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  used_at DATETIME NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_password_reset_user (user_id),
+  INDEX idx_password_reset_email (email),
+  INDEX idx_password_reset_expires (expires_at),
+  CONSTRAINT fk_password_reset_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 9. Quan ly tac gia, nha xuat ban va xuat/nhap kho
+CALL add_column_if_missing(
+  'authors',
+  'country',
+  'ALTER TABLE authors ADD COLUMN country VARCHAR(100) NULL AFTER image_url'
+);
+CALL add_column_if_missing(
+  'authors',
+  'is_active',
+  'ALTER TABLE authors ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER country'
+);
+CALL add_column_if_missing(
+  'authors',
+  'updated_at',
+  'ALTER TABLE authors ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at'
+);
+
+CALL add_column_if_missing(
+  'publishers',
+  'email',
+  'ALTER TABLE publishers ADD COLUMN email VARCHAR(100) NULL AFTER website'
+);
+CALL add_column_if_missing(
+  'publishers',
+  'phone',
+  'ALTER TABLE publishers ADD COLUMN phone VARCHAR(30) NULL AFTER email'
+);
+CALL add_column_if_missing(
+  'publishers',
+  'address',
+  'ALTER TABLE publishers ADD COLUMN address VARCHAR(255) NULL AFTER phone'
+);
+CALL add_column_if_missing(
+  'publishers',
+  'contact_name',
+  'ALTER TABLE publishers ADD COLUMN contact_name VARCHAR(100) NULL AFTER address'
+);
+CALL add_column_if_missing(
+  'publishers',
+  'is_active',
+  'ALTER TABLE publishers ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER contact_name'
+);
+CALL add_column_if_missing(
+  'publishers',
+  'updated_at',
+  'ALTER TABLE publishers ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at'
+);
+
+CREATE TABLE IF NOT EXISTS stock_movements (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  product_id INT NOT NULL,
+  type ENUM('import', 'export', 'adjustment') NOT NULL,
+  quantity INT NOT NULL,
+  before_stock INT NOT NULL DEFAULT 0,
+  after_stock INT NOT NULL DEFAULT 0,
+  unit_cost DECIMAL(12,0) NULL,
+  reference_type VARCHAR(50) NULL,
+  reference_id INT NULL,
+  note VARCHAR(255) NULL,
+  created_by INT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_stock_movements_product (product_id),
+  INDEX idx_stock_movements_type (type),
+  INDEX idx_stock_movements_created_at (created_at),
+  CONSTRAINT fk_stock_movements_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+  CONSTRAINT fk_stock_movements_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 DROP PROCEDURE IF EXISTS add_constraint_if_missing;
 DROP PROCEDURE IF EXISTS add_index_if_missing;

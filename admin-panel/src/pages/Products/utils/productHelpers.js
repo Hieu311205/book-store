@@ -47,15 +47,26 @@ export const statusOptions = [
   { value: 'inactive', label: 'Đã ẩn' },
   { value: 'low_stock', label: 'Sắp hết hàng (< 10)' },
   { value: 'out_of_stock', label: 'Hết hàng' },
+  { value: 'slow_moving', label: 'Tồn kho quá lâu' },
 ]
 
 export const sortOptions = [
   { value: 'newest', label: 'Mới nhất' },
   { value: 'oldest', label: 'Cũ nhất' },
-  { value: 'name_asc', label: 'Tên A → Z' },
-  { value: 'price_asc', label: 'Giá thấp → cao' },
-  { value: 'price_desc', label: 'Giá cao → thấp' },
+  { value: 'name_asc', label: 'Tên A - Z' },
+  { value: 'price_asc', label: 'Giá thấp - cao' },
+  { value: 'price_desc', label: 'Giá cao - thấp' },
   { value: 'stock_asc', label: 'Tồn kho tăng dần' },
   { value: 'stock_desc', label: 'Tồn kho giảm dần' },
   { value: 'bestseller', label: 'Bán chạy nhất' },
 ]
+
+export const getCategoryLabel = (category) => category.category_path || category.name
+
+export const isSlowMovingProduct = (product) => {
+  if (Number(product.stock || 0) <= 0) return false
+  if (!product.last_sold_at) return true
+  const lastSoldAt = new Date(product.last_sold_at).getTime()
+  if (Number.isNaN(lastSoldAt)) return false
+  return Date.now() - lastSoldAt >= 60 * 24 * 60 * 60 * 1000
+}

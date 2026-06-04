@@ -33,6 +33,7 @@
  *                 → generateToken() tạo JWT nội bộ → trả về frontend
  */
 $config = include __DIR__ . '/../../../../config.php';
+require_once __DIR__ . '/../../../lib/GmailSmtp.php';
 
 // Simple JWT functions (in production, use a library)
 /**
@@ -65,6 +66,228 @@ function generateToken($userId) {
     return $headerEncoded . "." . $payloadEncoded . "." . $signatureEncoded;
 }
 
+function ensureRegistrationOtpTable() {
+    executeSql("CREATE TABLE IF NOT EXISTS registration_otps (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        email VARCHAR(100) NOT NULL,
+        otp_code VARCHAR(6) NOT NULL,
+        expires_at DATETIME NOT NULL,
+        used_at DATETIME NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_registration_email (email),
+        INDEX idx_registration_expires (expires_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+function sendRegistrationOtp($email, $firstName = '', $lastName = '') {
+    global $config;
+    ensureRegistrationOtpTable();
+
+    executeSql("DELETE FROM registration_otps WHERE expires_at <= NOW() OR used_at IS NOT NULL");
+
+    $recent = queryOne(
+        "SELECT COUNT(*) AS cnt FROM registration_otps
+         WHERE email = ? AND created_at > DATE_SUB(NOW(), INTERVAL 10 MINUTE)",
+        [$email]
+    );
+    if ((int)($recent['cnt'] ?? 0) >= 3) {
+        jsonResponse(['success' => false, 'message' => 'Ban da gui OTP qua nhieu lan. Vui long thu lai sau 10 phut.'], 429);
+    }
+
+    executeSql("DELETE FROM registration_otps WHERE email = ? AND used_at IS NULL", [$email]);
+
+    $otp = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    executeSql(
+        "INSERT INTO registration_otps (email, otp_code, expires_at)
+         VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 5 MINUTE))",
+        [$email, $otp]
+    );
+
+    $toName = trim($firstName . ' ' . $lastName);
+    if (!$toName) {
+        $toName = $email;
+    }
+
+    $subject = 'Ma OTP xac nhan dang ky - Book Store';
+    $body = "Xin chao {$toName},\r\n\r\n"
+          . "Ma OTP xac nhan dang ky tai khoan Book Store cua ban la:\r\n\r\n"
+          . "    {$otp}\r\n\r\n"
+          . "Ma co hieu luc trong 5 phut. Vui long khong chia se ma nay voi bat ky ai.\r\n\r\n"
+          . "Tran trong,\r\nBook Store";
+
+    $mailUser = getenv('MAIL_USER');
+    $mailPass = str_replace(' ', '', getenv('MAIL_PASS') ?: '');
+    $emailSent = false;
+    $errorMsg = null;
+
+    if ($mailUser && $mailPass && $mailUser !== 'your-gmail@gmail.com') {
+        try {
+            $mailer = new GmailSmtp($mailUser, $mailPass);
+            $mailer->send($email, $toName, $subject, $body);
+            $emailSent = true;
+        } catch (\Throwable $e) {
+            $errorMsg = $e->getMessage();
+            error_log("[REGISTER_OTP][SMTP Error] " . $errorMsg);
+        }
+    } else {
+        $errorMsg = 'MAIL_USER / MAIL_PASS chua duoc cau hinh trong development.env';
+    }
+
+    error_log("[REGISTER_OTP] email={$email} otp={$otp} sent=" . ($emailSent ? 'yes' : 'no'));
+    $isDevelopment = ($config['appEnv'] ?? getenv('APP_ENV') ?: 'development') === 'development';
+
+    if (!$emailSent && !$isDevelopment) {
+        jsonResponse([
+            'success' => false,
+            'message' => 'Khong the gui OTP xac nhan dang ky. Vui long thu lai sau.',
+        ], 500);
+    }
+
+    $remaining = queryOne(
+        "SELECT GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), expires_at)) AS secs
+         FROM registration_otps WHERE email = ? AND used_at IS NULL ORDER BY id DESC LIMIT 1",
+        [$email]
+    );
+
+    jsonResponse([
+        'success' => true,
+        'message' => $emailSent
+            ? "Ma OTP da duoc gui den {$email}"
+            : 'Gui email that bai - xem ma OTP thu nghiem',
+        'data' => [
+            'requires_otp' => true,
+            'email_sent' => $emailSent,
+            'expires_in' => (int)($remaining['secs'] ?? 300),
+            'dev_otp' => (!$emailSent && $isDevelopment ? $otp : null),
+            'dev_error' => (!$emailSent && $isDevelopment ? $errorMsg : null),
+        ],
+    ]);
+}
+
+function verifyRegistrationOtp($email, $otpCode) {
+    ensureRegistrationOtpTable();
+    if (!$otpCode) {
+        jsonResponse(['success' => false, 'message' => 'Vui long nhap ma OTP xac nhan dang ky'], 400);
+    }
+
+    $record = queryOne(
+        "SELECT * FROM registration_otps
+         WHERE email = ?
+           AND otp_code = ?
+           AND used_at IS NULL
+           AND expires_at > NOW()
+         ORDER BY id DESC LIMIT 1",
+        [$email, $otpCode]
+    );
+
+    if (!$record) {
+        jsonResponse(['success' => false, 'message' => 'Ma OTP khong dung hoac da het han'], 400);
+    }
+
+    executeSql("DELETE FROM registration_otps WHERE id = ?", [$record['id']]);
+}
+
+function ensurePasswordResetOtpTable() {
+    executeSql("CREATE TABLE IF NOT EXISTS password_reset_otps (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        email VARCHAR(100) NOT NULL,
+        otp_code VARCHAR(6) NOT NULL,
+        expires_at DATETIME NOT NULL,
+        used_at DATETIME NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_password_reset_user (user_id),
+        INDEX idx_password_reset_email (email),
+        INDEX idx_password_reset_expires (expires_at),
+        CONSTRAINT fk_password_reset_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+function sendPasswordResetOtp($user) {
+    global $config;
+    ensurePasswordResetOtpTable();
+
+    executeSql("DELETE FROM password_reset_otps WHERE expires_at <= NOW() OR used_at IS NOT NULL");
+
+    $recent = queryOne(
+        "SELECT COUNT(*) AS cnt FROM password_reset_otps
+         WHERE user_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 10 MINUTE)",
+        [$user['id']]
+    );
+    if ((int)($recent['cnt'] ?? 0) >= 3) {
+        jsonResponse(['success' => false, 'message' => 'Ban da gui OTP qua nhieu lan. Vui long thu lai sau 10 phut.'], 429);
+    }
+
+    executeSql("DELETE FROM password_reset_otps WHERE user_id = ? AND used_at IS NULL", [$user['id']]);
+
+    $otp = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    executeSql(
+        "INSERT INTO password_reset_otps (user_id, email, otp_code, expires_at)
+         VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL 5 MINUTE))",
+        [$user['id'], $user['email'], $otp]
+    );
+
+    $toName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
+    if (!$toName) {
+        $toName = $user['email'];
+    }
+
+    $subject = 'Ma OTP dat lai mat khau - Book Store';
+    $body = "Xin chao {$toName},\r\n\r\n"
+          . "Ma OTP dat lai mat khau tai khoan Book Store cua ban la:\r\n\r\n"
+          . "    {$otp}\r\n\r\n"
+          . "Ma co hieu luc trong 5 phut. Neu ban khong yeu cau dat lai mat khau, hay bo qua email nay.\r\n\r\n"
+          . "Tran trong,\r\nBook Store";
+
+    $mailUser = getenv('MAIL_USER');
+    $mailPass = str_replace(' ', '', getenv('MAIL_PASS') ?: '');
+    $emailSent = false;
+    $errorMsg = null;
+
+    if ($mailUser && $mailPass && $mailUser !== 'your-gmail@gmail.com') {
+        try {
+            $mailer = new GmailSmtp($mailUser, $mailPass);
+            $mailer->send($user['email'], $toName, $subject, $body);
+            $emailSent = true;
+        } catch (\Throwable $e) {
+            $errorMsg = $e->getMessage();
+            error_log("[RESET_OTP][SMTP Error] " . $errorMsg);
+        }
+    } else {
+        $errorMsg = 'MAIL_USER / MAIL_PASS chua duoc cau hinh trong development.env';
+    }
+
+    error_log("[RESET_OTP] user={$user['id']} email={$user['email']} otp={$otp} sent=" . ($emailSent ? 'yes' : 'no'));
+    $isDevelopment = ($config['appEnv'] ?? getenv('APP_ENV') ?: 'development') === 'development';
+
+    if (!$emailSent && !$isDevelopment) {
+        jsonResponse([
+            'success' => false,
+            'message' => 'Khong the gui OTP dat lai mat khau. Vui long thu lai sau.',
+        ], 500);
+    }
+
+    $remaining = queryOne(
+        "SELECT GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), expires_at)) AS secs
+         FROM password_reset_otps WHERE user_id = ? AND used_at IS NULL ORDER BY id DESC LIMIT 1",
+        [$user['id']]
+    );
+
+    jsonResponse([
+        'success' => true,
+        'message' => $emailSent
+            ? "Ma OTP da duoc gui den {$user['email']}"
+            : 'Gui email that bai - xem ma OTP thu nghiem',
+        'data' => [
+            'requires_otp' => true,
+            'email_sent' => $emailSent,
+            'expires_in' => (int)($remaining['secs'] ?? 300),
+            'dev_otp' => (!$emailSent && $isDevelopment ? $otp : null),
+            'dev_error' => (!$emailSent && $isDevelopment ? $errorMsg : null),
+        ],
+    ]);
+}
+
 /**
  * Đăng ký tài khoản mới bằng email và mật khẩu.
  * Luồng: validate email+password → kiểm tra email chưa tồn tại → hash password
@@ -75,11 +298,12 @@ function generateToken($userId) {
  */
 function register() {
     $input = json_decode(file_get_contents('php://input'), true);
-    $email = $input['email'] ?? '';
+    $email = strtolower(trim((string)($input['email'] ?? '')));
     $password = $input['password'] ?? '';
     $first_name = $input['first_name'] ?? '';
     $last_name = $input['last_name'] ?? '';
     $phone = $input['phone'] ?? '';
+    $otpCode = trim((string)($input['otp_code'] ?? ''));
 
     if (!$email || !$password) {
         jsonResponse(['success' => false, 'message' => 'Vui lòng nhập email và mật khẩu'], 400);
@@ -91,6 +315,12 @@ function register() {
     }
 
     // Dùng PASSWORD_DEFAULT (hiện là bcrypt) — tự động thêm salt, an toàn chống rainbow table
+    if (!$otpCode) {
+        sendRegistrationOtp($email, $first_name, $last_name);
+    }
+
+    verifyRegistrationOtp($email, $otpCode);
+
     $password_hash = password_hash($password, PASSWORD_DEFAULT);
     $ugid = uniqid();
 
@@ -103,7 +333,7 @@ function register() {
         'phone' => $phone,
         'role' => 'customer',
         'is_active' => 1,
-        'email_verified' => 0,
+        'email_verified' => 1,
     ]);
 
     $user = queryOne("SELECT id, ugid, email, first_name, last_name, phone, role FROM users WHERE id = ?", [$userId]);
@@ -227,6 +457,26 @@ function verifyPassword($password, $user) {
  * Gọi từ: auth.php handleAuth() (POST /auth/forgot-password).
  */
 function forgotPassword() {
+    $input = requestJson();
+    $email = strtolower(trim((string)($input['email'] ?? '')));
+
+    if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        jsonResponse(['success' => false, 'message' => 'Vui long nhap email hop le'], 400);
+    }
+
+    $user = queryOne("SELECT id, email, first_name, last_name, is_active FROM users WHERE email = ? LIMIT 1", [$email]);
+    if (!$user || !(int)$user['is_active']) {
+        jsonResponse([
+            'success' => true,
+            'message' => 'Neu email ton tai, ma OTP dat lai mat khau se duoc gui den email nay',
+            'data' => ['requires_otp' => true, 'email_sent' => false],
+        ]);
+    }
+
+    sendPasswordResetOtp($user);
+}
+
+function forgotPasswordLegacy() {
     jsonResponse(['success' => true, 'message' => 'Chức năng quên mật khẩu chưa được triển khai']);
 }
 
@@ -235,6 +485,63 @@ function forgotPassword() {
  * Gọi từ: auth.php handleAuth() (POST /auth/reset-password).
  */
 function resetPassword() {
+    ensurePasswordResetOtpTable();
+    $input = requestJson();
+    $email = strtolower(trim((string)($input['email'] ?? '')));
+    $otpCode = trim((string)($input['otp_code'] ?? ''));
+    $newPassword = (string)($input['new_password'] ?? '');
+    $confirmPassword = (string)($input['confirm_password'] ?? '');
+
+    if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        jsonResponse(['success' => false, 'message' => 'Vui long nhap email hop le'], 400);
+    }
+
+    if (!preg_match('/^\d{6}$/', $otpCode)) {
+        jsonResponse(['success' => false, 'message' => 'Vui long nhap ma OTP gom 6 chu so'], 400);
+    }
+
+    if (!$newPassword || !$confirmPassword) {
+        jsonResponse(['success' => false, 'message' => 'Vui long nhap mat khau moi'], 400);
+    }
+
+    if ($newPassword !== $confirmPassword) {
+        jsonResponse(['success' => false, 'message' => 'Mat khau xac nhan khong khop'], 400);
+    }
+
+    if (strlen($newPassword) < 6) {
+        jsonResponse(['success' => false, 'message' => 'Mat khau moi phai co it nhat 6 ky tu'], 400);
+    }
+
+    $user = queryOne("SELECT * FROM users WHERE email = ? AND is_active = 1 LIMIT 1", [$email]);
+    if (!$user) {
+        jsonResponse(['success' => false, 'message' => 'Ma OTP khong dung hoac da het han'], 400);
+    }
+
+    $record = queryOne(
+        "SELECT * FROM password_reset_otps
+         WHERE user_id = ?
+           AND email = ?
+           AND otp_code = ?
+           AND used_at IS NULL
+           AND expires_at > NOW()
+         ORDER BY id DESC LIMIT 1",
+        [$user['id'], $email, $otpCode]
+    );
+
+    if (!$record) {
+        jsonResponse(['success' => false, 'message' => 'Ma OTP khong dung hoac da het han'], 400);
+    }
+
+    updateRow('users', $user['id'], [
+        'password_hash' => password_hash($newPassword, PASSWORD_DEFAULT),
+        'email_verified' => 1,
+    ]);
+    executeSql("DELETE FROM password_reset_otps WHERE user_id = ?", [$user['id']]);
+
+    jsonResponse(['success' => true, 'message' => 'Da dat lai mat khau. Vui long dang nhap lai.']);
+}
+
+function resetPasswordLegacy() {
     jsonResponse(['success' => true, 'message' => 'Chức năng đặt lại mật khẩu chưa được triển khai']);
 }
 
@@ -279,6 +586,79 @@ function updateMe() {
  * Lý do cho phép không cần current_password khi hasPassword = false:
  *   User đăng nhập qua Google lần đầu chưa có password_hash → cho phép đặt mật khẩu mới.
  */
+function uploadAvatar() {
+    $user = requireUser();
+
+    if (empty($_FILES['avatar']) || !is_uploaded_file($_FILES['avatar']['tmp_name'])) {
+        jsonResponse(['success' => false, 'message' => 'Vui lòng chọn ảnh đại diện'], 400);
+    }
+
+    $file = $_FILES['avatar'];
+    $maxSize = 5 * 1024 * 1024;
+    if (($file['size'] ?? 0) > $maxSize) {
+        jsonResponse(['success' => false, 'message' => 'Ảnh đại diện không được vượt quá 5MB'], 400);
+    }
+
+    $extension = strtolower(pathinfo($file['name'] ?? '', PATHINFO_EXTENSION));
+    if (!in_array($extension, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+        jsonResponse(['success' => false, 'message' => 'Chỉ hỗ trợ ảnh JPG, PNG hoặc WEBP'], 400);
+    }
+
+    $imageInfo = @getimagesize($file['tmp_name']);
+    if (!$imageInfo || !str_starts_with((string)$imageInfo['mime'], 'image/')) {
+        jsonResponse(['success' => false, 'message' => 'File tải lên không phải ảnh hợp lệ'], 400);
+    }
+
+    $root = dirname(__DIR__, 5);
+    $relativeDir = 'images/avatars';
+    $targets = [
+        $root . DIRECTORY_SEPARATOR . 'admin-panel' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . $relativeDir,
+        $root . DIRECTORY_SEPARATOR . 'frontend' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . $relativeDir,
+    ];
+
+    foreach ($targets as $targetDir) {
+        if (!is_dir($targetDir) && !@mkdir($targetDir, 0775, true)) {
+            jsonResponse(['success' => false, 'message' => 'Không thể tạo thư mục lưu avatar'], 500);
+        }
+        $keepFile = $targetDir . DIRECTORY_SEPARATOR . '.gitkeep';
+        if (!file_exists($keepFile)) {
+            @file_put_contents($keepFile, '');
+        }
+    }
+
+    $baseName = strtolower(pathinfo($file['name'] ?? 'avatar', PATHINFO_FILENAME));
+    $baseName = preg_replace('/[^a-z0-9]+/i', '-', $baseName);
+    $baseName = trim($baseName, '-');
+    if ($baseName === '') {
+        $baseName = 'avatar';
+    }
+    $fileName = 'avatar-' . (int)$user['id'] . '-' . $baseName . '-' . date('YmdHis') . '.' . $extension;
+    $adminTarget = $targets[0] . DIRECTORY_SEPARATOR . $fileName;
+    $frontendTarget = $targets[1] . DIRECTORY_SEPARATOR . $fileName;
+
+    if (!move_uploaded_file($file['tmp_name'], $adminTarget)) {
+        jsonResponse(['success' => false, 'message' => 'Không thể lưu ảnh đại diện'], 500);
+    }
+
+    if (!@copy($adminTarget, $frontendTarget)) {
+        @unlink($adminTarget);
+        jsonResponse(['success' => false, 'message' => 'Không thể đồng bộ ảnh đại diện'], 500);
+    }
+
+    $avatarUrl = '/' . str_replace('\\', '/', $relativeDir . '/' . $fileName);
+    updateRow('users', $user['id'], ['avatar_url' => $avatarUrl]);
+    $updated = queryOne("SELECT id, ugid, email, first_name, last_name, phone, role, avatar_url FROM users WHERE id = ?", [$user['id']]);
+
+    jsonResponse([
+        'success' => true,
+        'message' => 'Đã tải ảnh đại diện',
+        'data' => [
+            'image_url' => $avatarUrl,
+            'user' => $updated,
+        ],
+    ]);
+}
+
 function changePassword() {
     $user = requireUser();
     $input = requestJson();

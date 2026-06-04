@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { FiChevronLeft, FiChevronRight } from 'react-icons/fi'
 import PaginationNumbers from '../../../components/common/PaginationNumbers'
-import { formatPrice } from '../utils/productHelpers'
+import { formatPrice, isSlowMovingProduct } from '../utils/productHelpers'
 import ProductActions from './ProductActions'
 
 const ProductImageCell = ({ product }) => {
@@ -76,6 +76,7 @@ const ProductTable = ({
   totalItems,
   onEdit,
   onDelete,
+  canManage = true,
 }) => (
   <div className="card">
     <div className="table-wrapper">
@@ -136,11 +137,12 @@ const ProductTable = ({
                   </span>
                   {Boolean(product.is_featured) && <span className="badge badge-info">Nổi bật</span>}
                   {Number(product.sales_count) > 0 && <span className="badge badge-warning">Bán chạy</span>}
+                  {isSlowMovingProduct(product) && <span className="badge badge-danger">Tồn lâu</span>}
                 </div>
               </td>
-              <td>
+              {canManage && <td>
                 <ProductActions product={product} onEdit={onEdit} onDelete={onDelete} />
-              </td>
+              </td>}
             </tr>
           ))}
         </tbody>

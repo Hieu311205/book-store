@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { adminService } from '../../../services/admin.service'
-import { LIMIT, emptyForm, normalizeCategoryPayload } from '../utils/categoryHelpers'
+import { LIMIT, emptyForm, flattenCategoryTree, getValidParentOptions, normalizeCategoryPayload } from '../utils/categoryHelpers'
 
 export const useAdminCategories = () => {
   const queryClient = useQueryClient()
@@ -119,7 +119,8 @@ export const useAdminCategories = () => {
     setIsFormOpen(true)
   }
 
-  const categories = data?.categories || []
+  const rawCategories = data?.categories || []
+  const categories = hasFilters ? rawCategories : flattenCategoryTree(allCategories)
 
   return {
     form,
@@ -127,7 +128,7 @@ export const useAdminCategories = () => {
     editingId,
     isFormOpen,
     allCategories,
-    parentOptions: allCategories.filter((item) => Number(item.id) !== Number(editingId)),
+    parentOptions: getValidParentOptions(allCategories, editingId),
     filters: { search, status, parentFilter, sort },
     setters: { setSearch, setStatus, setParentFilter, setSort, setPage },
     showAdvanced,
@@ -147,7 +148,7 @@ export const useAdminCategories = () => {
     isDeleting: deleteMutation.isPending,
     isSubmitting: createMutation.isPending || updateMutation.isPending,
     categories,
-    totalPages: data?.pagination?.totalPages || 1,
-    totalItems: data?.pagination?.totalItems ?? categories.length,
+    totalPages: hasFilters ? (data?.pagination?.totalPages || 1) : 1,
+    totalItems: hasFilters ? (data?.pagination?.totalItems ?? categories.length) : categories.length,
   }
 }

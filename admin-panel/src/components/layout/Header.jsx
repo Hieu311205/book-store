@@ -1,9 +1,16 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { FiBell, FiUser, FiSun, FiMoon } from 'react-icons/fi'
+import { FiBell, FiMoon, FiSun, FiUser } from 'react-icons/fi'
 import { useAuth } from '../../context/AuthContext'
 import { adminService } from '../../services/admin.service'
+
+const roleLabels = {
+  super_admin: 'Quản trị cấp cao',
+  admin: 'Quản trị viên',
+  warehouse_staff: 'Nhân viên kho',
+  content_editor: 'Biên tập viên nội dung',
+}
 
 const Header = ({ theme, toggleTheme }) => {
   const { user } = useAuth()
@@ -71,7 +78,7 @@ const Header = ({ theme, toggleTheme }) => {
           </div>
           <div className="text-sm">
             <p className="font-medium">{user?.first_name} {user?.last_name}</p>
-            <p className="text-gray-500 text-xs">{user?.role === 'super_admin' ? 'Quản trị cấp cao' : 'Quản trị viên'}</p>
+            <p className="text-gray-500 text-xs">{roleLabels[user?.role] || 'Quản trị viên'}</p>
           </div>
         </div>
       </div>
