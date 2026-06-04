@@ -3,6 +3,7 @@ import {
   FiHome,
   FiPackage,
   FiFolder,
+  FiGift,
   FiShoppingCart,
   FiCreditCard,
   FiActivity,
@@ -23,6 +24,7 @@ const menuItems = [
   { to: '/wallets', icon: FiCreditCard, label: 'Ví điện tử' },
   { to: '/payments', icon: FiActivity, label: 'Thanh toán' },
   { to: '/users', icon: FiUsers, label: 'Người dùng', superOnly: true },
+  { to: '/combos', icon: FiGift, label: 'Combo khuyến mãi' },
   { to: '/coupons', icon: FiTag, label: 'Mã giảm giá', superOnly: true },
   { to: '/settings', icon: FiSettings, label: 'Cài đặt', superOnly: true },
 ]

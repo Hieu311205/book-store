@@ -79,6 +79,13 @@ export const adminService = {
   updateSlider: (id, data) => api.put(`/admin/sliders/${id}`, data),
   deleteSlider: (id) => api.delete(`/admin/sliders/${id}`),
 
+  // Combos
+  getCombos: () => api.get('/admin/combos'),
+  getCombo: (id) => api.get(`/admin/combos/${id}`),
+  createCombo: (data) => api.post('/admin/combos', data),
+  updateCombo: (id, data) => api.put(`/admin/combos/${id}`, data),
+  deleteCombo: (id) => api.delete(`/admin/combos/${id}`),
+
   // Settings
   getSettings: () => api.get('/admin/settings'),
   createSetting: (data) => api.post('/admin/settings', data),

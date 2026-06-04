@@ -8,6 +8,7 @@ import Orders from './pages/Orders'
 import Wallets from './pages/Wallets'
 import Payments from './pages/Payments'
 import Users from './pages/Users'
+import Combos from './pages/Combos'
 import Coupons from './pages/Coupons'
 import Settings from './pages/Settings'
 import ContactMessages from './pages/ContactMessages'
@@ -40,6 +41,7 @@ const App = () => {
         <Route path="wallets" element={<Wallets />} />
         <Route path="payments" element={<Payments />} />
         <Route path="users" element={<SuperAdminRoute><Users /></SuperAdminRoute>} />
+        <Route path="combos" element={<Combos />} />
         <Route path="coupons" element={<SuperAdminRoute><Coupons /></SuperAdminRoute>} />
         <Route path="settings" element={<SuperAdminRoute><Settings /></SuperAdminRoute>} />
         <Route path="contact-messages" element={<SuperAdminRoute><ContactMessages /></SuperAdminRoute>} />

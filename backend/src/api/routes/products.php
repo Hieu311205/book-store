@@ -66,10 +66,10 @@ function suggestProducts() {
          LEFT JOIN authors a  ON p.author_id = a.id
          LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
          WHERE p.is_active = 1
-           AND (p.title LIKE ? OR p.title_en LIKE ? OR a.name LIKE ?)
+           AND (p.title LIKE ? OR p.title_en LIKE ? OR a.name LIKE ? OR p.isbn = ?)
          ORDER BY p.sales_count DESC, p.is_featured DESC
          LIMIT 8",
-        [$like, $like, $like]
+        [$like, $like, $like, $q]
     );
 
     jsonResponse(['success' => true, 'data' => $items]);
@@ -137,9 +137,9 @@ function listProducts($forced = [], $simple = false) {
     }
     if (!empty($filters['search'])) {
         // Tìm full-text trên tiêu đề tiếng Việt, tiếng Anh và tên tác giả
-        $where[]  = '(p.title LIKE ? OR p.title_en LIKE ? OR a.name LIKE ?)';
+        $where[]  = '(p.title LIKE ? OR p.title_en LIKE ? OR a.name LIKE ? OR p.isbn = ?)';
         $term     = '%' . $filters['search'] . '%';
-        array_push($params, $term, $term, $term);
+        array_push($params, $term, $term, $term, $filters['search']);
     }
 
     // ── Thứ tự sắp xếp ───────────────────────────────────────────────────────
@@ -217,6 +217,50 @@ function getProduct($field, $value) {
         ? queryAll("SELECT * FROM product_preview_images WHERE product_id = ? ORDER BY sort_order, id", [$product['id']])
         : [];
     $product['tags']   = array_column(queryAll("SELECT tag FROM product_tags WHERE product_id = ?", [$product['id']]), 'tag');
+
+    // Gắn thông tin combo chứa sản phẩm này
+    $product['combos'] = tableExists('combos') && tableExists('combo_items')
+        ? queryAll(
+            "SELECT c.id, c.name, c.description, c.discount_type, c.discount_value,
+                    GROUP_CONCAT(ci.product_id ORDER BY ci.id SEPARATOR ',')  AS product_ids,
+                    GROUP_CONCAT(p.title       ORDER BY ci.id SEPARATOR '||') AS product_titles,
+                    GROUP_CONCAT(
+                        (SELECT image_url FROM product_images WHERE product_id=p.id AND is_primary=1 LIMIT 1)
+                        ORDER BY ci.id SEPARATOR '||'
+                    ) AS product_images,
+                    GROUP_CONCAT(p.price ORDER BY ci.id SEPARATOR ',') AS product_prices,
+                    GROUP_CONCAT(p.slug  ORDER BY ci.id SEPARATOR '||') AS product_slugs
+             FROM combos c
+             JOIN combo_items ci  ON ci.combo_id  = c.id
+             JOIN combo_items ci2 ON ci2.combo_id = c.id AND ci2.product_id = ?
+             JOIN products p      ON p.id = ci.product_id
+             WHERE c.is_active = 1
+             GROUP BY c.id",
+            [$product['id']]
+          )
+        : [];
+
+    // Parse comma-separated strings thành arrays
+    foreach ($product['combos'] as &$combo) {
+        $ids    = explode(',', $combo['product_ids'] ?? '');
+        $titles = explode('||', $combo['product_titles'] ?? '');
+        $imgs   = explode('||', $combo['product_images'] ?? '');
+        $prices = explode(',', $combo['product_prices'] ?? '');
+        $slugs  = explode('||', $combo['product_slugs'] ?? '');
+        $combo['products'] = [];
+        foreach ($ids as $i => $pid) {
+            if ($pid) $combo['products'][] = [
+                'id'        => (int)$pid,
+                'title'     => $titles[$i] ?? '',
+                'image_url' => $imgs[$i] ?? null,
+                'price'     => (float)($prices[$i] ?? 0),
+                'slug'      => $slugs[$i] ?? '',
+            ];
+        }
+        unset($combo['product_ids'], $combo['product_titles'], $combo['product_images'],
+              $combo['product_prices'], $combo['product_slugs']);
+    }
+    unset($combo);
 
     jsonResponse(['success' => true, 'data' => $product]);
 }

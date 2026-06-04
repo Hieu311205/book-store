@@ -36,6 +36,8 @@ function handleAdmin($method, $pathParts) {
     } elseif ($section === 'contact-messages') {
         requireSuperAdmin($user);
         handleContactMessages($method, $pathParts);
+    } elseif ($section === 'combos') {
+        handleAdminCombos($method, $pathParts);
     } else {
         jsonResponse(['success' => false, 'message' => 'Khong tim thay thao tac'], 404);
     }
@@ -565,16 +567,26 @@ function handleAdminProducts($method, $pathParts) {
     }
 
     if ($method === 'PUT' && (($pathParts[3] ?? '') === 'stock')) {
-        updateRow('products', $id, ['stock' => (int)(requestJson()['stock'] ?? 0), 'updated_at' => date('Y-m-d H:i:s')]);
+        $oldStock = (int)(queryOne("SELECT stock FROM products WHERE id = ?", [$id])['stock'] ?? 0);
+        $newStock = (int)(requestJson()['stock'] ?? 0);
+        updateRow('products', $id, ['stock' => $newStock, 'updated_at' => date('Y-m-d H:i:s')]);
+        if ($oldStock === 0 && $newStock > 0) {
+            sendBackInStockNotifications((int)$id);
+        }
         jsonResponse(['success' => true, 'message' => 'Da cap nhat ton kho']);
     }
 
     if ($method === 'PUT') {
         $input = requestJson();
-        $allowed = ['category_id', 'author_id', 'publisher_id', 'title', 'title_en', 'description', 'short_description', 'isbn', 'pages', 'publish_year', 'language', 'translator', 'edition', 'format', 'price', 'compare_price', 'discount_percent', 'stock', 'sku', 'weight', 'meta_title', 'meta_description', 'is_active', 'is_featured', 'is_bestseller'];
+        $oldStock = (int)(queryOne("SELECT stock FROM products WHERE id = ?", [$id])['stock'] ?? -1);
+        $allowed = ['category_id', 'author_id', 'publisher_id', 'title', 'title_en', 'description', 'short_description', 'isbn', 'pages', 'publish_year', 'language', 'translator', 'edition', 'format', 'price', 'compare_price', 'discount_percent', 'stock', 'sku', 'weight', 'preview_url', 'meta_title', 'meta_description', 'is_active', 'is_featured', 'is_bestseller'];
         $data = cleanProductData(filterInput($input, $allowed));
         $data['updated_at'] = date('Y-m-d H:i:s');
         updateRow('products', $id, $data);
+        $newStock = array_key_exists('stock', $data) ? (int)$data['stock'] : $oldStock;
+        if ($oldStock === 0 && $newStock > 0) {
+            sendBackInStockNotifications((int)$id);
+        }
         $productForFolder = queryOne("SELECT slug FROM products WHERE id = ?", [$id]);
         if ($productForFolder) {
             createProductPreviewFolders($productForFolder['slug'], $id);
@@ -1881,6 +1893,131 @@ function guid() {
         mt_rand(0, 0x0fff) | 0x4000,
         mt_rand(0, 0x3fff) | 0x8000,
         mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
+    );
+}
+
+// ── Admin: Quản lý Combo khuyến mãi ──────────────────────────────────────────
+function handleAdminCombos($method, $pathParts) {
+    $id = isset($pathParts[2]) ? (int)$pathParts[2] : null;
+
+    if ($method === 'GET' && !$id) {
+        $combos = queryAll(
+            "SELECT c.*,
+                    GROUP_CONCAT(ci.product_id ORDER BY ci.id SEPARATOR ',') AS product_ids,
+                    GROUP_CONCAT(p.title ORDER BY ci.id SEPARATOR '||') AS product_titles
+             FROM combos c
+             LEFT JOIN combo_items ci ON ci.combo_id = c.id
+             LEFT JOIN products    p  ON p.id = ci.product_id
+             GROUP BY c.id
+             ORDER BY c.created_at DESC"
+        );
+        foreach ($combos as &$c) {
+            $c['product_ids']    = $c['product_ids'] ? array_map('intval', explode(',', $c['product_ids'])) : [];
+            $c['product_titles'] = $c['product_titles'] ? explode('||', $c['product_titles']) : [];
+        }
+        jsonResponse(['success' => true, 'data' => $combos]);
+    }
+
+    if ($method === 'GET' && $id) {
+        $c = queryOne("SELECT * FROM combos WHERE id = ?", [$id]);
+        if (!$c) jsonResponse(['success' => false, 'message' => 'Không tìm thấy combo'], 404);
+        $c['products'] = queryAll(
+            "SELECT p.id, p.title, p.price, p.slug,
+                    (SELECT image_url FROM product_images WHERE product_id=p.id AND is_primary=1 LIMIT 1) AS image_url
+             FROM combo_items ci JOIN products p ON p.id = ci.product_id
+             WHERE ci.combo_id = ? ORDER BY ci.id",
+            [$id]
+        );
+        jsonResponse(['success' => true, 'data' => $c]);
+    }
+
+    if ($method === 'POST') {
+        $input = requestJson();
+        if (empty($input['name'])) jsonResponse(['success' => false, 'message' => 'Thiếu tên combo'], 400);
+        $comboId = insertRow('combos', [
+            'name'           => $input['name'],
+            'description'    => $input['description'] ?? null,
+            'discount_type'  => in_array($input['discount_type'] ?? '', ['percentage','fixed']) ? $input['discount_type'] : 'percentage',
+            'discount_value' => max(0, (float)($input['discount_value'] ?? 0)),
+            'is_active'      => isset($input['is_active']) ? (int)(bool)$input['is_active'] : 1,
+        ]);
+        foreach ((array)($input['product_ids'] ?? []) as $pid) {
+            $pid = (int)$pid;
+            if ($pid > 0) {
+                executeSql("INSERT IGNORE INTO combo_items (combo_id, product_id) VALUES (?,?)", [$comboId, $pid]);
+            }
+        }
+        jsonResponse(['success' => true, 'message' => 'Đã tạo combo', 'data' => ['id' => $comboId]], 201);
+    }
+
+    if ($method === 'PUT' && $id) {
+        $input = requestJson();
+        $data = array_filter([
+            'name'           => $input['name'] ?? null,
+            'description'    => $input['description'] ?? null,
+            'discount_type'  => in_array($input['discount_type'] ?? '', ['percentage','fixed']) ? $input['discount_type'] : null,
+            'discount_value' => isset($input['discount_value']) ? max(0, (float)$input['discount_value']) : null,
+            'is_active'      => isset($input['is_active']) ? (int)(bool)$input['is_active'] : null,
+        ], fn($v) => $v !== null);
+        if ($data) updateRow('combos', $id, $data);
+        if (array_key_exists('product_ids', $input)) {
+            executeSql("DELETE FROM combo_items WHERE combo_id = ?", [$id]);
+            foreach ((array)$input['product_ids'] as $pid) {
+                $pid = (int)$pid;
+                if ($pid > 0) executeSql("INSERT IGNORE INTO combo_items (combo_id, product_id) VALUES (?,?)", [$id, $pid]);
+            }
+        }
+        jsonResponse(['success' => true, 'message' => 'Đã cập nhật combo']);
+    }
+
+    if ($method === 'DELETE' && $id) {
+        executeSql("DELETE FROM combos WHERE id = ?", [$id]);
+        jsonResponse(['success' => true, 'message' => 'Đã xóa combo']);
+    }
+
+    jsonResponse(['success' => false, 'message' => 'Không tìm thấy thao tác'], 404);
+}
+
+// ── Gửi email thông báo có hàng cho user đã đăng ký trong wishlist ────────────
+function sendBackInStockNotifications(int $productId): void {
+    if (!tableExists('wishlist')) return;
+
+    $product = queryOne("SELECT title FROM products WHERE id = ?", [$productId]);
+    if (!$product) return;
+
+    $subscribers = queryAll(
+        "SELECT u.email, u.first_name, u.last_name
+         FROM wishlist w
+         JOIN users u ON w.user_id = u.id
+         WHERE w.product_id = ? AND w.notify_when_available = 1",
+        [$productId]
+    );
+    if (!$subscribers) return;
+
+    require_once __DIR__ . '/../../lib/GmailSmtp.php';
+    $mailUser = getenv('MAIL_USER');
+    $mailPass = str_replace(' ', '', getenv('MAIL_PASS') ?: '');
+    if (!$mailUser || !$mailPass || $mailUser === 'your-gmail@gmail.com') return;
+
+    foreach ($subscribers as $user) {
+        $name = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: $user['email'];
+        $subject = '[Book Store] "' . $product['title'] . '" đã có hàng trở lại!';
+        $body = "Xin chào {$name},\r\n\r\n"
+              . "Sách bạn quan tâm vừa được bổ sung kho:\r\n\r\n"
+              . "    {$product['title']}\r\n\r\n"
+              . "Hãy nhanh tay đặt hàng trước khi hết!\r\n\r\n"
+              . "Trân trọng,\r\nBook Store";
+        try {
+            (new GmailSmtp($mailUser, $mailPass))->send($user['email'], $name, $subject, $body);
+        } catch (\Throwable $e) {
+            error_log("[BackInStock] Failed to notify {$user['email']}: " . $e->getMessage());
+        }
+    }
+
+    // Tắt notify sau khi đã gửi để không gửi lại lần nhập hàng tiếp theo
+    executeSql(
+        "UPDATE wishlist SET notify_when_available = 0 WHERE product_id = ? AND notify_when_available = 1",
+        [$productId]
     );
 }
 ?>

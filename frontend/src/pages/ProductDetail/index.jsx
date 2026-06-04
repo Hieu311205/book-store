@@ -430,6 +430,35 @@ const ProductDetail = () => {
             </div>
           </article>
 
+          {product.combos?.length > 0 && (
+            <article className="store-detail-card">
+              <h2>Mua theo bộ — Tiết kiệm hơn!</h2>
+              {product.combos.map((combo) => {
+                const discountLabel = combo.discount_type === 'percentage'
+                  ? `Giảm ${combo.discount_value}%`
+                  : `Giảm ${new Intl.NumberFormat('vi-VN').format(combo.discount_value)}đ`
+                return (
+                  <div key={combo.id} className="store-detail-combo-box">
+                    <div className="store-detail-combo-header">
+                      <strong>{combo.name}</strong>
+                      <span className="store-detail-combo-badge">{discountLabel} khi mua cả bộ</span>
+                    </div>
+                    {combo.description && <p className="store-detail-combo-desc">{combo.description}</p>}
+                    <div className="store-detail-combo-products">
+                      {combo.products.map((p) => (
+                        <Link key={p.id} to={`/product/${p.slug}`} className="store-detail-combo-item">
+                          <img src={p.image_url || '/images/placeholder-book.jpg'} alt={p.title} />
+                          <span className="store-detail-combo-item-title">{p.title}</span>
+                          <span className="store-detail-combo-item-price">{new Intl.NumberFormat('vi-VN').format(p.price)}đ</span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </article>
+          )}
+
           <article className="store-detail-card store-detail-description-card">
             <h2>Mô tả sản phẩm</h2>
             <h3>{product.title}</h3>
