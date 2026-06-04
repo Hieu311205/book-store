@@ -87,7 +87,8 @@ function handleWishlist($method, $pathParts, $user) {
 
     if ($method === 'GET') {
         $items = queryAll(
-            "SELECT w.*, p.title, p.slug, p.price, p.compare_price,
+            "SELECT w.id, w.product_id, w.notify_when_available,
+                    p.title, p.slug, p.price, p.compare_price, p.stock,
                     (SELECT image_url FROM product_images WHERE product_id = p.id AND is_primary = 1 ORDER BY sort_order LIMIT 1) AS image_url
              FROM wishlist w LEFT JOIN products p ON w.product_id = p.id
              WHERE w.user_id = ?
@@ -98,11 +99,24 @@ function handleWishlist($method, $pathParts, $user) {
     }
 
     if ($method === 'POST' && $action === 'add' && $productId) {
-        // Kiểm tra trước khi insert — tránh duplicate key error
         if (!queryOne("SELECT id FROM wishlist WHERE user_id = ? AND product_id = ?", [$user['id'], $productId])) {
             insertRow('wishlist', ['user_id' => $user['id'], 'product_id' => $productId]);
         }
         jsonResponse(['success' => true, 'message' => 'Đã thêm vào yêu thích']);
+    }
+
+    if ($method === 'PUT' && $action === 'notify' && $productId) {
+        $row = queryOne("SELECT id, notify_when_available FROM wishlist WHERE user_id = ? AND product_id = ?", [$user['id'], $productId]);
+        if (!$row) {
+            jsonResponse(['success' => false, 'message' => 'Sách chưa có trong danh sách yêu thích'], 404);
+        }
+        $newVal = $row['notify_when_available'] ? 0 : 1;
+        executeSql("UPDATE wishlist SET notify_when_available = ? WHERE id = ?", [$newVal, $row['id']]);
+        jsonResponse([
+            'success' => true,
+            'message' => $newVal ? 'Sẽ thông báo khi có hàng' : 'Đã tắt thông báo',
+            'notify_when_available' => (bool)$newVal,
+        ]);
     }
 
     if ($method === 'DELETE' && $action === 'remove' && $productId) {

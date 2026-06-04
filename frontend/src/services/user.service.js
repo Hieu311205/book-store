@@ -12,6 +12,7 @@ export const userService = {
   getWishlist: () => api.get('/users/wishlist'),
   addToWishlist: (productId) => api.post(`/users/wishlist/add/${productId}`),
   removeFromWishlist: (productId) => api.delete(`/users/wishlist/remove/${productId}`),
+  toggleWishlistNotify: (productId) => api.put(`/users/wishlist/notify/${productId}`),
 
   // Wallet
   getWallet: (params) => api.get('/wallet', { params }),

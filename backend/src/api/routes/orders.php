@@ -187,6 +187,29 @@ function createOrder($user) {
         }
     }
 
+    // ── Combo discount: kiểm tra xem giỏ hàng có đủ sản phẩm của combo nào không
+    $appliedCombos = [];
+    if (tableExists('combos') && tableExists('combo_items')) {
+        $cartProductIds = array_column($items, 'product_id');
+        $activeCombos = queryAll("SELECT * FROM combos WHERE is_active = 1");
+        foreach ($activeCombos as $combo) {
+            $comboProductIds = array_column(
+                queryAll("SELECT product_id FROM combo_items WHERE combo_id = ?", [$combo['id']]),
+                'product_id'
+            );
+            if (!$comboProductIds) continue;
+            // Giỏ hàng phải chứa TẤT CẢ sản phẩm trong combo
+            $missing = array_diff(array_map('intval', $comboProductIds), array_map('intval', $cartProductIds));
+            if (!$missing) {
+                $comboDiscount = $combo['discount_type'] === 'percentage'
+                    ? floor($subtotal * ((float)$combo['discount_value'] / 100))
+                    : (float)$combo['discount_value'];
+                $discount += $comboDiscount;
+                $appliedCombos[] = ['name' => $combo['name'], 'discount' => $comboDiscount];
+            }
+        }
+    }
+
     $orderData = [
         'order_number' => 'ORD-' . date('ymd') . strtoupper(substr(uniqid(), -5)),
         'user_id' => $user['id'],
@@ -306,6 +329,7 @@ function createOrder($user) {
             [$orderId]
         );
     }
+    if ($appliedCombos) $createdOrder['applied_combos'] = $appliedCombos;
     jsonResponse(['success' => true, 'message' => 'Đã tạo đơn hàng', 'data' => $createdOrder], 201);
 }
 

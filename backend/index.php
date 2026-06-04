@@ -140,6 +140,14 @@ if (strpos($requestUri, '/api/v1') === 0) {
             require_once __DIR__ . '/src/api/routes/users.php';
             handleUsers($method, $pathParts);
             break;
+        case 'authors':
+            require_once __DIR__ . '/src/api/routes/authors.php';
+            handleAuthors($method, $pathParts);
+            break;
+        case 'publishers':
+            require_once __DIR__ . '/src/api/routes/publishers.php';
+            handlePublishers($method, $pathParts);
+            break;
         case 'admin':
             require_once __DIR__ . '/src/api/routes/admin.php';
             handleAdmin($method, $pathParts);
