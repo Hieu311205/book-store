@@ -33,10 +33,26 @@ const CategoryTable = ({
           ) : categories.length ? categories.map((item) => (
             <tr key={item.id}>
               <td>
-                <div className="font-medium">{item.name}</div>
-                {item.name_en && <div className="text-xs text-gray-500">{item.name_en}</div>}
+                <div className="flex items-center gap-1">
+                  {item.parent_name && <span className="text-gray-300 dark:text-gray-600 text-xs select-none">{'──'.repeat(item._depth || (item.parent_name ? 1 : 0))}</span>}
+                  <div>
+                    <div className="font-medium">{item.name}</div>
+                    {item.name_en && <div className="text-xs text-gray-500">{item.name_en}</div>}
+                    {item.parent_name && (
+                      <div className="text-xs text-blue-500 mt-0.5">
+                        {item.grandparent_name ? `${item.grandparent_name} › ` : ''}{item.parent_name} › <strong>{item.name}</strong>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </td>
-              <td>{item.parent_name || '-'}</td>
+              <td>
+                {item.parent_name ? (
+                  <span className="badge badge-blue text-xs">{item.parent_name}</span>
+                ) : (
+                  <span className="text-xs text-gray-400">Cấp 1</span>
+                )}
+              </td>
               <td>{item.sort_order}</td>
               <td>{item.product_count || 0}</td>
               <td>

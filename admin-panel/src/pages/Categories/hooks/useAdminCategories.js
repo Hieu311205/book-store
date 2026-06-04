@@ -127,7 +127,24 @@ export const useAdminCategories = () => {
     editingId,
     isFormOpen,
     allCategories,
-    parentOptions: allCategories.filter((item) => Number(item.id) !== Number(editingId)),
+    parentOptions: (() => {
+      // Xây dựng parent options có thông tin depth để hiển thị cấp bậc
+      const map = {}
+      allCategories.forEach(c => { map[c.id] = c })
+      const getDepth = (id, visited = new Set()) => {
+        if (!id || !map[id] || visited.has(id)) return 0
+        visited.add(id)
+        return 1 + getDepth(map[id].parent_id, visited)
+      }
+      return allCategories
+        .filter(item => Number(item.id) !== Number(editingId))
+        .map(item => ({ ...item, _depth: getDepth(item.parent_id) }))
+        .sort((a, b) => {
+          // Sort: root first, then by depth, then by name
+          if (a._depth !== b._depth) return a._depth - b._depth
+          return a.name.localeCompare(b.name)
+        })
+    })(),
     filters: { search, status, parentFilter, sort },
     setters: { setSearch, setStatus, setParentFilter, setSort, setPage },
     showAdvanced,

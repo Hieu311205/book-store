@@ -7,14 +7,26 @@ import { useAuth } from '../../context/AuthContext'
 import PaginationNumbers from '../../components/common/PaginationNumbers'
 
 const roleLabels = {
-  super_admin: 'Super admin',
-  admin: 'Admin',
-  customer: 'Khách hàng',
+  super_admin:     'Super admin',
+  admin:           'Admin',
+  warehouse_staff: 'Nhân viên kho',
+  content_editor:  'Biên tập viên',
+  customer:        'Khách hàng',
+}
+
+const roleColors = {
+  super_admin:     'bg-red-100 text-red-700',
+  admin:           'bg-purple-100 text-purple-700',
+  warehouse_staff: 'bg-yellow-100 text-yellow-700',
+  content_editor:  'bg-blue-100 text-blue-700',
+  customer:        'bg-gray-100 text-gray-600',
 }
 
 const roleOptions = [
   { value: '', label: 'Tất cả vai trò' },
   { value: 'customer', label: 'Khách hàng' },
+  { value: 'warehouse_staff', label: 'Nhân viên kho' },
+  { value: 'content_editor', label: 'Biên tập viên' },
   { value: 'admin', label: 'Admin' },
   { value: 'super_admin', label: 'Super admin' },
 ]
@@ -248,10 +260,12 @@ const Users = () => {
                         className="text-sm border rounded px-2 py-1 bg-transparent disabled:opacity-60"
                       >
                         <option value="customer">Khách hàng</option>
+                        <option value="warehouse_staff">Nhân viên kho</option>
+                        <option value="content_editor">Biên tập viên</option>
                         <option value="admin">Admin</option>
                         <option value="super_admin">Super admin</option>
                       </select>
-                      <p className="text-xs text-gray-500 mt-1">{roleLabels[user.role]}</p>
+                      <span className={`text-xs px-2 py-0.5 rounded-full mt-1 inline-block ${roleColors[user.role] || 'bg-gray-100 text-gray-600'}`}>{roleLabels[user.role] || user.role}</span>
                     </td>
                     <td>
                       <span className={`badge ${user.is_active ? 'badge-success' : 'badge-danger'}`}>

@@ -582,7 +582,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `last_name` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `phone` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `avatar_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `role` enum('customer','admin','super_admin') COLLATE utf8mb4_unicode_ci DEFAULT 'customer',
+  `role` enum('customer','admin','super_admin','warehouse_staff','content_editor') COLLATE utf8mb4_unicode_ci DEFAULT 'customer',
   `is_active` tinyint(1) DEFAULT '1',
   `email_verified` tinyint(1) DEFAULT '0',
   `google_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,

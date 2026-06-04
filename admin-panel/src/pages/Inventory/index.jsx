@@ -100,15 +100,16 @@ const Inventory = () => {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [lowOnly, setLowOnly] = useState(false)
+  const [slowMovingOnly, setSlowMovingOnly] = useState(false)
   const [page, setPage] = useState(1)
   const [editedStock, setEditedStock] = useState({}) // { productId: newStock }
   const [showImport, setShowImport] = useState(false)
 
-  const queryKey = ['admin-inventory', search, lowOnly, page]
+  const queryKey = ['admin-inventory', search, lowOnly, slowMovingOnly, page]
 
   const { data, isLoading } = useQuery({
     queryKey,
-    queryFn: () => adminService.getInventory({ search, low_stock: lowOnly ? 1 : undefined, page, limit: 50 }),
+    queryFn: () => adminService.getInventory({ search, low_stock: lowOnly ? 1 : undefined, slow_moving: slowMovingOnly ? 1 : undefined, page, limit: 50 }),
     select: res => res.data,
   })
 
@@ -164,9 +165,14 @@ const Inventory = () => {
             onChange={e => { setSearch(e.target.value); setPage(1) }} />
         </div>
         <label className="flex items-center gap-2 cursor-pointer text-sm">
-          <input type="checkbox" checked={lowOnly} onChange={e => { setLowOnly(e.target.checked); setPage(1) }} className="w-4 h-4" />
+          <input type="checkbox" checked={lowOnly} onChange={e => { setLowOnly(e.target.checked); setSlowMovingOnly(false); setPage(1) }} className="w-4 h-4" />
           <FiAlertCircle size={14} className="text-red-500" />
-          Chỉ sắp hết hàng (&lt;10)
+          Sắp hết hàng (&lt;10)
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer text-sm">
+          <input type="checkbox" checked={slowMovingOnly} onChange={e => { setSlowMovingOnly(e.target.checked); setLowOnly(false); setPage(1) }} className="w-4 h-4" />
+          <FiAlertCircle size={14} className="text-yellow-500" />
+          Tồn lâu không bán (&gt;90 ngày)
         </label>
         {changedCount > 0 && (
           <button onClick={() => setEditedStock({})} className="btn btn-outline btn-sm flex items-center gap-1 text-gray-500">

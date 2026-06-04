@@ -37,9 +37,18 @@ const CategoryFormModal = ({
               <label className="space-y-1">
                 <span className="text-sm font-medium">Danh mục cha</span>
                 <select className="input" value={form.parent_id} onChange={(e) => setForm({ ...form, parent_id: e.target.value })}>
-                  <option value="">Không có danh mục cha</option>
-                  {parentOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  <option value="">Không có (cấp 1 — gốc)</option>
+                  {parentOptions.map((item) => {
+                    const depth = item._depth || 0
+                    const indent = '──'.repeat(depth) + (depth > 0 ? ' ' : '')
+                    return (
+                      <option key={item.id} value={item.id}>
+                        {indent}{item.name} {item._depth ? `(cấp ${item._depth + 1})` : '(cấp 1)'}
+                      </option>
+                    )
+                  })}
                 </select>
+                <p className="text-xs text-gray-400 mt-1">Chọn danh mục cha để tạo phân loại sâu hơn (tối đa 3 cấp khuyến nghị)</p>
               </label>
               <label className="space-y-1">
                 <span className="text-sm font-medium">Trạng thái</span>

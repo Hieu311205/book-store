@@ -7,12 +7,25 @@ function handleAdmin($method, $pathParts) {
     if ($section === 'dashboard') {
         handleAdminDashboard($method, $pathParts);
     } elseif ($section === 'products') {
+        requireContentOrAdmin($user);
         handleAdminProducts($method, $pathParts);
     } elseif ($section === 'categories') {
+        requireContentOrAdmin($user);
         handleAdminCategories($method, $pathParts);
+    } elseif ($section === 'authors') {
+        requireContentOrAdmin($user);
+        handleAdminAuthors($method, $pathParts);
+    } elseif ($section === 'publishers') {
+        requireContentOrAdmin($user);
+        handleAdminPublishers($method, $pathParts);
+    } elseif ($section === 'inventory') {
+        requireWarehouseOrAdmin($user);
+        handleAdminInventory($method, $pathParts, $user);
     } elseif ($section === 'orders') {
+        requireWarehouseOrAdmin($user);
         handleAdminOrders($method, $pathParts);
     } elseif ($section === 'return-requests') {
+        requireWarehouseOrAdmin($user);
         handleAdminReturnRequests($method, $pathParts, $user);
     } elseif ($section === 'wallets') {
         handleAdminWallets($method, $pathParts, $user);
@@ -24,6 +37,9 @@ function handleAdmin($method, $pathParts) {
     } elseif ($section === 'coupons') {
         requireSuperAdmin($user);
         handleAdminCoupons($method, $pathParts);
+    } elseif ($section === 'combos') {
+        requireContentOrAdmin($user);
+        handleAdminCombos($method, $pathParts);
     } elseif ($section === 'sliders') {
         requireSuperAdmin($user);
         handleSimpleResource($method, $pathParts, 'sliders', ['title', 'subtitle', 'image_url', 'link', 'button_text', 'sort_order', 'is_active', 'start_date', 'end_date']);
@@ -31,26 +47,19 @@ function handleAdmin($method, $pathParts) {
         requireSuperAdmin($user);
         handleSettings($method, $pathParts);
     } elseif ($section === 'reviews') {
+        requireContentOrAdmin($user);
         require_once __DIR__ . '/reviews.php';
         handleAdminReviews($method, $pathParts);
     } elseif ($section === 'contact-messages') {
         requireSuperAdmin($user);
         handleContactMessages($method, $pathParts);
-    } elseif ($section === 'combos') {
-        handleAdminCombos($method, $pathParts);
-    } elseif ($section === 'authors') {
-        handleAdminAuthors($method, $pathParts);
-    } elseif ($section === 'publishers') {
-        handleAdminPublishers($method, $pathParts);
-    } elseif ($section === 'inventory') {
-        handleAdminInventory($method, $pathParts, $user);
     } else {
         jsonResponse(['success' => false, 'message' => 'Khong tim thay thao tac'], 404);
     }
 }
 
 function requireAdminRole($user) {
-    if (!in_array($user['role'], ['admin', 'super_admin'], true)) {
+    if (!in_array($user['role'], ['admin', 'super_admin', 'warehouse_staff', 'content_editor'], true)) {
         jsonResponse(['success' => false, 'message' => 'Ban khong co quyen truy cap'], 403);
     }
 }
@@ -58,6 +67,18 @@ function requireAdminRole($user) {
 function requireSuperAdmin($user) {
     if (($user['role'] ?? '') !== 'super_admin') {
         jsonResponse(['success' => false, 'message' => 'Chi super admin moi co quyen thuc hien thao tac nay'], 403);
+    }
+}
+
+function requireWarehouseOrAdmin($user) {
+    if (!in_array($user['role'], ['admin', 'super_admin', 'warehouse_staff'], true)) {
+        jsonResponse(['success' => false, 'message' => 'Chức năng này dành cho Nhân viên kho hoặc Admin'], 403);
+    }
+}
+
+function requireContentOrAdmin($user) {
+    if (!in_array($user['role'], ['admin', 'super_admin', 'content_editor'], true)) {
+        jsonResponse(['success' => false, 'message' => 'Chức năng này dành cho Biên tập viên hoặc Admin'], 403);
     }
 }
 
@@ -119,7 +140,13 @@ function handleAdminDashboard($method, $pathParts) {
     if ($action === 'notifications') {
         $pendingOrders = (int)(queryOne("SELECT COUNT(*) AS count FROM orders WHERE status = 'pending'")['count'] ?? 0);
         $shippedOrders = (int)(queryOne("SELECT COUNT(*) AS count FROM orders WHERE status = 'shipped'")['count'] ?? 0);
-        $lowStockProducts = (int)(queryOne("SELECT COUNT(*) AS count FROM products WHERE stock < 10")['count'] ?? 0);
+        $lowStockProducts  = (int)(queryOne("SELECT COUNT(*) AS count FROM products WHERE stock < 10 AND is_active = 1")['count'] ?? 0);
+        $slowMovingProducts = (int)(queryOne(
+            "SELECT COUNT(*) AS count FROM products
+             WHERE stock > 10 AND is_active = 1
+               AND COALESCE(sales_count, 0) = 0
+               AND DATEDIFF(NOW(), created_at) > 90"
+        )['count'] ?? 0);
         $unreadMessages = tableExists('contact_messages')
             ? (int)(queryOne("SELECT COUNT(*) AS count FROM contact_messages WHERE is_read = 0")['count'] ?? 0)
             : 0;
@@ -200,6 +227,15 @@ function handleAdminDashboard($method, $pathParts) {
                 'to' => '/products?status=low_stock',
             ];
         }
+        if ($slowMovingProducts > 0) {
+            $items[] = [
+                'id' => 'slow-moving',
+                'type' => 'products',
+                'title' => 'Sách tồn kho quá lâu',
+                'message' => "{$slowMovingProducts} sách có hàng trên 90 ngày mà chưa bán được",
+                'to' => '/inventory?slow_moving=1',
+            ];
+        }
         if ($unreadMessages > 0) {
             $items[] = [
                 'id' => 'unread-messages',
@@ -211,9 +247,80 @@ function handleAdminDashboard($method, $pathParts) {
         }
 
         jsonResponse(['success' => true, 'data' => [
-            'count' => $pendingOrders + $shippedOrders + $pendingReturns + $approvedReturns + $pendingWithdrawals + $pendingDeposits + $lowStockProducts + $unreadMessages,
+            'count' => $pendingOrders + $shippedOrders + $pendingReturns + $approvedReturns + $pendingWithdrawals + $pendingDeposits + $lowStockProducts + $slowMovingProducts + $unreadMessages,
             'items' => $items,
         ]]);
+    }
+
+    if ($action === 'slow-moving') {
+        $days    = max(30, (int)($_GET['days'] ?? 90));
+        $minQty  = max(1, (int)($_GET['min_stock'] ?? 5));
+        $limit   = min(50, (int)($_GET['limit'] ?? 20));
+        $rows = queryAll(
+            "SELECT p.id, p.title, p.stock, COALESCE(p.sales_count, 0) AS sales_count,
+                    DATEDIFF(NOW(), p.created_at) AS days_in_stock,
+                    c.name AS category_name, a.name AS author_name,
+                    (SELECT image_url FROM product_images WHERE product_id=p.id AND is_primary=1 LIMIT 1) AS image_url
+             FROM products p
+             LEFT JOIN categories c ON p.category_id = c.id
+             LEFT JOIN authors a ON p.author_id = a.id
+             WHERE p.is_active = 1
+               AND p.stock >= ?
+               AND COALESCE(p.sales_count, 0) = 0
+               AND DATEDIFF(NOW(), p.created_at) >= ?
+             ORDER BY days_in_stock DESC
+             LIMIT ?",
+            [$minQty, $days, $limit]
+        );
+        jsonResponse(['success' => true, 'data' => $rows]);
+    }
+
+    if ($action === 'sales-by-author') {
+        $limit = max(1, min(20, (int)($_GET['limit'] ?? 10)));
+        $rows = queryAll(
+            "SELECT a.id, a.name,
+                    SUM(oi.quantity)          AS total_qty,
+                    SUM(oi.total)             AS total_revenue,
+                    COUNT(DISTINCT oi.order_id) AS total_orders
+             FROM order_items oi
+             JOIN orders      o  ON oi.order_id    = o.id  AND o.payment_status = 'paid'
+             JOIN products    p  ON oi.product_id  = p.id
+             JOIN authors     a  ON p.author_id    = a.id
+             GROUP BY a.id, a.name
+             ORDER BY total_revenue DESC
+             LIMIT ?",
+            [$limit]
+        );
+        jsonResponse(['success' => true, 'data' => array_map(fn($r) => [
+            'name'          => $r['name'],
+            'total_qty'     => (int)$r['total_qty'],
+            'total_revenue' => (float)$r['total_revenue'],
+            'total_orders'  => (int)$r['total_orders'],
+        ], $rows)]);
+    }
+
+    if ($action === 'sales-by-category') {
+        $limit = max(1, min(20, (int)($_GET['limit'] ?? 10)));
+        $rows = queryAll(
+            "SELECT c.id, c.name,
+                    SUM(oi.quantity)            AS total_qty,
+                    SUM(oi.total)               AS total_revenue,
+                    COUNT(DISTINCT oi.order_id) AS total_orders
+             FROM order_items oi
+             JOIN orders     o  ON oi.order_id   = o.id  AND o.payment_status = 'paid'
+             JOIN products   p  ON oi.product_id = p.id
+             JOIN categories c  ON p.category_id = c.id
+             GROUP BY c.id, c.name
+             ORDER BY total_revenue DESC
+             LIMIT ?",
+            [$limit]
+        );
+        jsonResponse(['success' => true, 'data' => array_map(fn($r) => [
+            'name'          => $r['name'],
+            'total_qty'     => (int)$r['total_qty'],
+            'total_revenue' => (float)$r['total_revenue'],
+            'total_orders'  => (int)$r['total_orders'],
+        ], $rows)]);
     }
 
     if ($action === 'inventory') {
@@ -934,9 +1041,11 @@ function handleAdminCategories($method, $pathParts) {
 
         $selectSql = "SELECT c.*,
                              p.name AS parent_name,
+                             gp.name AS grandparent_name,
                              (SELECT COUNT(*) FROM products pr WHERE pr.category_id = c.id) AS product_count
                       FROM categories c
-                      LEFT JOIN categories p ON c.parent_id = p.id
+                      LEFT JOIN categories p  ON c.parent_id  = p.id
+                      LEFT JOIN categories gp ON p.parent_id  = gp.id
                       WHERE {$where}
                       ORDER BY {$orderBy}";
 
@@ -947,7 +1056,8 @@ function handleAdminCategories($method, $pathParts) {
         $count = (int)(queryOne(
             "SELECT COUNT(*) AS count
              FROM categories c
-             LEFT JOIN categories p ON c.parent_id = p.id
+             LEFT JOIN categories p  ON c.parent_id = p.id
+             LEFT JOIN categories gp ON p.parent_id = gp.id
              WHERE {$where}",
             $params
         )['count'] ?? 0);
@@ -1663,7 +1773,7 @@ function handleAdminUsers($method, $pathParts, $currentUser) {
 
     if ($method === 'PUT' && $id && (($pathParts[3] ?? '') === 'role')) {
         $role = requestJson()['role'] ?? 'customer';
-        if (!in_array($role, ['customer', 'admin', 'super_admin'], true)) {
+        if (!in_array($role, ['customer', 'admin', 'super_admin', 'warehouse_staff', 'content_editor'], true)) {
             jsonResponse(['success' => false, 'message' => 'Vai tro khong hop le'], 400);
         }
         updateRow('users', $id, ['role' => $role]);
@@ -2033,7 +2143,8 @@ function handleAdminInventory($method, $pathParts, $user) {
     // GET /admin/inventory — danh sách tất cả sản phẩm kèm stock để bulk edit
     if ($method === 'GET' && !$action) {
         $search  = trim($_GET['search'] ?? '');
-        $lowOnly = !empty($_GET['low_stock']);
+        $lowOnly      = !empty($_GET['low_stock']);
+        $slowMoving   = !empty($_GET['slow_moving']);
         $page    = max(1, (int)($_GET['page'] ?? 1));
         $limit   = min(200, max(1, (int)($_GET['limit'] ?? 50)));
         $offset  = ($page - 1) * $limit;
@@ -2046,6 +2157,9 @@ function handleAdminInventory($method, $pathParts, $user) {
         }
         if ($lowOnly) {
             $where[] = 'p.stock < 10';
+        }
+        if ($slowMoving) {
+            $where[] = 'p.stock >= 5 AND COALESCE(p.sales_count,0) = 0 AND DATEDIFF(NOW(), p.created_at) >= 90';
         }
         $w = implode(' AND ', $where);
         $count = (int)(queryOne("SELECT COUNT(*) AS c FROM products p WHERE {$w}", $params)['c'] ?? 0);

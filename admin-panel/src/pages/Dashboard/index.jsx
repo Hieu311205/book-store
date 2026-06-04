@@ -124,6 +124,13 @@ const Dashboard = () => {
     select: (res) => res.data,
   })
 
+  const { data: slowMoving = [] } = useQuery({
+    queryKey: ['slow-moving'],
+    queryFn: () => adminService.getSlowMoving({ days: 90, min_stock: 5, limit: 20 }),
+    select: (res) => res.data || [],
+    staleTime: 0,
+  })
+
   const { data: aiOverview, isError: aiOverviewError } = useQuery({
     queryKey: ['ai-sales-overview', 30],
     queryFn: () => aiService.getSalesOverview(30),
@@ -202,6 +209,17 @@ const Dashboard = () => {
           </div>
           <p className="text-3xl font-bold">{stats?.lowStockProducts || 0}</p>
           <p className="text-gray-500 text-sm mt-1">Sách còn dưới 10 cuốn</p>
+        </div>
+        <div className="card p-6">
+          <div className="flex items-center gap-3 text-yellow-600 mb-4">
+            <FiAlertCircle size={20} />
+            <h3 className="font-medium">Tồn kho lâu không bán</h3>
+          </div>
+          <p className="text-3xl font-bold">{slowMoving.length}</p>
+          <p className="text-gray-500 text-sm mt-1">Sách tồn &gt;90 ngày chưa bán</p>
+          {slowMoving.length > 0 && (
+            <Link to="/inventory?slow_moving=1" className="text-xs text-yellow-600 hover:underline mt-2 block">Xem danh sách →</Link>
+          )}
         </div>
       </div>
 

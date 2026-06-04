@@ -26,7 +26,8 @@ export const AuthProvider = ({ children }) => {
     const response = await adminService.login({ email, password })
     if (response.success) {
       const { user, token } = response.data
-      if (user.role !== 'admin' && user.role !== 'super_admin') {
+      const allowedRoles = ['admin', 'super_admin', 'warehouse_staff', 'content_editor']
+      if (!allowedRoles.includes(user.role)) {
         throw new Error('Bạn không có quyền truy cập')
       }
       localStorage.setItem('admin_token', token)
@@ -48,6 +49,8 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated: !!user,
     isAdmin: user?.role === 'admin' || user?.role === 'super_admin',
     isSuperAdmin: user?.role === 'super_admin',
+    isWarehouseStaff: user?.role === 'warehouse_staff',
+    isContentEditor: user?.role === 'content_editor',
     login,
     logout,
   }
