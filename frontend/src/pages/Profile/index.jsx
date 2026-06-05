@@ -6,6 +6,7 @@ import { orderService } from '../../services/order.service'
 import { userService } from '../../services/user.service'
 
 const money = (value) => new Intl.NumberFormat('vi-VN').format(value || 0)
+const userInitial = (user) => (user?.first_name || user?.email || 'A').charAt(0).toUpperCase()
 
 const Profile = () => {
   const location = useLocation()
@@ -37,11 +38,19 @@ const Profile = () => {
       <aside className="lg:col-span-1">
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6">
           <div className="text-center pb-6 border-b dark:border-gray-700">
-            <div className="w-20 h-20 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-3xl text-primary-600">
-                {user?.first_name?.charAt(0)}
-              </span>
-            </div>
+            {user?.avatar_url ? (
+              <img
+                src={user.avatar_url}
+                alt={user?.first_name || 'Avatar'}
+                className="w-20 h-20 rounded-full object-cover border border-gray-200 dark:border-gray-700 mx-auto mb-4"
+              />
+            ) : (
+              <div className="w-20 h-20 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-3xl text-primary-600">
+                  {userInitial(user)}
+                </span>
+              </div>
+            )}
             <h3 className="font-bold">{user?.first_name} {user?.last_name}</h3>
             <p className="text-sm text-gray-500">{user?.email}</p>
           </div>

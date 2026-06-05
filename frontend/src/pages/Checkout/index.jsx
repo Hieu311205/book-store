@@ -22,7 +22,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { FiCheckCircle, FiCreditCard, FiShield } from 'react-icons/fi'
+import { FiCheckCircle, FiCreditCard, FiEdit2, FiShield, FiX } from 'react-icons/fi'
 import { userService } from '../../services/user.service'
 import { orderService } from '../../services/order.service'
 import { useAuth } from '../../context/AuthContext'
@@ -75,6 +75,17 @@ const isCardExpiryValid = (value) => {
   const expiryMonth = new Date(2000 + shortYear, month - 1, 1)
   const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1)
   return expiryMonth >= currentMonth
+}
+
+const emptyAddressForm = {
+  title: '',
+  full_name: '',
+  phone: '',
+  province: '',
+  city: '',
+  postal_code: '',
+  address: '',
+  is_default: 0,
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -241,6 +252,8 @@ const Checkout = () => {
 
   // ── State form ──────────────────────────────────────────────────────────────
   const [addressId, setAddressId]           = useState('')
+  const [editingAddress, setEditingAddress] = useState(null)
+  const [addressForm, setAddressForm]       = useState(emptyAddressForm)
   const [shippingMethod, setShippingMethod] = useState('giao_hang_tiet_kiem')
   const [customerNote, setCustomerNote]     = useState('')
   const [paymentMethod, setPaymentMethod]   = useState('cod')
@@ -298,6 +311,10 @@ const Checkout = () => {
     queryFn: userService.getAddresses,
     select: (res) => res.data,
   })
+  const selectedAddress = useMemo(
+    () => addresses?.find((address) => String(address.id) === String(addressId)),
+    [addresses, addressId],
+  )
   const { data: walletData } = useQuery({
     queryKey: ['wallet'],
     queryFn: userService.getWallet,
@@ -306,6 +323,72 @@ const Checkout = () => {
   const walletBalance = Number(walletData?.wallet?.balance || 0)
   const cardIssuer = useMemo(() => detectCardIssuer(cardNumber), [cardNumber])
   const cardExpiryValid = !cardExpiry || isCardExpiryValid(cardExpiry)
+
+  useEffect(() => {
+    if (!addressId && addresses?.length) {
+      setAddressId(String(addresses[0].id))
+    }
+  }, [addressId, addresses])
+
+  const openAddressEditor = (address) => {
+    setEditingAddress(address)
+    setAddressForm({
+      title: address.title || '',
+      full_name: address.full_name || '',
+      phone: address.phone || '',
+      province: address.province || '',
+      city: address.city || '',
+      postal_code: address.postal_code || '',
+      address: address.address || '',
+      is_default: Number(address.is_default || 0),
+    })
+  }
+
+  const closeAddressEditor = () => {
+    setEditingAddress(null)
+    setAddressForm(emptyAddressForm)
+  }
+
+  const updateAddressForm = (field, value) => {
+    setAddressForm((current) => ({ ...current, [field]: value }))
+  }
+
+  const updateAddressMutation = useMutation({
+    mutationFn: ({ id, data }) => userService.updateAddress(id, data),
+    onSuccess: async (response) => {
+      const updatedAddress = response?.data?.data
+      await queryClient.invalidateQueries({ queryKey: ['addresses'] })
+      if (updatedAddress?.id) {
+        setAddressId(String(updatedAddress.id))
+      }
+      closeAddressEditor()
+      toast.success('Đã cập nhật địa chỉ giao hàng')
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Không thể cập nhật địa chỉ')
+    },
+  })
+
+  const saveAddress = (event) => {
+    event.preventDefault()
+    if (!editingAddress) return
+    if (!addressForm.full_name.trim() || !addressForm.phone.trim() || !addressForm.address.trim()) {
+      toast.error('Vui lòng nhập tên, số điện thoại và địa chỉ')
+      return
+    }
+    if (!/^\d{9,11}$/.test(addressForm.phone.replace(/\D/g, ''))) {
+      toast.error('Số điện thoại phải có 9-11 chữ số')
+      return
+    }
+    updateAddressMutation.mutate({
+      id: editingAddress.id,
+      data: {
+        ...addressForm,
+        phone: addressForm.phone.replace(/\D/g, ''),
+        is_default: addressForm.is_default ? 1 : 0,
+      },
+    })
+  }
   // ── BƯỚC 6 → mutation tạo đơn hàng ─────────────────────────────────────────
   // Được gọi 2 trường hợp:
   //   (a) COD/wallet: gọi trực tiếp từ submit() — không có otp_code
@@ -442,16 +525,81 @@ const Checkout = () => {
         />
       )}
 
+      {editingAddress && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={(event) => event.target === event.currentTarget && closeAddressEditor()}>
+          <form onSubmit={saveAddress} className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800">
+            <div className="mb-5 flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold">Sửa địa chỉ giao hàng</h2>
+                <p className="mt-1 text-sm text-gray-500">Địa chỉ này sẽ được dùng cho đơn hàng hiện tại sau khi lưu.</p>
+              </div>
+              <button type="button" className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700" onClick={closeAddressEditor} aria-label="Đóng">
+                <FiX />
+              </button>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <label>
+                <span className="mb-1 block text-sm font-semibold">Tên người nhận</span>
+                <input className="input" value={addressForm.full_name} onChange={(event) => updateAddressForm('full_name', event.target.value)} placeholder="Nguyen Van A" />
+              </label>
+              <label>
+                <span className="mb-1 block text-sm font-semibold">Số điện thoại</span>
+                <input className="input" value={addressForm.phone} onChange={(event) => updateAddressForm('phone', event.target.value.replace(/\D/g, '').slice(0, 11))} placeholder="0912345678" inputMode="numeric" />
+              </label>
+              <label>
+                <span className="mb-1 block text-sm font-semibold">Tỉnh/Thành phố</span>
+                <input className="input" value={addressForm.province} onChange={(event) => updateAddressForm('province', event.target.value)} placeholder="Ha Noi" />
+              </label>
+              <label>
+                <span className="mb-1 block text-sm font-semibold">Quận/Huyện</span>
+                <input className="input" value={addressForm.city} onChange={(event) => updateAddressForm('city', event.target.value)} placeholder="Tu Liem" />
+              </label>
+              <label>
+                <span className="mb-1 block text-sm font-semibold">Tên gợi nhớ</span>
+                <input className="input" value={addressForm.title} onChange={(event) => updateAddressForm('title', event.target.value)} placeholder="Nhà riêng" />
+              </label>
+              <label>
+                <span className="mb-1 block text-sm font-semibold">Mã bưu chính</span>
+                <input className="input" value={addressForm.postal_code} onChange={(event) => updateAddressForm('postal_code', event.target.value)} placeholder="100000" />
+              </label>
+              <label className="md:col-span-2">
+                <span className="mb-1 block text-sm font-semibold">Địa chỉ cụ thể</span>
+                <textarea className="input min-h-24" value={addressForm.address} onChange={(event) => updateAddressForm('address', event.target.value)} placeholder="Số nhà, đường, phường/xã" />
+              </label>
+            </div>
+
+            <label className="mt-4 flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={Boolean(addressForm.is_default)} onChange={(event) => updateAddressForm('is_default', event.target.checked ? 1 : 0)} />
+              Đặt làm địa chỉ mặc định
+            </label>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" className="btn btn-outline" onClick={closeAddressEditor}>Hủy</button>
+              <button type="submit" className="btn btn-primary" disabled={updateAddressMutation.isPending}>
+                {updateAddressMutation.isPending ? 'Đang lưu...' : 'Lưu địa chỉ'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           {/* ── Địa chỉ giao hàng ── */}
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6">
             <h1 className="text-2xl font-bold mb-4">Thanh toán</h1>
-            <h2 className="font-semibold mb-3">Địa chỉ giao hàng</h2>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="font-semibold">Địa chỉ giao hàng</h2>
+              
+            </div>
             {addresses?.length ? (
               <div className="space-y-3">
                 {addresses.map((address) => (
-                  <label key={address.id} className="flex gap-3 border dark:border-gray-700 rounded-lg p-4 cursor-pointer">
+                  <div
+                    key={address.id}
+                    className={`flex gap-3 border rounded-lg p-4 ${String(addressId) === String(address.id) ? 'border-primary-500 bg-primary-50/40 dark:bg-primary-900/10' : 'dark:border-gray-700'}`}
+                  >
                     <input
                       type="radio"
                       name="address"
@@ -459,11 +607,14 @@ const Checkout = () => {
                       checked={String(addressId) === String(address.id)}
                       onChange={(event) => setAddressId(event.target.value)}
                     />
-                    <span>
+                    <button type="button" className="flex-1 text-left" onClick={() => setAddressId(String(address.id))}>
                       <span className="font-medium block">{address.full_name} - {address.phone}</span>
                       <span className="text-sm text-gray-500">{address.address}, {address.city}, {address.province}</span>
-                    </span>
-                  </label>
+                    </button>
+                    <button type="button" className="self-start rounded-lg p-2 text-primary-600 hover:bg-primary-50 dark:hover:bg-gray-700" onClick={() => openAddressEditor(address)} aria-label="Sửa địa chỉ">
+                      <FiEdit2 />
+                    </button>
+                  </div>
                 ))}
               </div>
             ) : (

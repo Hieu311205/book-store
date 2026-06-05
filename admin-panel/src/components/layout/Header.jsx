@@ -12,6 +12,8 @@ const roleLabels = {
   content_editor: 'Biên tập viên nội dung',
 }
 
+const userInitial = (user) => (user?.first_name || user?.email || 'A').charAt(0).toUpperCase()
+
 const Header = ({ theme, toggleTheme }) => {
   const { user } = useAuth()
   const [open, setOpen] = useState(false)
@@ -73,9 +75,17 @@ const Header = ({ theme, toggleTheme }) => {
         </div>
 
         <div className="flex items-center gap-3 pr-4 border-r dark:border-gray-700">
-          <div className="w-8 h-8 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center">
-            <FiUser className="text-primary-600" size={16} />
-          </div>
+          {user?.avatar_url ? (
+            <img
+              src={user.avatar_url}
+              alt={user?.first_name || 'Avatar'}
+              className="w-8 h-8 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+            />
+          ) : (
+            <div className="w-8 h-8 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center">
+              <span className="text-sm font-semibold text-primary-600">{userInitial(user)}</span>
+            </div>
+          )}
           <div className="text-sm">
             <p className="font-medium">{user?.first_name} {user?.last_name}</p>
             <p className="text-gray-500 text-xs">{roleLabels[user?.role] || 'Quản trị viên'}</p>

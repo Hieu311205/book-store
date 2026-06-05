@@ -1,4 +1,4 @@
-import { FiPlus } from 'react-icons/fi'
+import { FiPlus, FiRefreshCw } from 'react-icons/fi'
 import ProductFilters from './components/ProductFilters'
 import ProductFormModal from './components/ProductFormModal'
 import ProductTable from './components/ProductTable'
@@ -15,9 +15,14 @@ const Products = () => {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Quản lý sách</h1>
-        {canManageProducts && <button onClick={products.openCreate} className="btn btn-primary">
-          <FiPlus size={16} /> Thêm sách
-        </button>}
+        <div className="flex items-center gap-2">
+          <button onClick={() => products.refetch()} disabled={products.isFetching} className="btn btn-outline">
+            <FiRefreshCw size={16} className={products.isFetching ? 'animate-spin' : ''} /> Làm mới
+          </button>
+          {canManageProducts && <button onClick={products.openCreate} className="btn btn-primary">
+            <FiPlus size={16} /> Thêm sách
+          </button>}
+        </div>
       </div>
 
       <ProductFilters
@@ -30,7 +35,6 @@ const Products = () => {
         setShowAdvanced={products.setShowAdvanced}
         hasFilters={products.hasFilters}
         isFetching={products.isFetching}
-        refetch={products.refetch}
         resetFilters={products.resetFilters}
         totalItems={products.totalItems}
         totalPages={products.totalPages}

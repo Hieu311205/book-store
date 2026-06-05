@@ -114,6 +114,13 @@ const Settings = () => {
           <input className="input" placeholder="Họ" value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
           <input className="input" placeholder="Số điện thoại" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           <div className="space-y-2">
+            {form.avatar_url && (
+              <img
+                src={form.avatar_url}
+                alt="Ảnh đại diện"
+                className="h-20 w-20 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+              />
+            )}
             <button
               type="button"
               className="btn btn-outline"

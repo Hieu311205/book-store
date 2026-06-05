@@ -238,6 +238,13 @@ const Settings = () => {
           </label>
           <label className="space-y-1 md:col-span-2">
             <span className="text-sm font-medium">Ảnh đại diện URL</span>
+            {accountForm.avatar_url && (
+              <img
+                src={accountForm.avatar_url}
+                alt="Ảnh đại diện"
+                className="h-20 w-20 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+              />
+            )}
             <button
               type="button"
               className="btn btn-outline w-fit"

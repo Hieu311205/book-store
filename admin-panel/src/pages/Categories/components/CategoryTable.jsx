@@ -84,14 +84,13 @@ const CategoryTable = ({
               <th>Ảnh</th>
               <th>Tên danh mục</th>
               <th>Sách</th>
-              <th>Thứ tự</th>
               <th>Trạng thái</th>
               <th className="text-right">Thao tác</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={6} className="text-center py-8">Đang tải...</td></tr>
+              <tr><td colSpan={5} className="text-center py-8">Đang tải...</td></tr>
             ) : visibleCategories.length ? visibleCategories.map((item) => {
             const depth = Number(item.depth || 0)
             const hasChildren = Boolean(childCountByParent[Number(item.id)])
@@ -124,7 +123,6 @@ const CategoryTable = ({
                   {item.name_en && <div className="text-xs text-gray-500" style={{ paddingLeft: `${depth * 24 + 22}px` }}>{item.name_en}</div>}
                 </td>
                 <td>{item.product_count || 0}</td>
-                <td>{item.sort_order}</td>
                 <td>
                   <span className={`badge ${Number(item.is_active) ? 'badge-success' : 'badge-danger'}`}>
                     {Number(item.is_active) ? 'Hiện' : 'Ẩn'}
@@ -139,7 +137,7 @@ const CategoryTable = ({
             )
             }) : (
               <tr>
-                <td colSpan={6} className="text-center py-8 text-gray-500">
+                <td colSpan={5} className="text-center py-8 text-gray-500">
                   {hasFilters ? 'Không tìm thấy danh mục phù hợp với bộ lọc' : 'Chưa có danh mục'}
                 </td>
               </tr>

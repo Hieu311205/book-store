@@ -1,4 +1,4 @@
-import { FiFilter, FiRefreshCw, FiSearch, FiX } from 'react-icons/fi'
+import { FiFilter, FiSearch, FiX } from 'react-icons/fi'
 import { getCategoryLabel, sortOptions, statusOptions } from '../utils/productHelpers'
 
 const ProductFilters = ({
@@ -11,7 +11,6 @@ const ProductFilters = ({
   setShowAdvanced,
   hasFilters,
   isFetching,
-  refetch,
   resetFilters,
   totalItems,
   totalPages,
@@ -45,10 +44,6 @@ const ProductFilters = ({
 
       <button onClick={() => setShowAdvanced((current) => !current)} className={`btn text-sm gap-1.5 ${showAdvanced ? 'btn-primary' : 'btn-outline'}`}>
         <FiFilter size={14} /> Nâng cao
-      </button>
-
-      <button onClick={() => refetch()} disabled={isFetching} className="btn btn-outline text-sm gap-1.5">
-        <FiRefreshCw size={14} className={isFetching ? 'animate-spin' : ''} /> Làm mới
       </button>
 
       {hasFilters && (
