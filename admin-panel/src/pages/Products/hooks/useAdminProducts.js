@@ -125,6 +125,10 @@ export const useAdminProducts = () => {
       const imageUrl = res.data?.image_url
       if (imageUrl) {
         setForm((current) => ({ ...current, image_url: imageUrl }))
+        setEditingProduct((current) => current
+          ? { ...current, images: [{ ...(current.images?.[0] || {}), image_url: imageUrl }] }
+          : current
+        )
       }
       if (editingProduct) invalidate()
       toast.success('Đã lưu ảnh bìa')
@@ -206,7 +210,11 @@ export const useAdminProducts = () => {
 
   const handleSubmit = (event) => {
     event.preventDefault()
-    const payload = buildPayload(form)
+    const payload = buildPayload({
+      ...form,
+      title: form.title || editingProduct?.title || '',
+      price: form.price || editingProduct?.price || 0,
+    })
     if (editingProduct) {
       updateMutation.mutate({ id: editingProduct.id, data: payload })
     } else {
@@ -215,10 +223,6 @@ export const useAdminProducts = () => {
   }
 
   const openCoverPicker = () => {
-    if (!form.category_id) {
-      toast.error('Vui lòng chọn danh mục trước khi chọn ảnh bìa')
-      return
-    }
     coverInputRef.current?.click()
   }
 
@@ -229,7 +233,9 @@ export const useAdminProducts = () => {
 
     const data = new FormData()
     data.append('cover', file)
-    data.append('category_id', form.category_id)
+    if (form.category_id) {
+      data.append('category_id', form.category_id)
+    }
     if (editingProduct?.id) {
       data.append('product_id', editingProduct.id)
     }

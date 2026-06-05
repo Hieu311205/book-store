@@ -10,7 +10,7 @@ const ProductFilters = ({
   showAdvanced,
   setShowAdvanced,
   hasFilters,
-  isFetching,
+  isFetching = false,
   resetFilters,
   totalItems,
   totalPages,

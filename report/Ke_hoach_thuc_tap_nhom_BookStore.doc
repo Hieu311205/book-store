@@ -1,0 +1,192 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Kế hoạch thực tập nhóm Book Store</title>
+<style>
+  body { font-family: "Times New Roman", serif; font-size: 13pt; line-height: 1.35; }
+  h1 { font-size: 20pt; text-align: center; margin-top: 18px; }
+  h2 { font-size: 16pt; margin-top: 18px; color: #1f2937; }
+  h3 { font-size: 14pt; margin-top: 14px; color: #374151; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; }
+  th, td { border: 1px solid #333; padding: 7px; vertical-align: top; }
+  th { background: #e5e7eb; font-weight: bold; text-align: center; }
+  .center { text-align: center; }
+  .note { font-style: italic; color: #374151; }
+</style>
+</head>
+<body>
+<h1>KẾ HOẠCH THỰC TẬP NHÓM<br>DỰ ÁN WEBSITE KINH DOANH SÁCH TRỰC TUYẾN</h1>
+<p><b>Đề tài:</b> Hệ thống Website kinh doanh sách trực tuyến (Online Bookstore / E-commerce for Books)</p>
+<p><b>Quy mô nhóm:</b> 3 thành viên</p>
+<p><b>Thời lượng đề xuất:</b> 6 tuần theo yêu cầu học phần Thực tập nhóm CNTT</p>
+<p><b>Mục tiêu tài liệu:</b> phân tích yêu cầu môn học, chia công việc theo tuần, xác định sản phẩm bàn giao, hỗ trợ viết báo cáo và thuyết trình.</p>
+
+<h2>1. Căn cứ từ tài liệu môn học</h2>
+<ul>
+<li>Dự án cần có sản phẩm demo chạy được, báo cáo tổng hợp và slide trình bày.</li>
+<li>Nhóm cần sử dụng GitHub để quản lý mã nguồn, Trello hoặc Jira để quản lý công việc, Google Drive để lưu tài liệu.</li>
+<li>Mỗi tuần cần họp nhóm định kỳ, có biên bản họp và cập nhật tiến độ.</li>
+<li>Mỗi thành viên phải có phần việc rõ ràng, hiểu phần mình làm và tham gia thuyết trình.</li>
+<li>Báo cáo cần trình bày: giới thiệu đề tài, tổ chức nhóm, kế hoạch theo tuần, quá trình thực hiện, kết quả, khó khăn, đánh giá nhóm và phụ lục.</li>
+</ul>
+
+<h2>2. Phân tích phạm vi dự án Book Store</h2>
+<p>Dự án là hệ thống thương mại điện tử chuyên bán sách. Hệ thống gồm hai phía chính: website khách hàng và trang quản trị. Các chức năng trong project gồm: quản lý sách, danh mục phân cấp, tác giả, nhà xuất bản, giỏ hàng, đặt hàng, thanh toán mô phỏng, ví điện tử, OTP email, đánh giá sách, đọc thử, kho, xuất nhập kho, báo cáo doanh thu và phân quyền.</p>
+<table>
+<tr><th>Phân hệ</th><th>Nội dung chính</th><th>Mục tiêu nghiệm thu</th></tr>
+<tr><td>Khách hàng</td><td>Trang chủ, danh sách sách, chi tiết sách, tìm kiếm, lọc danh mục, giỏ hàng, checkout, tài khoản, ví, đánh giá, wishlist.</td><td>Khách có thể tìm sách, mua hàng, thanh toán, xem đơn, đánh giá sau khi mua.</td></tr>
+<tr><td>Admin</td><td>Dashboard, quản lý sách, danh mục, tác giả, nhà xuất bản, đơn hàng, thanh toán, kho, người dùng, cài đặt.</td><td>Admin xử lý vận hành cửa hàng và theo dõi số liệu.</td></tr>
+<tr><td>Backend/API</td><td>Auth, OTP, CRUD, đơn hàng, thanh toán, kho, báo cáo, phân quyền.</td><td>API ổn định, đúng dữ liệu, có kiểm tra quyền.</td></tr>
+<tr><td>Database</td><td>Bảng users, products, categories, orders, payments, wallet, reviews, stock_movements, settings.</td><td>Migration chạy được, dữ liệu rõ ràng, đủ khóa ngoại/chỉ mục cần thiết.</td></tr>
+</table>
+
+<h2>3. Phân vai cho nhóm 3 người</h2>
+<table>
+<tr><th>Thành viên</th><th>Vai trò chính</th><th>Phạm vi phụ trách</th><th>Kết quả cần chịu trách nhiệm</th></tr>
+<tr><td>Thành viên 1</td><td>Backend + Database</td><td>Thiết kế CSDL, API PHP, auth, OTP, đơn hàng, thanh toán, ví, phân quyền, migration.</td><td>API chạy ổn, DB đúng, luồng thanh toán/đơn hàng hoạt động.</td></tr>
+<tr><td>Thành viên 2</td><td>Frontend khách hàng</td><td>Giao diện website, trang chủ, sản phẩm, chi tiết sách, giỏ hàng, checkout, tài khoản, wishlist, review, responsive.</td><td>Khách hàng thao tác mua sách hoàn chỉnh, UI dễ dùng.</td></tr>
+<tr><td>Thành viên 3</td><td>Admin + QA + Báo cáo</td><td>Admin dashboard, quản lý sách/danh mục/tác giả/NXB/kho/đơn hàng, test, biên bản, báo cáo, slide.</td><td>Admin vận hành được, có test checklist, báo cáo và slide hoàn chỉnh.</td></tr>
+</table>
+<p class="note">Lưu ý: Mỗi người có phần chính nhưng vẫn cần review chéo. Thành viên backend review dữ liệu frontend gửi lên; thành viên frontend review trải nghiệm người dùng; thành viên admin/QA kiểm thử toàn bộ luồng.</p>
+
+<h2>4. Kế hoạch thực hiện chi tiết theo 6 tuần</h2>
+<h3>Tuần 1 - Khởi động, phân tích yêu cầu và thiết kế nền tảng</h3>
+<table>
+<tr><th>Người phụ trách</th><th>Công việc chi tiết</th><th>Sản phẩm bàn giao</th></tr>
+<tr><td>TV1 Backend/DB</td><td>Phân tích nghiệp vụ; xác định bảng dữ liệu chính; thiết kế ERD sơ bộ; chuẩn bị schema users, products, categories, orders, payments, reviews, stock.</td><td>Sơ đồ CSDL, danh sách bảng, migration khởi tạo.</td></tr>
+<tr><td>TV2 Frontend</td><td>Dựng layout website khách hàng; xác định route; làm header, footer, trang chủ khung; chuẩn hóa màu sắc và component chung.</td><td>Khung frontend khách hàng chạy được.</td></tr>
+<tr><td>TV3 Admin/QA</td><td>Dựng layout admin; sidebar; login admin; tạo Trello/Jira; tạo Google Drive; lập mẫu biên bản họp.</td><td>Admin layout, board công việc, biên bản họp tuần 1.</td></tr>
+<tr><td>Cả nhóm</td><td>Chốt phạm vi chức năng; thống nhất quy ước commit/branch; chia module; lập timeline.</td><td>Kế hoạch dự án, GitHub repo, Trello/Jira.</td></tr>
+</table>
+<p><b>Mốc nghiệm thu:</b> chạy được frontend/admin/backend cơ bản; có tài liệu phân tích và phân công.</p>
+
+<h3>Tuần 2 - Quản lý sách và dữ liệu thư viện</h3>
+<table>
+<tr><th>Người phụ trách</th><th>Công việc chi tiết</th><th>Sản phẩm bàn giao</th></tr>
+<tr><td>TV1 Backend/DB</td><td>Xây API sản phẩm, danh mục, tác giả, nhà xuất bản; upload ảnh bìa; tìm kiếm theo tên/tác giả/ISBN; phân cấp danh mục.</td><td>API CRUD sách/danh mục/tác giả/NXB.</td></tr>
+<tr><td>TV2 Frontend</td><td>Làm trang danh sách sách; chi tiết sách; lọc danh mục; tìm kiếm; hiển thị ảnh bìa, giá, tồn kho.</td><td>Trang sản phẩm khách hàng dùng được.</td></tr>
+<tr><td>TV3 Admin/QA</td><td>Làm admin quản lý sách, danh mục dạng cây, tác giả, nhà xuất bản; form thêm/sửa/xóa; phân trang.</td><td>CRUD admin hoàn chỉnh cho dữ liệu sách.</td></tr>
+<tr><td>Cả nhóm</td><td>Test CRUD và dữ liệu; nhập dữ liệu mẫu thực tế.</td><td>Dataset sách mẫu, checklist test tuần 2.</td></tr>
+</table>
+<p><b>Mốc nghiệm thu:</b> admin thêm/sửa/xóa sách được; khách hàng xem và tìm kiếm sách được.</p>
+
+<h3>Tuần 3 - Giỏ hàng, đặt hàng và địa chỉ giao hàng</h3>
+<table>
+<tr><th>Người phụ trách</th><th>Công việc chi tiết</th><th>Sản phẩm bàn giao</th></tr>
+<tr><td>TV1 Backend/DB</td><td>API giỏ hàng; API địa chỉ giao hàng; API tạo đơn hàng; tính phí vận chuyển; áp dụng coupon; trạng thái đơn.</td><td>Luồng order backend hoàn chỉnh.</td></tr>
+<tr><td>TV2 Frontend</td><td>Trang giỏ hàng; chọn tất cả sản phẩm; checkout; chọn/sửa địa chỉ giao hàng; chọn vận chuyển; ghi chú đơn.</td><td>Khách đặt hàng được từ giỏ hàng.</td></tr>
+<tr><td>TV3 Admin/QA</td><td>Trang quản lý đơn hàng; xem chi tiết đơn; đổi trạng thái đơn; kiểm thử luồng đặt hàng.</td><td>Admin xử lý đơn hàng được.</td></tr>
+<tr><td>Cả nhóm</td><td>Test các trường hợp: giỏ trống, hết hàng, sai địa chỉ, coupon không hợp lệ.</td><td>Biên bản test luồng đặt hàng.</td></tr>
+</table>
+<p><b>Mốc nghiệm thu:</b> khách hàng tạo đơn; admin nhìn thấy đơn và cập nhật trạng thái.</p>
+
+<h3>Tuần 4 - Thanh toán, ví điện tử, OTP và đánh giá</h3>
+<table>
+<tr><th>Người phụ trách</th><th>Công việc chi tiết</th><th>Sản phẩm bàn giao</th></tr>
+<tr><td>TV1 Backend/DB</td><td>Xây payment status pending/paid/failed/expired/refunded; OTP email; thanh toán QR; thanh toán thẻ mô phỏng; ví nạp/rút; bảo mật không lưu CVV/OTP sau giao dịch.</td><td>API thanh toán và ví hoạt động.</td></tr>
+<tr><td>TV2 Frontend</td><td>Giao diện chọn phương thức thanh toán; QR modal; form thẻ ngân hàng; OTP modal; ví điện tử; lịch sử thanh toán cá nhân.</td><td>Khách thanh toán mô phỏng được.</td></tr>
+<tr><td>TV3 Admin/QA</td><td>Trang lịch sử thanh toán admin; lọc/phân trang; test thanh toán thành công/thất bại/hết hạn; đánh giá sản phẩm sau mua.</td><td>Admin theo dõi thanh toán; review hoạt động đúng.</td></tr>
+<tr><td>Cả nhóm</td><td>Test toàn bộ luồng COD, QR, thẻ, ví; kiểm tra email OTP dev/prod.</td><td>Checklist thanh toán tuần 4.</td></tr>
+</table>
+<p><b>Mốc nghiệm thu:</b> các phương thức thanh toán mô phỏng chạy được, review chỉ áp dụng đúng sản phẩm đã mua.</p>
+
+<h3>Tuần 5 - Kho, báo cáo, preview sách và hoàn thiện chức năng</h3>
+<table>
+<tr><th>Người phụ trách</th><th>Công việc chi tiết</th><th>Sản phẩm bàn giao</th></tr>
+<tr><td>TV1 Backend/DB</td><td>API stock_movements; xuất/nhập/điều chỉnh kho; cảnh báo sắp hết hàng và tồn kho lâu; thống kê doanh thu theo thể loại/tác giả.</td><td>Backend kho và báo cáo.</td></tr>
+<tr><td>TV2 Frontend</td><td>Đọc thử sách bằng ảnh preview; modal chuyển ảnh; wishlist thông báo có hàng; hoàn thiện avatar và tài khoản.</td><td>Trải nghiệm khách hàng hoàn thiện.</td></tr>
+<tr><td>TV3 Admin/QA</td><td>Admin kho hàng; phiếu nhập/xuất/điều chỉnh; dashboard báo cáo; phân quyền role: super_admin, admin, warehouse_staff, content_editor.</td><td>Admin vận hành kho và phân quyền.</td></tr>
+<tr><td>Cả nhóm</td><td>Kiểm thử phân quyền; kiểm thử responsive; sửa lỗi UI/UX.</td><td>Bản demo gần hoàn chỉnh.</td></tr>
+</table>
+<p><b>Mốc nghiệm thu:</b> hệ thống có đủ chức năng chính và số liệu báo cáo.</p>
+
+<h3>Tuần 6 - Kiểm thử tổng thể, báo cáo, slide và demo</h3>
+<table>
+<tr><th>Người phụ trách</th><th>Công việc chi tiết</th><th>Sản phẩm bàn giao</th></tr>
+<tr><td>TV1 Backend/DB</td><td>Rà soát migration; kiểm tra lỗi API; chuẩn hóa dữ liệu demo; kiểm tra bảo mật token/quyền.</td><td>Backend ổn định trước demo.</td></tr>
+<tr><td>TV2 Frontend</td><td>Rà soát luồng khách hàng; fix lỗi responsive; chuẩn bị kịch bản demo khách mua sách.</td><td>Frontend demo mượt.</td></tr>
+<tr><td>TV3 Admin/QA</td><td>Viết báo cáo theo mẫu; làm slide; tổng hợp ảnh minh họa; chuẩn bị biên bản họp; test checklist cuối.</td><td>Báo cáo, slide, phụ lục, checklist.</td></tr>
+<tr><td>Cả nhóm</td><td>Tập thuyết trình; phân chia phần nói; chạy thử demo ít nhất 2 lần.</td><td>Bản nộp cuối cùng.</td></tr>
+</table>
+<p><b>Mốc nghiệm thu:</b> nộp GitHub, báo cáo, slide, demo chạy ổn định.</p>
+
+<h2>5. Backlog chức năng theo mức ưu tiên</h2>
+<table>
+<tr><th>Mức ưu tiên</th><th>Chức năng</th><th>Người chính</th><th>Ghi chú</th></tr>
+<tr><td>Bắt buộc</td><td>Đăng nhập/đăng ký/OTP/quên mật khẩu</td><td>TV1 + TV2</td><td>Cần demo được.</td></tr>
+<tr><td>Bắt buộc</td><td>Quản lý sách, danh mục, tác giả, NXB</td><td>TV1 + TV3</td><td>Là lõi của nhà sách.</td></tr>
+<tr><td>Bắt buộc</td><td>Tìm kiếm, lọc, chi tiết sách, giỏ hàng</td><td>TV2</td><td>Luồng khách hàng chính.</td></tr>
+<tr><td>Bắt buộc</td><td>Đặt hàng, địa chỉ, trạng thái đơn</td><td>TV1 + TV2 + TV3</td><td>Cần test kỹ.</td></tr>
+<tr><td>Bắt buộc</td><td>Admin quản lý đơn và sản phẩm</td><td>TV3</td><td>Cần phân quyền.</td></tr>
+<tr><td>Nâng cao</td><td>Thanh toán QR/thẻ/ví/OTP</td><td>TV1 + TV2</td><td>Mô phỏng nhưng phải logic.</td></tr>
+<tr><td>Nâng cao</td><td>Đọc thử sách, review, wishlist</td><td>TV2 + TV1</td><td>Tăng tính đúng yêu cầu đề tài.</td></tr>
+<tr><td>Nâng cao</td><td>Kho, xuất nhập kho, báo cáo doanh thu</td><td>TV3 + TV1</td><td>Hỗ trợ phần quản trị.</td></tr>
+<tr><td>Nâng cao</td><td>Combo khuyến mãi/back-in-stock</td><td>TV1 + TV2</td><td>Nếu còn thời gian.</td></tr>
+</table>
+
+<h2>6. Quy trình làm việc nhóm</h2>
+<ul>
+<li>GitHub: mỗi thành viên làm trên nhánh riêng, ví dụ feature/backend-orders, feature/frontend-checkout, feature/admin-products. Sau khi xong thì merge vào main.</li>
+<li>Commit message nên rõ ràng: Add product API, Update checkout form, Fix payment status.</li>
+<li>Trello/Jira: tạo task nhỏ, có deadline, người phụ trách, trạng thái Todo/Doing/Review/Done/Bug.</li>
+<li>Google Drive: lưu báo cáo, slide, ảnh chụp màn hình, biên bản họp, tài liệu yêu cầu.</li>
+<li>Họp nhóm: tối thiểu 1 lần/tuần. Mỗi buổi ghi thời gian, thành viên tham gia, việc đã làm, việc tuần tới, khó khăn.</li>
+</ul>
+
+<h2>7. Mẫu biên bản họp hằng tuần</h2>
+<table>
+<tr><th>Mục</th><th>Nội dung cần ghi</th></tr>
+<tr><td>Thời gian</td><td>Ngày, giờ họp.</td></tr>
+<tr><td>Thành viên tham gia</td><td>TV1, TV2, TV3.</td></tr>
+<tr><td>Việc đã hoàn thành</td><td>Liệt kê theo từng người.</td></tr>
+<tr><td>Khó khăn</td><td>Bug, thiếu dữ liệu, chưa hiểu yêu cầu, xung đột code.</td></tr>
+<tr><td>Kế hoạch tuần tới</td><td>Task cụ thể, người phụ trách, deadline.</td></tr>
+<tr><td>Kết luận</td><td>Những quyết định đã chốt.</td></tr>
+</table>
+
+<h2>8. Checklist nghiệm thu cuối dự án</h2>
+<ul>
+<li>Khách hàng đăng ký/đăng nhập được, có OTP khi cần.</li>
+<li>Khách hàng tìm sách theo tên, tác giả, ISBN và lọc theo danh mục.</li>
+<li>Khách hàng xem chi tiết sách, đọc thử, thêm giỏ hàng, đặt hàng.</li>
+<li>Thanh toán COD/QR/thẻ/ví mô phỏng có trạng thái rõ ràng.</li>
+<li>Khách hàng xem lịch sử đơn, đánh giá sách đã mua, quản lý wishlist.</li>
+<li>Admin quản lý sách, danh mục, tác giả, nhà xuất bản, đơn hàng, thanh toán.</li>
+<li>Admin quản lý kho, xuất/nhập/điều chỉnh kho, cảnh báo tồn kho.</li>
+<li>Dashboard có doanh thu, tồn kho, tác giả/thể loại được quan tâm.</li>
+<li>Phân quyền đúng vai trò: super_admin, admin, warehouse_staff, content_editor, customer.</li>
+<li>Báo cáo, slide, phụ lục GitHub/Drive/Trello/biên bản họp đầy đủ.</li>
+</ul>
+
+<h2>9. Phân chia thuyết trình</h2>
+<table>
+<tr><th>Thành viên</th><th>Nội dung trình bày</th><th>Demo nên thực hiện</th></tr>
+<tr><td>TV1</td><td>Kiến trúc backend, database, API, auth, OTP, thanh toán, bảo mật.</td><td>Gửi OTP, tạo đơn, đổi trạng thái payment.</td></tr>
+<tr><td>TV2</td><td>Giao diện khách hàng, tìm kiếm, danh mục, giỏ hàng, checkout, tài khoản.</td><td>Khách tìm sách, thêm giỏ, checkout, xem đơn.</td></tr>
+<tr><td>TV3</td><td>Admin dashboard, quản lý sách, kho, đơn hàng, báo cáo, phân quyền.</td><td>Admin thêm sách, nhập kho, xử lý đơn, xem báo cáo.</td></tr>
+</table>
+
+<h2>10. Rủi ro và cách xử lý</h2>
+<table>
+<tr><th>Rủi ro</th><th>Ảnh hưởng</th><th>Cách xử lý</th></tr>
+<tr><td>Không thống nhất dữ liệu giữa frontend và backend</td><td>Form gửi sai field, API lỗi.</td><td>Chốt API contract sớm, test bằng Postman/browser.</td></tr>
+<tr><td>Không cập nhật Trello/GitHub đều</td><td>Khó chứng minh đóng góp cá nhân.</td><td>Mỗi task phải có commit và trạng thái.</td></tr>
+<tr><td>Thanh toán/OTP lỗi cấu hình email</td><td>Demo bị gián đoạn.</td><td>Có chế độ dev_otp dự phòng, chuẩn bị tài khoản email trước.</td></tr>
+<tr><td>Xung đột code khi merge</td><td>Mất thời gian sửa.</td><td>Mỗi người làm module riêng, pull main thường xuyên.</td></tr>
+<tr><td>Thiếu thời gian viết báo cáo</td><td>Nộp thiếu tài liệu.</td><td>TV3 cập nhật báo cáo từ tuần 1, không để cuối kỳ.</td></tr>
+</table>
+
+<h2>11. Gợi ý cấu trúc báo cáo theo mẫu</h2>
+<ul>
+<li>Giới thiệu chung: lý do chọn đề tài, mục tiêu, phạm vi.</li>
+<li>Tổ chức nhóm: danh sách thành viên, vai trò, bảng phân công.</li>
+<li>Kế hoạch thực hiện: timeline 6 tuần và milestone.</li>
+<li>Quá trình thực hiện: công cụ dùng, ảnh Trello/GitHub, biên bản họp.</li>
+<li>Kết quả đạt được: liệt kê chức năng đã hoàn thành kèm ảnh/demo.</li>
+<li>Khó khăn và cách giải quyết: lỗi kỹ thuật, chia việc, test, merge code.</li>
+<li>Đánh giá nhóm: tự đánh giá và đánh giá từng thành viên.</li>
+<li>Phụ lục: link GitHub, link Drive, tài liệu thiết kế, biên bản họp.</li>
+</ul>
+</body>
+</html>

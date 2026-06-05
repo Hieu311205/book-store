@@ -754,6 +754,10 @@ function handleAdminProducts($method, $pathParts, $currentUser = null) {
         handleProductPreviewUpload((int)$pathParts[2]);
     }
 
+    if ($method === 'POST' && (($pathParts[2] ?? '') === 'cover')) {
+        handleProductCoverUpload();
+    }
+
     if ($method === 'PUT' && isset($pathParts[2]) && (($pathParts[3] ?? '') === 'previews') && isset($pathParts[4])) {
         updateProductPreviewImage((int)$pathParts[2], (int)$pathParts[4]);
     }
@@ -955,6 +959,137 @@ function savePrimaryProductImage($productId, $imageUrl, $title = null) {
         'sort_order' => 0,
         'is_primary' => 1,
     ]);
+}
+
+function handleProductCoverUpload() {
+    $categoryId = (int)($_POST['category_id'] ?? 0);
+    $productId = (int)($_POST['product_id'] ?? 0);
+
+    if (empty($_FILES['cover']) || !is_uploaded_file($_FILES['cover']['tmp_name'])) {
+        jsonResponse(['success' => false, 'message' => 'Vui long chon file anh bia'], 400);
+    }
+
+    if ($categoryId <= 0 && $productId > 0) {
+        $productCategory = queryOne("SELECT category_id FROM products WHERE id = ?", [$productId]);
+        $categoryId = (int)($productCategory['category_id'] ?? 0);
+    }
+
+    $category = $categoryId > 0
+        ? queryOne("SELECT id, parent_id, name, name_en FROM categories WHERE id = ?", [$categoryId])
+        : null;
+
+    $file = $_FILES['cover'];
+    $maxSize = 5 * 1024 * 1024;
+    if (($file['size'] ?? 0) > $maxSize) {
+        jsonResponse(['success' => false, 'message' => 'Anh bia khong duoc vuot qua 5MB'], 400);
+    }
+
+    $extension = strtolower(pathinfo($file['name'] ?? '', PATHINFO_EXTENSION));
+    if (!in_array($extension, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+        jsonResponse(['success' => false, 'message' => 'Chi ho tro anh JPG, PNG hoac WEBP'], 400);
+    }
+
+    $imageInfo = @getimagesize($file['tmp_name']);
+    if (!$imageInfo || strpos((string)$imageInfo['mime'], 'image/') !== 0) {
+        jsonResponse(['success' => false, 'message' => 'File tai len khong phai anh hop le'], 400);
+    }
+
+    $folderUrl = createProductCoverFolders($categoryId, $category);
+    $baseName = slugifyText(pathinfo($file['name'] ?? '', PATHINFO_FILENAME));
+    if ($baseName === '') {
+        $baseName = 'cover';
+    }
+
+    $fileName = $baseName . '-' . date('YmdHis') . '.' . $extension;
+    $relativePath = trim($folderUrl, '/') . '/' . $fileName;
+    $root = dirname(__DIR__, 4);
+    $adminTarget = $root . DIRECTORY_SEPARATOR . 'admin-panel' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+    $frontendTarget = $root . DIRECTORY_SEPARATOR . 'frontend' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+
+    foreach ([dirname($adminTarget), dirname($frontendTarget)] as $dir) {
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true)) {
+            jsonResponse(['success' => false, 'message' => 'Khong the tao thu muc luu anh bia'], 500);
+        }
+    }
+
+    if (!move_uploaded_file($file['tmp_name'], $adminTarget)) {
+        jsonResponse(['success' => false, 'message' => 'Khong the luu anh bia'], 500);
+    }
+
+    if (!@copy($adminTarget, $frontendTarget)) {
+        @unlink($adminTarget);
+        jsonResponse(['success' => false, 'message' => 'Khong the dong bo anh sang frontend'], 500);
+    }
+
+    $imageUrl = '/' . str_replace('\\', '/', $relativePath);
+    if ($productId > 0) {
+        $product = queryOne("SELECT id, title FROM products WHERE id = ?", [$productId]);
+        if ($product) {
+            savePrimaryProductImage($productId, $imageUrl, $product['title']);
+        }
+    }
+
+    jsonResponse([
+        'success' => true,
+        'message' => 'Da tai anh bia',
+        'data' => [
+            'image_url' => $imageUrl,
+            'folder' => $folderUrl,
+        ],
+    ]);
+}
+
+function createProductCoverFolders($categoryId = 0, $category = null) {
+    $segments = getProductCoverCategorySegments($categoryId, $category);
+    if (!$segments) {
+        $segments = ['products'];
+    }
+
+    $root = dirname(__DIR__, 4);
+    $relativePath = 'images/covers/' . implode('/', $segments);
+    $targets = [
+        $root . DIRECTORY_SEPARATOR . 'admin-panel' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath),
+        $root . DIRECTORY_SEPARATOR . 'frontend' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath),
+    ];
+
+    foreach ($targets as $target) {
+        if (!is_dir($target) && !@mkdir($target, 0775, true)) {
+            jsonResponse(['success' => false, 'message' => 'Khong the tao thu muc luu anh bia'], 500);
+        }
+        $keepFile = $target . DIRECTORY_SEPARATOR . '.gitkeep';
+        if (!file_exists($keepFile)) {
+            @file_put_contents($keepFile, '');
+        }
+    }
+
+    return '/' . str_replace('\\', '/', $relativePath) . '/';
+}
+
+function getProductCoverCategorySegments($categoryId = 0, $category = null) {
+    if ($categoryId <= 0 && !$category) {
+        return [];
+    }
+
+    $segments = [];
+    $current = $category ?: queryOne("SELECT id, parent_id, name, name_en FROM categories WHERE id = ?", [$categoryId]);
+    $guard = 0;
+
+    while ($current && $guard < 10) {
+        $sourceName = $current['name_en'] ?: $current['name'] ?: 'category';
+        $slug = preg_replace('/[^a-z0-9-]/', '', strtolower(slugifyText($sourceName)));
+        $slug = trim($slug, '-');
+        if ($slug !== '') {
+            array_unshift($segments, $slug);
+        }
+
+        $parentId = (int)($current['parent_id'] ?? 0);
+        $current = $parentId > 0
+            ? queryOne("SELECT id, parent_id, name, name_en FROM categories WHERE id = ?", [$parentId])
+            : null;
+        $guard++;
+    }
+
+    return $segments;
 }
 
 function ensureProductPreviewTable() {

@@ -1,17 +1,54 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { orderService } from '../../../../services/order.service'
+import { settingsService } from '../../../../services/settings.service'
 import { formatPrice } from '../../../../utils/formatPrice'
 import { paymentMethodText } from '../utils/orderStatus'
 import { OrderStatusBadge, PaymentStatusText } from './OrderStatusBadge'
 
+const getExpiryTime = (payment) => {
+  if (payment?.expires_at_unix) return Number(payment.expires_at_unix) * 1000
+  if (payment?.expires_at) return new Date(payment.expires_at).getTime()
+  return 0
+}
+
 const OrderDetailModal = ({ orderId, onClose }) => {
+  const [showQrModal, setShowQrModal] = useState(false)
+  const [remainingSeconds, setRemainingSeconds] = useState(0)
+
   const { data: order, isLoading } = useQuery({
     queryKey: ['order-detail', orderId],
     queryFn: () => orderService.getOrderById(orderId),
     select: (res) => res.data,
     staleTime: 0,
   })
+
+  const canShowBankQr = order?.payment_method === 'bank_transfer' && order?.payment_status === 'pending'
+
+  const { data: shopSettings } = useQuery({
+    queryKey: ['public-settings'],
+    queryFn: settingsService.getSettings,
+    select: (res) => res.data,
+    staleTime: 60000,
+    enabled: canShowBankQr,
+  })
+
+  useEffect(() => {
+    if (!canShowBankQr) {
+      setShowQrModal(false)
+      return undefined
+    }
+
+    const updateRemaining = () => {
+      const expiryTime = getExpiryTime(order?.payment)
+      setRemainingSeconds(expiryTime ? Math.max(0, Math.floor((expiryTime - Date.now()) / 1000)) : 0)
+    }
+
+    updateRemaining()
+    const timer = setInterval(updateRemaining, 1000)
+    return () => clearInterval(timer)
+  }, [canShowBankQr, order?.payment])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -32,6 +69,16 @@ const OrderDetailModal = ({ orderId, onClose }) => {
               <div className="flex justify-between"><span className="text-gray-500">Thanh toán</span><PaymentStatusText status={order.payment_status} /></div>
               <div className="flex justify-between"><span className="text-gray-500">Phương thức</span><span>{paymentMethodText[order.payment_method] || order.payment_method}</span></div>
             </div>
+
+            {canShowBankQr && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm dark:border-blue-700 dark:bg-blue-900/20">
+                <p className="font-semibold text-blue-800 dark:text-blue-300">Thanh toán bằng chuyển khoản QR</p>
+                <p className="mt-1 text-blue-700 dark:text-blue-300">Bạn có thể mở lại mã QR nếu chưa chuyển khoản cho đơn này.</p>
+                <button type="button" className="btn btn-primary btn-sm mt-3 w-full justify-center" onClick={() => setShowQrModal(true)}>
+                  Mở mã QR thanh toán
+                </button>
+              </div>
+            )}
 
             {['shipped', 'delivered'].includes(order.status) && (
               <Link to={`/shipping?order_id=${order.id}`} className="btn btn-outline btn-sm w-full justify-center">
@@ -81,6 +128,84 @@ const OrderDetailModal = ({ orderId, onClose }) => {
           <div className="p-8 text-center text-gray-400">Không tìm thấy đơn hàng</div>
         )}
       </div>
+
+      {showQrModal && canShowBankQr && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
+          onClick={(event) => event.target === event.currentTarget && setShowQrModal(false)}
+        >
+          <section className="w-full max-w-md overflow-hidden rounded-lg bg-white shadow-2xl dark:bg-gray-800">
+            <header className="relative border-b border-gray-200 px-5 py-4 text-center dark:border-gray-700">
+              <h2 className="font-bold">Mã QR thanh toán</h2>
+              <button
+                type="button"
+                className="absolute right-4 top-3 text-2xl leading-none text-gray-400 hover:text-gray-700 dark:hover:text-white"
+                aria-label="Đóng"
+                onClick={() => setShowQrModal(false)}
+              >
+                &times;
+              </button>
+            </header>
+
+            <div className="p-5">
+              <div className="rounded-lg border-4 border-blue-100 bg-white p-4 text-gray-700">
+                <p className="mb-3 text-center text-xs font-semibold text-gray-500">Mở ứng dụng ngân hàng để quét mã QR</p>
+                {shopSettings?.bank_qr_image ? (
+                  <img
+                    src={shopSettings.bank_qr_image}
+                    alt="Mã QR chuyển khoản"
+                    className="mx-auto h-52 w-52 object-contain"
+                  />
+                ) : (
+                  <div className="flex h-52 items-center justify-center text-center text-sm text-gray-500">
+                    Chưa cấu hình ảnh QR trong phần cài đặt.
+                  </div>
+                )}
+
+                <dl className="mt-4 space-y-2 text-sm">
+                  {shopSettings?.bank_name && (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-gray-500">Ngân hàng:</dt>
+                      <dd className="font-bold">{shopSettings.bank_name}</dd>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-gray-500">Số tiền:</dt>
+                    <dd className="font-bold">{formatPrice(order.total_amount)} đ</dd>
+                  </div>
+                  {shopSettings?.bank_account_name && (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-gray-500">Tên chủ TK:</dt>
+                      <dd className="text-right font-bold">{shopSettings.bank_account_name}</dd>
+                    </div>
+                  )}
+                  {shopSettings?.bank_account_number && (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-gray-500">Số TK:</dt>
+                      <dd className="font-mono font-bold">{shopSettings.bank_account_number}</dd>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-gray-500">Nội dung CK:</dt>
+                    <dd className="font-mono font-bold">{order.order_number}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              <p className={`mt-4 text-center text-sm font-semibold ${remainingSeconds > 0 ? 'text-blue-700 dark:text-blue-300' : 'text-red-600'}`}>
+                {remainingSeconds > 0
+                  ? `QR hết hạn sau ${String(Math.floor(remainingSeconds / 60)).padStart(2, '0')}:${String(remainingSeconds % 60).padStart(2, '0')}`
+                  : 'QR đã hết hạn. Vui lòng tạo đơn mới nếu chưa chuyển khoản.'}
+              </p>
+              {getExpiryTime(order.payment) > 0 && (
+                <p className="mt-1 text-center text-xs text-gray-500">
+                  Thời hạn thanh toán: {new Date(getExpiryTime(order.payment)).toLocaleString('vi-VN')}
+                </p>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   )
 }
